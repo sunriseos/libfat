@@ -1,0 +1,13 @@
+[package]
+name = "kfs_libfs"
+version = "0.1.0"
+authors = ["Thog <me@thog.eu>"]
+edition = "2018"
+
+[dependencies]
+byteorder = "1.0"
+bitflags = "1.0"
+
+[[bin]]
+name = "test_std"
+path = "src/bin/test_std.rs"
