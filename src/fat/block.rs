@@ -18,6 +18,7 @@ pub struct BlockCount(pub u32);
 
 impl Block {
     pub const LEN: usize = 512;
+    pub const LEN_U32: u32 = Self::LEN as u32;
 
     pub fn new() -> Block {
         Block { contents: [0u8; Self::LEN] }
