@@ -1,5 +1,6 @@
 
 pub mod block;
+pub mod directory;
 
 use block::{Block, BlockCount, BlockDevice, BlockIndex};
 
@@ -19,6 +20,14 @@ pub struct FatFileSystem<T> where T: BlockDevice {
 impl<T> FatFileSystem<T> where T: BlockDevice {
     fn new(block_device: T, partition_start: BlockIndex, first_data_offset: BlockIndex, partition_block_count: BlockCount, boot_record: FatVolumeBootRecord) -> FatFileSystem<T> {
         FatFileSystem { block_device, partition_start, first_data_offset, partition_block_count, boot_record}
+    }
+
+    fn init(&self) {
+        // TODO: check fs info struct
+    }
+
+    fn get_root_directory() -> directory::DirectoryEntry {
+        unimplemented!()
     }
 }
 
@@ -132,6 +141,10 @@ impl FatVolumeBootRecord {
         LittleEndian::read_u32(&self.data[36..40])
     }
 
+    pub fn fs_info_block(&self) -> u16 {
+        LittleEndian::read_u16(&self.data[48..50])
+    }
+
     pub fn fat_size(&self) -> u32 {
         let result = self.fat_size16() as u32;
         if result != 0 {
@@ -155,7 +168,6 @@ impl FatVolumeBootRecord {
 fn parse_fat_boot_record<T>(block_device: T, partition_start: BlockIndex, partition_block_count: BlockCount) -> Result<FatFileSystem<T>, FileSystemError> where T: BlockDevice {
     let mut blocks = [Block::new()];
 
-
     block_device.read(&mut blocks, partition_start).or(Err(FileSystemError::ReadFailed))?;
 
     let block = &blocks[0];
@@ -170,7 +182,9 @@ fn parse_fat_boot_record<T>(block_device: T, partition_start: BlockIndex, partit
         FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::ExFat => unimplemented!(),
         FatFsType::Fat32 => {
             let first_data_block = BlockIndex(u32::from(boot_record.reserved_block_count()) + (u32::from(boot_record.fats_count()) * boot_record.fat_size()));
-            Ok(FatFileSystem::new(block_device, partition_start, first_data_block, partition_block_count, boot_record))
+            let file_system = FatFileSystem::new(block_device, partition_start, first_data_block, partition_block_count, boot_record);
+            file_system.init();
+            Ok(file_system)
         }
     }
 }
@@ -213,6 +227,4 @@ pub fn get_partition<T>(block_device: T, index : BlockIndex) -> Result<FatFileSy
             Err(FileSystemError::UnknownPartitionFormat {partition_type})
         }
     }
-
-    
 }
