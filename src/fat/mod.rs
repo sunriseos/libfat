@@ -1,10 +1,12 @@
-
 pub mod block;
+pub mod cluster;
 pub mod directory;
 
 use block::{Block, BlockCount, BlockDevice, BlockIndex};
 
 use byteorder::{ByteOrder, LittleEndian};
+
+use cluster::Cluster;
 
 use crate::FileSystemError;
 
@@ -26,7 +28,7 @@ impl<T> FatFileSystem<T> where T: BlockDevice {
         // TODO: check fs info struct
     }
 
-    fn get_root_directory() -> directory::DirectoryEntry {
+    fn get_root_directory() -> directory::Directory {
         unimplemented!()
     }
 }
@@ -83,6 +85,11 @@ impl FatVolumeBootRecord {
 
         // check system identifier
         if &self.data[SYSTEM_IDENTIFIER_FAT..SYSTEM_IDENTIFIER_FAT + 3] != [0x46, 0x41, 0x54] && &self.data[SYSTEM_IDENTIFIER_FAT32..SYSTEM_IDENTIFIER_FAT32 + 5] != [0x46, 0x41, 0x54, 0x33, 0x32] {
+            return false;
+        }
+
+        // TODO: bytes per block that are > to 512 bytes.
+        if self.bytes_per_block() != 512 {
             return false;
         }
 
@@ -145,6 +152,10 @@ impl FatVolumeBootRecord {
         LittleEndian::read_u16(&self.data[48..50])
     }
 
+    pub fn root_dir_childs_cluster(&self) -> Cluster {
+        Cluster(LittleEndian::read_u32(&self.data[44..48]))
+    }
+
     pub fn fat_size(&self) -> u32 {
         let result = self.fat_size16() as u32;
         if result != 0 {
@@ -187,6 +198,10 @@ fn parse_fat_boot_record<T>(block_device: T, partition_start: BlockIndex, partit
             Ok(file_system)
         }
     }
+}
+
+pub fn get_raw_partition<T>(block_device: T) -> Result<FatFileSystem<T>, FileSystemError> where T: BlockDevice {
+    parse_fat_boot_record(block_device, BlockIndex(0), BlockCount(0))
 }
 
 pub fn get_partition<T>(block_device: T, index : BlockIndex) -> Result<FatFileSystem<T>, FileSystemError> where T: BlockDevice {

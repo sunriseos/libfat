@@ -1,5 +1,5 @@
+use crate::fat::cluster::Cluster;
 
-
-pub struct DirectoryEntry {
-    
+pub struct Directory {
+    pub cluster: Cluster,
 }
