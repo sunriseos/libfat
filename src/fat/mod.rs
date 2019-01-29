@@ -1,6 +1,7 @@
 pub mod block;
 pub mod cluster;
 pub mod directory;
+pub mod table;
 
 use block::{Block, BlockCount, BlockDevice, BlockIndex};
 
@@ -11,7 +12,7 @@ use cluster::Cluster;
 use crate::FileSystemError;
 
 
-pub struct FatFileSystem<T> where T: BlockDevice {
+pub struct FatFileSystem<T> {
     block_device: T,
     partition_start: BlockIndex,
     first_data_offset: BlockIndex,
@@ -28,8 +29,16 @@ impl<T> FatFileSystem<T> where T: BlockDevice {
         // TODO: check fs info struct
     }
 
-    fn get_root_directory() -> directory::Directory {
+    fn read_blocks(&self, blocks: &mut [Block], index: BlockIndex) -> block::Result<()> {
         unimplemented!()
+    }
+
+    fn write_blocks(&self, blocks: &[Block], index: BlockIndex) -> block::Result<()> {
+        unimplemented!()
+    }
+
+    pub fn get_root_directory(&self) -> directory::Directory<T> {
+        directory::Directory { cluster: self.boot_record.root_dir_childs_cluster(), fs: self}
     }
 }
 
@@ -50,8 +59,8 @@ impl FatVolumeBootRecord {
         let mut res = FatVolumeBootRecord { data, fat_type: FatFsType::Fat12 };
 
         let root_dir_blocks = ((u32::from(res.root_dir_childs_count()) * 32)
-            + (Block::LEN_U32 - 1))
-            / Block::LEN_U32;
+            + (res.bytes_per_block() as u32 - 1))
+            / res.bytes_per_block() as u32;
         let data_blocks = res.total_blocks()
             - (u32::from(res.reserved_block_count())
                 + (u32::from(res.fats_count()) * res.fat_size())
@@ -192,8 +201,12 @@ fn parse_fat_boot_record<T>(block_device: T, partition_start: BlockIndex, partit
     match boot_record.fat_type {
         FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::ExFat => unimplemented!(),
         FatFsType::Fat32 => {
-            let first_data_block = BlockIndex(u32::from(boot_record.reserved_block_count()) + (u32::from(boot_record.fats_count()) * boot_record.fat_size()));
-            let file_system = FatFileSystem::new(block_device, partition_start, first_data_block, partition_block_count, boot_record);
+            let root_dir_blocks = ((u32::from(boot_record.root_dir_childs_count()) * 32)
+                + (boot_record.bytes_per_block() as u32 - 1))
+                / boot_record.bytes_per_block() as u32;
+            //FirstDataSector = BPB_ResvdSecCnt + (BPB_NumFATs * FATSz) + RootDirSectors;
+            let first_data_sector = boot_record.reserved_block_count() as u32 + (boot_record.fats_count() as u32 * boot_record.fat_size());
+            let file_system = FatFileSystem::new(block_device, partition_start, BlockIndex(first_data_sector), partition_block_count, boot_record);
             file_system.init();
             Ok(file_system)
         }
