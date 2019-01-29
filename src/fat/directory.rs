@@ -11,6 +11,6 @@ pub struct Directory<'a, T: BlockDevice> {
 impl<'a, T> Directory<'a, T> where T: BlockDevice {
     pub fn test(&self) {
         let cluster_count = table::get_cluster_count(&self.fs, &self.cluster);
-        info!("Hello World\n");
+        info!("Cluster: 0x{:x}, count: 0x{:x}\n", self.cluster.0, cluster_count.unwrap());
     }
 }

@@ -162,7 +162,7 @@ impl FatVolumeBootRecord {
     }
 
     pub fn root_dir_childs_cluster(&self) -> Cluster {
-        Cluster(LittleEndian::read_u32(&self.data[44..48]))
+        Cluster(LittleEndian::read_u32(&self.data[44..48]) + 2)
     }
 
     pub fn fat_size(&self) -> u32 {
@@ -204,7 +204,6 @@ fn parse_fat_boot_record<T>(block_device: T, partition_start: BlockIndex, partit
             let root_dir_blocks = ((u32::from(boot_record.root_dir_childs_count()) * 32)
                 + (boot_record.bytes_per_block() as u32 - 1))
                 / boot_record.bytes_per_block() as u32;
-            //FirstDataSector = BPB_ResvdSecCnt + (BPB_NumFATs * FATSz) + RootDirSectors;
             let first_data_sector = boot_record.reserved_block_count() as u32 + (boot_record.fats_count() as u32 * boot_record.fat_size());
             let file_system = FatFileSystem::new(block_device, partition_start, BlockIndex(first_data_sector), partition_block_count, boot_record);
             file_system.init();
