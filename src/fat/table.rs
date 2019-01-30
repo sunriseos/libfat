@@ -17,8 +17,9 @@ impl FatValue {
     pub fn get<T>(fs: &FatFileSystem<T>, cluster: &Cluster) -> Result<FatValue, FileSystemError> where T: BlockDevice {
         let mut blocks = [Block::new()];
 
-        let cluster_block_index = BlockIndex(fs.partition_start.0 + fs.boot_record.reserved_block_count() as u32 + ((cluster.0 * 4) / Block::LEN_U32));
-        let cluster_offset = ((cluster.0 * 4) % Block::LEN_U32) as usize;
+        let fat_offset = cluster.0 * 4;
+        let cluster_block_index = BlockIndex(fs.partition_start.0 + fs.first_data_offset.0 + (fat_offset / Block::LEN_U32));
+        let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
 
         fs.block_device.read(&mut blocks, cluster_block_index).or(Err(FileSystemError::ReadFailed))?;
 
@@ -33,7 +34,7 @@ impl FatValue {
             n => FatValue::Data(n as u32)
         };
 
-        info!("{:?}", res);
+        info!("{:?} 0x{:x}", res, cluster.0);
         Ok(res)
     }
 }
