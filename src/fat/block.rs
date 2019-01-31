@@ -1,13 +1,13 @@
 #[derive(Debug)]
 pub enum Error {
-    Unknown
+    Unknown,
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Clone)]
 pub struct Block {
-    pub contents: [u8; Block::LEN]
+    pub contents: [u8; Block::LEN],
 }
 
 #[derive(Copy, Clone)]
@@ -21,7 +21,9 @@ impl Block {
     pub const LEN_U32: u32 = Self::LEN as u32;
 
     pub fn new() -> Block {
-        Block { contents: [0u8; Self::LEN] }
+        Block {
+            contents: [0u8; Self::LEN],
+        }
     }
 
     pub fn as_contents(&self) -> [u8; Block::LEN] {
@@ -54,7 +56,7 @@ impl BlockCount {
     }
 }
 
-pub trait BlockDevice : Sized {
+pub trait BlockDevice: Sized {
     fn read(&self, blocks: &mut [Block], index: BlockIndex) -> Result<()>;
     fn write(&self, blocks: &[Block], index: BlockIndex) -> Result<()>;
     fn count(&self) -> Result<BlockCount>;

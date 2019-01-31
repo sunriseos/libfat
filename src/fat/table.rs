@@ -1,6 +1,6 @@
-use crate::fat::FatFileSystem;
 use crate::fat::Cluster;
-use crate::fat::{Block, BlockIndex, BlockDevice};
+use crate::fat::FatFileSystem;
+use crate::fat::{Block, BlockDevice, BlockIndex};
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::FileSystemError;
@@ -16,23 +16,29 @@ pub enum FatValue {
 pub struct FatClusterIter<'a, T> {
     fs: &'a FatFileSystem<T>,
     current_cluster: Cluster,
-    last_fat: FatValue,
+    last_fat: Option<FatValue>,
     is_end: bool,
 }
 
-impl <'a, T> FatClusterIter<'a, T> where T: BlockDevice {
-    pub fn new(fs: &'a FatFileSystem<T>, cluster: &Cluster) -> Result<FatClusterIter<'a, T>, FileSystemError> {
-        let fat_value = FatValue::get(fs, &cluster)?;
-        Ok(FatClusterIter {
+impl<'a, T> FatClusterIter<'a, T>
+where
+    T: BlockDevice,
+{
+    pub fn new(fs: &'a FatFileSystem<T>, cluster: &Cluster) -> FatClusterIter<'a, T> {
+        let fat_value = FatValue::get(fs, &cluster).ok();
+        FatClusterIter {
             fs,
             current_cluster: Cluster(cluster.0),
             last_fat: fat_value,
-            is_end: false
-        })
+            is_end: false,
+        }
     }
 }
 
-impl<'a, T> Iterator for FatClusterIter<'a, T> where T: BlockDevice {
+impl<'a, T> Iterator for FatClusterIter<'a, T>
+where
+    T: BlockDevice,
+{
     type Item = Cluster;
     fn next(&mut self) -> Option<Cluster> {
         if self.is_end {
@@ -42,43 +48,48 @@ impl<'a, T> Iterator for FatClusterIter<'a, T> where T: BlockDevice {
         let res = self.current_cluster.0;
 
         match self.last_fat {
-            FatValue::Data(data) => {
+            Some(FatValue::Data(data)) => {
                 self.current_cluster = Cluster(data);
+                self.last_fat = FatValue::get(&self.fs, &self.current_cluster).ok();
             }
             _ => {
                 self.is_end = true;
             }
         };
-        
+
         Some(Cluster(res))
     }
 }
 
 impl FatValue {
-
     pub fn from_u32(val: u32) -> FatValue {
         match val {
             0 => FatValue::Free,
             0x0FFFFFF7 => FatValue::Bad,
             0x0FFFFFF8...0x0FFFFFFF => FatValue::EndOfChain,
-            n => FatValue::Data(n as u32)
+            n => FatValue::Data(n as u32),
         }
     }
 
     pub fn from_block(block: &Block, cluster_offset: usize) -> FatValue {
-        let val = LittleEndian::read_u32(&block[cluster_offset..cluster_offset+4]) & 0x0FFFFFFF;
+        let val = LittleEndian::read_u32(&block[cluster_offset..cluster_offset + 4]) & 0x0FFFFFFF;
 
         FatValue::from_u32(val)
     }
 
-    pub fn get<T>(fs: &FatFileSystem<T>, cluster: &Cluster) -> Result<FatValue, FileSystemError> where T: BlockDevice {
+    pub fn get<T>(fs: &FatFileSystem<T>, cluster: &Cluster) -> Result<FatValue, FileSystemError>
+    where
+        T: BlockDevice,
+    {
         let mut blocks = [Block::new()];
 
         let fat_offset = cluster.to_fat_offset();
         let cluster_block_index = cluster.to_fat_block_index(fs);
         let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
 
-        fs.block_device.read(&mut blocks, cluster_block_index).or(Err(FileSystemError::ReadFailed))?;
+        fs.block_device
+            .read(&mut blocks, cluster_block_index)
+            .or(Err(FileSystemError::ReadFailed))?;
 
         let res = FatValue::from_block(&blocks[0], cluster_offset);
 
@@ -86,8 +97,13 @@ impl FatValue {
     }
 }
 
-
-pub fn get_cluster_count<T>(fs: &FatFileSystem<T>, cluster: &Cluster) -> Result<u32, FileSystemError> where T: BlockDevice {
+pub fn get_cluster_count<T>(
+    fs: &FatFileSystem<T>,
+    cluster: &Cluster,
+) -> Result<u32, FileSystemError>
+where
+    T: BlockDevice,
+{
     /*let mut res = 0;
     let mut cluster_index = cluster.0;
 
@@ -143,7 +159,7 @@ pub fn get_cluster_count<T>(fs: &FatFileSystem<T>, cluster: &Cluster) -> Result<
 
                 current_cluster = Cluster(val);
             }
-            _ => break
+            _ => break,
         }
     }
 

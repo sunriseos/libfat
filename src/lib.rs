@@ -18,20 +18,20 @@ pub enum FileSystemError {
     ReadFailed,
     NoPartitionFound,
     PartitionNotFound,
-    UnknownPartitionFormat { partition_type: u32},
+    UnknownPartitionFormat { partition_type: u32 },
     InvalidPartition,
-    Custom
+    Custom,
 }
 
 pub enum DirectoryEntryType {
     File,
-    Directory
+    Directory,
 }
 
 pub struct DirectoryEntry {
     pub path: [u8; 0x301],
     pub entry_type: DirectoryEntryType,
-    pub file_size: u64
+    pub file_size: u64,
 }
 
 bitflags! {
@@ -65,11 +65,15 @@ pub trait DirectoryOperations: Sized {
     fn entry_count(&self) -> Result<u64>;
 }
 
-pub trait FileSystemOperations : Sized {
+pub trait FileSystemOperations: Sized {
     fn create_file(name: &str, mode: FileModeFlags, size: u64) -> Result<()>;
     fn delete_file(name: &str) -> Result<()>;
-    fn open_file<T>(name: &str, mode: FileModeFlags) -> Result<T> where T: FileOperations;
+    fn open_file<T>(name: &str, mode: FileModeFlags) -> Result<T>
+    where
+        T: FileOperations;
 
-    fn open_directory<T>(name: &str, filter: DirFilterFlags) -> Result<T> where T: DirectoryOperations;
+    fn open_directory<T>(name: &str, filter: DirFilterFlags) -> Result<T>
+    where
+        T: DirectoryOperations;
     fn delete_directory(name: &str) -> Result<()>;
 }

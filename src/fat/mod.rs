@@ -11,7 +11,6 @@ use cluster::Cluster;
 
 use crate::FileSystemError;
 
-
 pub struct FatFileSystem<T> {
     block_device: T,
     partition_start: BlockIndex,
@@ -20,9 +19,24 @@ pub struct FatFileSystem<T> {
     boot_record: FatVolumeBootRecord,
 }
 
-impl<T> FatFileSystem<T> where T: BlockDevice {
-    fn new(block_device: T, partition_start: BlockIndex, first_data_offset: BlockIndex, partition_block_count: BlockCount, boot_record: FatVolumeBootRecord) -> FatFileSystem<T> {
-        FatFileSystem { block_device, partition_start, first_data_offset, partition_block_count, boot_record}
+impl<T> FatFileSystem<T>
+where
+    T: BlockDevice,
+{
+    fn new(
+        block_device: T,
+        partition_start: BlockIndex,
+        first_data_offset: BlockIndex,
+        partition_block_count: BlockCount,
+        boot_record: FatVolumeBootRecord,
+    ) -> FatFileSystem<T> {
+        FatFileSystem {
+            block_device,
+            partition_start,
+            first_data_offset,
+            partition_block_count,
+            boot_record,
+        }
     }
 
     fn init(&self) {
@@ -38,7 +52,10 @@ impl<T> FatFileSystem<T> where T: BlockDevice {
     }
 
     pub fn get_root_directory(&self) -> directory::Directory<T> {
-        directory::Directory { cluster: self.boot_record.root_dir_childs_cluster(), fs: self}
+        directory::Directory {
+            cluster: self.boot_record.root_dir_childs_cluster(),
+            fs: self,
+        }
     }
 }
 
@@ -46,7 +63,7 @@ pub enum FatFsType {
     Fat12,
     Fat16,
     Fat32,
-    ExFat
+    ExFat,
 }
 
 struct FatVolumeBootRecord {
@@ -56,7 +73,10 @@ struct FatVolumeBootRecord {
 
 impl FatVolumeBootRecord {
     pub fn new(data: Block) -> FatVolumeBootRecord {
-        let mut res = FatVolumeBootRecord { data, fat_type: FatFsType::Fat12 };
+        let mut res = FatVolumeBootRecord {
+            data,
+            fat_type: FatFsType::Fat12,
+        };
 
         let root_dir_blocks = ((u32::from(res.root_dir_childs_count()) * 32)
             + (res.bytes_per_block() as u32 - 1))
@@ -83,7 +103,8 @@ impl FatVolumeBootRecord {
         const SYSTEM_IDENTIFIER_FAT32: usize = 82;
 
         // check boot signature
-        if LittleEndian::read_u16(&self.data[BOOTABLE_SIGNATURE..BOOTABLE_SIGNATURE + 2]) != 0xAA55 {
+        if LittleEndian::read_u16(&self.data[BOOTABLE_SIGNATURE..BOOTABLE_SIGNATURE + 2]) != 0xAA55
+        {
             return false;
         }
 
@@ -93,7 +114,10 @@ impl FatVolumeBootRecord {
         }
 
         // check system identifier
-        if &self.data[SYSTEM_IDENTIFIER_FAT..SYSTEM_IDENTIFIER_FAT + 3] != [0x46, 0x41, 0x54] && &self.data[SYSTEM_IDENTIFIER_FAT32..SYSTEM_IDENTIFIER_FAT32 + 5] != [0x46, 0x41, 0x54, 0x33, 0x32] {
+        if &self.data[SYSTEM_IDENTIFIER_FAT..SYSTEM_IDENTIFIER_FAT + 3] != [0x46, 0x41, 0x54]
+            && &self.data[SYSTEM_IDENTIFIER_FAT32..SYSTEM_IDENTIFIER_FAT32 + 5]
+                != [0x46, 0x41, 0x54, 0x33, 0x32]
+        {
             return false;
         }
 
@@ -184,11 +208,19 @@ impl FatVolumeBootRecord {
     }
 }
 
-
-fn parse_fat_boot_record<T>(block_device: T, partition_start: BlockIndex, partition_block_count: BlockCount) -> Result<FatFileSystem<T>, FileSystemError> where T: BlockDevice {
+fn parse_fat_boot_record<T>(
+    block_device: T,
+    partition_start: BlockIndex,
+    partition_block_count: BlockCount,
+) -> Result<FatFileSystem<T>, FileSystemError>
+where
+    T: BlockDevice,
+{
     let mut blocks = [Block::new()];
 
-    block_device.read(&mut blocks, partition_start).or(Err(FileSystemError::ReadFailed))?;
+    block_device
+        .read(&mut blocks, partition_start)
+        .or(Err(FileSystemError::ReadFailed))?;
 
     let block = &blocks[0];
 
@@ -201,26 +233,44 @@ fn parse_fat_boot_record<T>(block_device: T, partition_start: BlockIndex, partit
     match boot_record.fat_type {
         FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::ExFat => unimplemented!(),
         FatFsType::Fat32 => {
-            let first_data_offset = boot_record.reserved_block_count() as u32 + (boot_record.fats_count() as u32 * boot_record.fat_size());
-            let file_system = FatFileSystem::new(block_device, partition_start, BlockIndex(first_data_offset), partition_block_count, boot_record);
+            let first_data_offset = boot_record.reserved_block_count() as u32
+                + (boot_record.fats_count() as u32 * boot_record.fat_size());
+            let file_system = FatFileSystem::new(
+                block_device,
+                partition_start,
+                BlockIndex(first_data_offset),
+                partition_block_count,
+                boot_record,
+            );
             file_system.init();
             Ok(file_system)
         }
     }
 }
 
-pub fn get_raw_partition<T>(block_device: T) -> Result<FatFileSystem<T>, FileSystemError> where T: BlockDevice {
+pub fn get_raw_partition<T>(block_device: T) -> Result<FatFileSystem<T>, FileSystemError>
+where
+    T: BlockDevice,
+{
     parse_fat_boot_record(block_device, BlockIndex(0), BlockCount(0))
 }
 
-pub fn get_partition<T>(block_device: T, index : BlockIndex) -> Result<FatFileSystem<T>, FileSystemError> where T: BlockDevice {
+pub fn get_partition<T>(
+    block_device: T,
+    index: BlockIndex,
+) -> Result<FatFileSystem<T>, FileSystemError>
+where
+    T: BlockDevice,
+{
     let mut blocks = [Block::new()];
 
     const PARITION_TABLE_OFFSET: usize = 446;
     const MBR_SIGNATURE: usize = 510;
     const PARITION_TABLE_ENTRY_SIZE: usize = 16;
 
-    block_device.read(&mut blocks, index).or(Err(FileSystemError::ReadFailed))?;
+    block_device
+        .read(&mut blocks, index)
+        .or(Err(FileSystemError::ReadFailed))?;
 
     let block = &blocks[0];
 
@@ -244,11 +294,11 @@ pub fn get_partition<T>(block_device: T, index : BlockIndex) -> Result<FatFileSy
     let partition_type: u32 = partition[0x4].into();
 
     match partition_type {
-        0xC => {
-            parse_fat_boot_record(block_device, BlockIndex(partition_start), BlockCount(partition_block_count))
-        },
-        _ => {
-            Err(FileSystemError::UnknownPartitionFormat {partition_type})
-        }
+        0xC => parse_fat_boot_record(
+            block_device,
+            BlockIndex(partition_start),
+            BlockCount(partition_block_count),
+        ),
+        _ => Err(FileSystemError::UnknownPartitionFormat { partition_type }),
     }
 }
