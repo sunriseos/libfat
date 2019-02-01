@@ -1,6 +1,7 @@
 pub mod block;
 pub mod cluster;
 pub mod directory;
+pub mod name;
 pub mod table;
 
 use block::{Block, BlockCount, BlockDevice, BlockIndex};
