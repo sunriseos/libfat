@@ -1,6 +1,7 @@
 use crate::fat::block::{Block, BlockDevice, BlockIndex};
 use crate::fat::FatFileSystem;
 
+#[derive(Debug, Clone)]
 pub struct Cluster(pub u32);
 
 impl Cluster {

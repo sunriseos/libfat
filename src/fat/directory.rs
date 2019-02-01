@@ -2,12 +2,75 @@ use crate::fat::block::{Block, BlockDevice};
 use crate::fat::cluster::Cluster;
 use crate::fat::name::ShortFileName;
 use crate::fat::table;
+use crate::fat::table::FatClusterIter;
 use crate::fat::FatFileSystem;
 use crate::FileSystemError;
 
 pub struct Directory<'a, T: BlockDevice> {
     pub cluster: Cluster,
     pub fs: &'a FatFileSystem<T>,
+}
+
+// FIXME: We need a more hight level iterator to merge Long File Name, for now we don't support them
+pub struct DirectoryIterator<'a, T: BlockDevice> {
+    pub dir: &'a Directory<'a, T>,
+    pub cluster_iter: FatClusterIter<'a, T>,
+    pub last_cluster: Option<Cluster>,
+    pub counter: usize,
+}
+
+impl<'a, T> DirectoryIterator<'a, T>
+where
+    T: BlockDevice,
+{
+    pub fn new(root: &'a Directory<'a, T>) -> Self {
+        DirectoryIterator {
+            dir: root,
+            counter: 16,
+            cluster_iter: FatClusterIter::new(&root.fs, &root.cluster),
+            last_cluster: None,
+        }
+    }
+}
+
+impl<'a, T> Iterator for DirectoryIterator<'a, T>
+where
+    T: BlockDevice,
+{
+    type Item = FatDirEntry;
+    fn next(&mut self) -> Option<FatDirEntry> {
+        let cluster_opt = match self.counter {
+            16 => {
+                self.counter = 0;
+                self.last_cluster = self.cluster_iter.next();
+                self.last_cluster.clone()
+            }
+            _ => self.last_cluster.clone(),
+        };
+
+        let cluster = cluster_opt?;
+
+        let mut blocks = [Block::new()];
+
+        // FIXME: Custom Iterator to catches those errors
+        self.dir
+            .fs
+            .block_device
+            .read(&mut blocks, cluster.to_data_block_index(&self.dir.fs))
+            .or(Err(FileSystemError::ReadFailed))
+            .unwrap();
+
+        let entry_start = self.counter * FatDirEntry::LEN;
+        let entry_end = (self.counter + 1) * FatDirEntry::LEN;
+        let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end]);
+
+        if dir_entry.is_end() {
+            return None;
+        }
+
+        self.counter += 1;
+        Some(dir_entry)
+    }
 }
 
 #[derive(Debug)]
@@ -61,18 +124,24 @@ pub enum FatDirEntryType {
     LongFileName,
 }
 
-pub struct FatDirEntry<'a> {
-    data: &'a [u8],
+pub struct FatDirEntry {
+    data: [u8; Self::LEN],
 }
 
-impl<'a> FatDirEntry<'a> {
+impl FatDirEntry {
     pub const LEN: usize = 32;
 
     pub fn from_raw(data: &[u8]) -> FatDirEntry {
-        if data.len() < FatDirEntry::LEN {
+        let mut data_copied = [0x0u8; Self::LEN];
+
+        if data.len() != FatDirEntry::LEN {
             panic!()
         }
-        FatDirEntry { data }
+
+        for val in 0..data.len() {
+            data_copied[val] = data[val];
+        }
+        FatDirEntry { data: data_copied }
     }
 
     pub fn is_end(&self) -> bool {
@@ -101,16 +170,16 @@ impl<'a> FatDirEntry<'a> {
     }
 }
 
-impl<'a> core::fmt::Debug for FatDirEntry<'a> {
+impl<'a> core::fmt::Debug for FatDirEntry {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "FatDirEntry {{ ")?;
-        write!(f, "{:?}", self.attribute())?;
+        write!(f, "{:?} ", self.attribute())?;
         if self.is_long_file_name() {
-
+            write!(f, "LongFileName {{ \"not yet implemented\" }}")?;
         } else {
             write!(
                 f,
-                "ShortFile Name {{{:?}}}",
+                "ShortFileName {{{:?}}}",
                 self.short_name().unwrap().chars()
             )?;
         }
@@ -123,31 +192,13 @@ where
     T: BlockDevice,
 {
     pub fn test(&self) -> Result<(), FileSystemError> {
-        let clusters = table::FatClusterIter::new(&self.fs, &self.cluster);
-        for cluster in clusters {
-            let mut blocks = [Block::new()];
-            info!(
-                "Cluster: 0x{:x}\n",
-                cluster.to_data_block_index(&self.fs).into_offset()
-            );
-
-            self.fs
-                .block_device
-                .read(&mut blocks, cluster.to_data_block_index(&self.fs))
-                .or(Err(FileSystemError::ReadFailed))?;
-
-            for entry in 0..Block::LEN / FatDirEntry::LEN {
-                let entry_start = entry * FatDirEntry::LEN;
-                let entry_end = (entry + 1) * FatDirEntry::LEN;
-                let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end]);
-
-                if dir_entry.is_end() {
-                    break;
-                }
-
-                info!("Dir Entry {:?}", dir_entry);
-            }
+        for dir_entry in self.iter() {
+            info!("Dir Entry {:?}", dir_entry);
         }
         Ok(())
+    }
+
+    pub fn iter(&'a self) -> DirectoryIterator<'a, T> {
+        DirectoryIterator::new(self)
     }
 }
