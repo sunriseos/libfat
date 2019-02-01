@@ -80,8 +80,8 @@ impl FatVolumeBootRecord {
         };
 
         let root_dir_blocks = ((u32::from(res.root_dir_childs_count()) * 32)
-            + (res.bytes_per_block() as u32 - 1))
-            / res.bytes_per_block() as u32;
+            + (u32::from(res.bytes_per_block()) - 1))
+            / u32::from(res.bytes_per_block());
         let data_blocks = res.total_blocks()
             - (u32::from(res.reserved_block_count())
                 + (u32::from(res.fats_count()) * res.fat_size())
@@ -115,8 +115,8 @@ impl FatVolumeBootRecord {
         }
 
         // check system identifier
-        if &self.data[SYSTEM_IDENTIFIER_FAT..SYSTEM_IDENTIFIER_FAT + 3] != [0x46, 0x41, 0x54]
-            && &self.data[SYSTEM_IDENTIFIER_FAT32..SYSTEM_IDENTIFIER_FAT32 + 5]
+        if self.data[SYSTEM_IDENTIFIER_FAT..SYSTEM_IDENTIFIER_FAT + 3] != [0x46, 0x41, 0x54]
+            && self.data[SYSTEM_IDENTIFIER_FAT32..SYSTEM_IDENTIFIER_FAT32 + 5]
                 != [0x46, 0x41, 0x54, 0x33, 0x32]
         {
             return false;
@@ -191,7 +191,7 @@ impl FatVolumeBootRecord {
     }
 
     pub fn fat_size(&self) -> u32 {
-        let result = self.fat_size16() as u32;
+        let result = u32::from(self.fat_size16());
         if result != 0 {
             result
         } else {
@@ -200,7 +200,7 @@ impl FatVolumeBootRecord {
     }
 
     pub fn total_blocks(&self) -> u32 {
-        let result = self.total_blocks16() as u32;
+        let result = u32::from(self.total_blocks16());
         if result != 0 {
             result
         } else {
@@ -234,8 +234,8 @@ where
     match boot_record.fat_type {
         FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::ExFat => unimplemented!(),
         FatFsType::Fat32 => {
-            let first_data_offset = boot_record.reserved_block_count() as u32
-                + (boot_record.fats_count() as u32 * boot_record.fat_size());
+            let first_data_offset = u32::from(boot_record.reserved_block_count())
+                + (u32::from(boot_record.fats_count()) * boot_record.fat_size());
             let file_system = FatFileSystem::new(
                 block_device,
                 partition_start,

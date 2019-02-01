@@ -21,9 +21,7 @@ impl ShortFileName {
             panic!()
         }
 
-        for val in 0..data.len() {
-            short_name[val] = data[val];
-        }
+        short_name[..data.len()].clone_from_slice(&data[..]);
         ShortFileName {
             contents: short_name,
         }
@@ -98,8 +96,8 @@ impl ShortFileName {
 
     pub fn chars(&self) -> [char; ShortFileName::MAX_LEN] {
         let mut res: [char; ShortFileName::MAX_LEN] = [' '; ShortFileName::MAX_LEN];
-        for val in 0..self.contents.len() {
-            res[val] = self.contents[val] as char;
+        for (index, dst) in res.iter_mut().enumerate().take(self.contents.len()) {
+            *dst = self.contents[index] as char;
         }
         res
     }

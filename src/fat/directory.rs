@@ -1,7 +1,6 @@
 use crate::fat::block::{Block, BlockDevice};
 use crate::fat::cluster::Cluster;
 use crate::fat::name::ShortFileName;
-use crate::fat::table;
 use crate::fat::table::FatClusterIter;
 use crate::fat::FatFileSystem;
 use crate::FileSystemError;
@@ -90,31 +89,31 @@ impl Attributes {
         Attributes(value)
     }
 
-    pub fn is_read_only(self) -> bool {
+    pub fn is_read_only(&self) -> bool {
         (self.0 & Self::READ_ONLY) == Self::READ_ONLY
     }
 
-    pub fn is_hidden(self) -> bool {
+    pub fn is_hidden(&self) -> bool {
         (self.0 & Self::HIDDEN) == Self::HIDDEN
     }
 
-    pub fn is_system(self) -> bool {
+    pub fn is_system(&self) -> bool {
         (self.0 & Self::SYSTEM) == Self::SYSTEM
     }
 
-    pub fn is_volume(self) -> bool {
+    pub fn is_volume(&self) -> bool {
         (self.0 & Self::VOLUME) == Self::VOLUME
     }
 
-    pub fn is_directory(self) -> bool {
+    pub fn is_directory(&self) -> bool {
         (self.0 & Self::DIRECTORY) == Self::DIRECTORY
     }
 
-    pub fn is_archive(self) -> bool {
+    pub fn is_archive(&self) -> bool {
         (self.0 & Self::ARCHIVE) == Self::ARCHIVE
     }
 
-    pub fn is_lfn(self) -> bool {
+    pub fn is_lfn(&self) -> bool {
         (self.0 & Self::LFN) == Self::LFN
     }
 }
@@ -138,9 +137,7 @@ impl FatDirEntry {
             panic!()
         }
 
-        for val in 0..data.len() {
-            data_copied[val] = data[val];
-        }
+        data_copied[..data.len()].clone_from_slice(&data[..]);
         FatDirEntry { data: data_copied }
     }
 

@@ -21,13 +21,19 @@ impl Block {
     pub const LEN_U32: u32 = Self::LEN as u32;
 
     pub fn new() -> Block {
-        Block {
-            contents: [0u8; Self::LEN],
-        }
+        Default::default()
     }
 
     pub fn as_contents(&self) -> [u8; Block::LEN] {
         self.contents
+    }
+}
+
+impl Default for Block {
+    fn default() -> Self {
+        Block {
+            contents: [0u8; Self::LEN],
+        }
     }
 }
 
@@ -45,13 +51,13 @@ impl core::ops::DerefMut for Block {
 }
 
 impl BlockIndex {
-    pub fn into_offset(&self) -> u64 {
+    pub fn into_offset(self) -> u64 {
         u64::from(self.0) * (Block::LEN as u64)
     }
 }
 
 impl BlockCount {
-    pub fn into_size(&self) -> u64 {
+    pub fn into_size(self) -> u64 {
         u64::from(self.0) * (Block::LEN as u64)
     }
 }
