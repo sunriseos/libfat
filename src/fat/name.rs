@@ -107,6 +107,10 @@ impl ShortFileName {
         res
     }
 
+    pub fn as_bytes(&self) -> [u8; ShortFileName::MAX_LEN] {
+        self.contents.clone()
+    }
+
     pub fn checksum(short_name: &[u8; ShortFileName::MAX_LEN]) -> u8 {
         let mut checksum = num::Wrapping(0u8);
         for b in short_name {

@@ -5,25 +5,98 @@ use crate::fat::table::FatClusterIter;
 use crate::fat::FatFileSystem;
 use crate::FileSystemError;
 
+use alloc::string::String;
+use byteorder::{ByteOrder, LittleEndian};
+
 pub struct Directory<'a, T: BlockDevice> {
     pub cluster: Cluster,
     pub fs: &'a FatFileSystem<T>,
 }
 
-// FIXME: We need a more hight level iterator to merge Long File Name, for now we don't support them
-pub struct DirectoryIterator<'a, T: BlockDevice> {
+#[derive(Debug)]
+pub struct DirectoryEntry {
+    pub start_cluster: Cluster,
+    pub file_size: u32,
+    pub file_name: String,
+    pub attribute: Attributes,
+}
+
+pub struct DirectoryEntryIterator<'a, T: BlockDevice> {
+    pub dir: &'a Directory<'a, T>,
+    pub raw_iter: FatDirEntryIterator<'a, T>,
+}
+
+impl<'a, T> DirectoryEntryIterator<'a, T>
+where
+    T: BlockDevice,
+{
+    pub fn new(root: &'a Directory<'a, T>) -> Self {
+        DirectoryEntryIterator {
+            dir: root,
+            raw_iter: FatDirEntryIterator::new(root),
+        }
+    }
+}
+
+impl<'a, T> Iterator for DirectoryEntryIterator<'a, T>
+where
+    T: BlockDevice,
+{
+    type Item = DirectoryEntry;
+    fn next(&mut self) -> Option<DirectoryEntry> {
+        let mut has_lfn = false;
+        let mut file_name = String::new();
+
+        while let Some(entry) = self.raw_iter.next() {
+            if has_lfn && entry.is_long_file_name() {
+                // FIXME: Custom Iterator to catches those errors
+                let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
+                for c in raw_name.iter() {
+                    file_name.push(*c);
+                }
+            } else if entry.is_long_file_name() {
+                has_lfn = true;
+
+                // FIXME: Custom Iterator to catches those errors
+                let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
+                for c in raw_name.iter() {
+                    file_name.push(*c);
+                }
+            } else {
+                if !has_lfn {
+                    let raw_name = entry.short_name().unwrap().chars();
+                    for c in raw_name.iter() {
+                        file_name.push(*c);
+                    }
+                }
+
+                // only a SFN entry
+                return Some(DirectoryEntry {
+                    start_cluster: entry.get_cluster(),
+                    file_size: entry.get_file_size(),
+                    file_name: file_name,
+                    attribute: entry.attribute(),
+                });
+            }
+        }
+
+        None
+    }
+}
+
+pub struct FatDirEntryIterator<'a, T: BlockDevice> {
     pub dir: &'a Directory<'a, T>,
     pub cluster_iter: FatClusterIter<'a, T>,
     pub last_cluster: Option<Cluster>,
     pub counter: usize,
 }
 
-impl<'a, T> DirectoryIterator<'a, T>
+impl<'a, T> FatDirEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
     pub fn new(root: &'a Directory<'a, T>) -> Self {
-        DirectoryIterator {
+        FatDirEntryIterator {
             dir: root,
             counter: 16,
             cluster_iter: FatClusterIter::new(&root.fs, &root.cluster),
@@ -32,7 +105,7 @@ where
     }
 }
 
-impl<'a, T> Iterator for DirectoryIterator<'a, T>
+impl<'a, T> Iterator for FatDirEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
@@ -153,7 +226,7 @@ impl FatDirEntry {
         self.attribute().is_lfn()
     }
 
-    pub fn long_file_nam_raw(&self) -> Option<LongFileName> {
+    pub fn long_file_name_raw(&self) -> Option<LongFileName> {
         if self.is_long_file_name() {
             Some(LongFileName::from_data(&self.data))
         } else {
@@ -173,6 +246,17 @@ impl FatDirEntry {
             None
         }
     }
+
+    pub fn get_cluster(&self) -> Cluster {
+        let high_cluster = LittleEndian::read_u16(&self.data[20..22]) as u32;
+        let low_cluster = LittleEndian::read_u16(&self.data[26..28]) as u32;
+
+        Cluster(low_cluster | (high_cluster << 16))
+    }
+
+    pub fn get_file_size(&self) -> u32 {
+        LittleEndian::read_u32(&self.data[28..32])
+    }
 }
 
 impl<'a> core::fmt::Debug for FatDirEntry {
@@ -180,9 +264,9 @@ impl<'a> core::fmt::Debug for FatDirEntry {
         write!(f, "FatDirEntry {{ ")?;
         write!(f, "{:?} ", self.attribute())?;
         if self.is_long_file_name() {
-            let long_file_nam_raw = self.long_file_nam_raw();
-            if let Some(long_file_name) = long_file_nam_raw {
-                write!(f, "LongFileName {{{:?}}}", long_file_name.chars())?;
+            let long_file_name_raw = self.long_file_name_raw();
+            if let Some(long_file_name) = long_file_name_raw {
+                write!(f, "LongFileName {{{:?}}}", long_file_name.chars().unwrap())?;
             } else {
                 write!(f, "LongFileName {{ \"not a long file name?????\" }}")?;
             }
@@ -203,12 +287,16 @@ where
 {
     pub fn test(&self) -> Result<(), FileSystemError> {
         for dir_entry in self.iter() {
-            info!("Dir Entry {:?}", dir_entry);
+            info!("{:?}", dir_entry);
         }
         Ok(())
     }
 
-    pub fn iter(&'a self) -> DirectoryIterator<'a, T> {
-        DirectoryIterator::new(self)
+    pub fn fat_dir_entry_iter(&'a self) -> FatDirEntryIterator<'a, T> {
+        FatDirEntryIterator::new(self)
+    }
+
+    pub fn iter(&'a self) -> DirectoryEntryIterator<'a, T> {
+        DirectoryEntryIterator::new(self)
     }
 }
