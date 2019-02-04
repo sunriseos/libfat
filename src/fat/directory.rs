@@ -6,6 +6,7 @@ use crate::fat::FatFileSystem;
 use crate::FileSystemError;
 
 use alloc::string::String;
+use alloc::string::ToString;
 use byteorder::{ByteOrder, LittleEndian};
 
 pub struct Directory<'a, T: BlockDevice> {
@@ -49,11 +50,14 @@ where
 
         while let Some(entry) = self.raw_iter.next() {
             if has_lfn && entry.is_long_file_name() {
+                let mut part = String::new();
                 // FIXME: Custom Iterator to catches those errors
                 let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
                 for c in raw_name.iter() {
-                    file_name.push(*c);
+                    part.push(*c);
                 }
+
+                file_name.insert_str(0, part.as_str());
             } else if entry.is_long_file_name() {
                 has_lfn = true;
 
@@ -68,6 +72,10 @@ where
                     for c in raw_name.iter() {
                         file_name.push(*c);
                     }
+                    file_name = file_name.trim_end().to_string();
+                }
+                if let Some(end_char_index) = file_name.find('\0') {
+                    file_name.truncate(end_char_index);
                 }
 
                 // only a SFN entry
