@@ -44,14 +44,6 @@ where
         // TODO: check fs info struct
     }
 
-    fn read_blocks(&self, blocks: &mut [Block], index: BlockIndex) -> block::Result<()> {
-        unimplemented!()
-    }
-
-    fn write_blocks(&self, blocks: &[Block], index: BlockIndex) -> block::Result<()> {
-        unimplemented!()
-    }
-
     pub fn get_root_directory(&self) -> directory::Directory<T> {
         directory::Directory {
             cluster: self.boot_record.root_dir_childs_cluster(),

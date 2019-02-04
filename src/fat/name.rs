@@ -32,7 +32,7 @@ impl ShortFileName {
         }
     }
 
-    pub fn from_sfn_str(name: &str) -> Self {
+    pub fn from_sfn_str(_name: &str) -> Self {
         unimplemented!()
     }
 
@@ -40,7 +40,7 @@ impl ShortFileName {
         let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
 
         // does it have an extension?
-        let (basename_len, name_fits, lossy_conv) = match name.rfind('.') {
+        let (_basename_len, _name_fits, _lossy_conv) = match name.rfind('.') {
             Some(index) => {
                 let (basename_len, basename_fits, basename_lossy) =
                     Self::copy_format_sfn_part(&mut short_name[0..8], &name[..index]);
@@ -122,9 +122,9 @@ impl LongFileName {
     pub fn from_data(data: &[u8]) -> Self {
         let mut long_name = [0x0; LongFileName::MAX_LEN];
 
-        for i in 0..5 {
+        for (i, entry) in long_name.iter_mut().enumerate().take(5) {
             let index = 1 + i * 2;
-            long_name[i] = LittleEndian::read_u16(&data[index..index + 2]);
+            *entry = LittleEndian::read_u16(&data[index..index + 2]);
         }
         for i in 0..6 {
             let index = 0xE + i * 2;
@@ -145,16 +145,14 @@ impl LongFileName {
     pub fn chars(&self) -> Option<[char; Self::MAX_LEN]> {
         let val = &self.contents;
 
-        let mut i = 0;
         let mut res: [char; Self::MAX_LEN] = [' '; Self::MAX_LEN];
 
-        for c in core::char::decode_utf16(val.iter().cloned()) {
+        for (i, c) in core::char::decode_utf16(val.iter().cloned()).enumerate() {
             if let Ok(c) = c {
                 res[i] = c;
             } else {
                 return None;
             }
-            i += 1;
         }
 
         Some(res)

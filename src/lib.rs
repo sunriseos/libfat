@@ -36,16 +36,16 @@ pub struct DirectoryEntry {
 
 bitflags! {
     pub struct FileModeFlags: u32 {
-        const Readable = 0b00000001;
-        const Writable = 0b00000010;
-        const Appendable = 0b00000100;
+        const READABLE = 0b0000_0001;
+        const WRITABLE = 0b0000_0010;
+        const APPENDABLE = 0b0000_0100;
     }
 }
 
 bitflags! {
     pub struct DirFilterFlags: u32 {
-        const Directory = 0b00000001;
-        const File = 0b00000010;
+        const DIRECTORY = 0b0000_0001;
+        const FILE = 0b0000_0010;
     }
 }
 
