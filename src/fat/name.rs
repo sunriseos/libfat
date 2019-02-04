@@ -1,7 +1,12 @@
+use byteorder::{ByteOrder, LittleEndian};
 use core::num;
 
 pub struct ShortFileName {
     contents: [u8; ShortFileName::MAX_LEN],
+}
+
+pub struct LongFileName {
+    contents: [u16; LongFileName::MAX_LEN],
 }
 
 enum FileNameError {
@@ -108,5 +113,50 @@ impl ShortFileName {
             checksum = (checksum << 7) + (checksum >> 1) + num::Wrapping(*b);
         }
         checksum.0
+    }
+}
+
+impl LongFileName {
+    const MAX_LEN: usize = 13;
+
+    pub fn from_data(data: &[u8]) -> Self {
+        let mut long_name = [0x0; LongFileName::MAX_LEN];
+
+        for i in 0..5 {
+            let index = 1 + i * 2;
+            long_name[i] = LittleEndian::read_u16(&data[index..index + 2]);
+        }
+        for i in 0..6 {
+            let index = 0xE + i * 2;
+            let i = i + 5;
+            long_name[i] = LittleEndian::read_u16(&data[index..index + 2]);
+        }
+
+        for i in 0..2 {
+            let index = 0x1C + i * 2;
+            let i = i + 11;
+            long_name[i] = LittleEndian::read_u16(&data[index..index + 2]);
+        }
+        LongFileName {
+            contents: long_name,
+        }
+    }
+
+    pub fn chars(&self) -> Option<[char; Self::MAX_LEN]> {
+        let val = &self.contents;
+
+        let mut i = 0;
+        let mut res: [char; Self::MAX_LEN] = [' '; Self::MAX_LEN];
+
+        for c in core::char::decode_utf16(val.iter().cloned()) {
+            if let Ok(c) = c {
+                res[i] = c;
+            } else {
+                return None;
+            }
+            i += 1;
+        }
+
+        Some(res)
     }
 }

@@ -1,6 +1,6 @@
 use crate::fat::block::{Block, BlockDevice};
 use crate::fat::cluster::Cluster;
-use crate::fat::name::ShortFileName;
+use crate::fat::name::{LongFileName, ShortFileName};
 use crate::fat::table::FatClusterIter;
 use crate::fat::FatFileSystem;
 use crate::FileSystemError;
@@ -153,6 +153,14 @@ impl FatDirEntry {
         self.attribute().is_lfn()
     }
 
+    pub fn long_file_nam_raw(&self) -> Option<LongFileName> {
+        if self.is_long_file_name() {
+            Some(LongFileName::from_data(&self.data))
+        } else {
+            None
+        }
+    }
+
     pub fn is_valid(&self) -> bool {
         // TODO: do we need more?
         self.is_end()
@@ -172,7 +180,12 @@ impl<'a> core::fmt::Debug for FatDirEntry {
         write!(f, "FatDirEntry {{ ")?;
         write!(f, "{:?} ", self.attribute())?;
         if self.is_long_file_name() {
-            write!(f, "LongFileName {{ \"not yet implemented\" }}")?;
+            let long_file_nam_raw = self.long_file_nam_raw();
+            if let Some(long_file_name) = long_file_nam_raw {
+                write!(f, "LongFileName {{{:?}}}", long_file_name.chars())?;
+            } else {
+                write!(f, "LongFileName {{ \"not a long file name?????\" }}")?;
+            }
         } else {
             write!(
                 f,
