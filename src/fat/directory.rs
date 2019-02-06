@@ -69,8 +69,16 @@ where
             } else {
                 if !has_lfn {
                     let raw_name = entry.short_name().unwrap().chars();
-                    for c in raw_name.iter() {
+                    for c in raw_name.iter().take(8) {
                         file_name.push(*c);
+                    }
+
+                    // Short filename with extension
+                    if raw_name[8] != ' ' {
+                        file_name.push('.');
+                        for c in raw_name.iter().skip(8) {
+                            file_name.push(*c);
+                        }
                     }
                     file_name = file_name.trim_end().to_string();
                 }
