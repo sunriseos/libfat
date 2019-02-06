@@ -9,9 +9,18 @@ use alloc::string::String;
 use alloc::string::ToString;
 use byteorder::{ByteOrder, LittleEndian};
 
-pub struct Directory<'a, T: BlockDevice> {
-    pub cluster: Cluster,
-    pub fs: &'a FatFileSystem<T>,
+pub struct Directory<'a, T> {
+    dir_info: DirectoryEntry,
+    fs: &'a FatFileSystem<T>,
+}
+
+impl<'a, T> Directory<'a, T> where T: BlockDevice {
+    pub fn from_entry(fs: &'a FatFileSystem<T>, dir_info: DirectoryEntry) -> Self {
+        Directory {
+            dir_info,
+            fs
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -115,7 +124,7 @@ where
         FatDirEntryIterator {
             dir: root,
             counter: 16,
-            cluster_iter: FatClusterIter::new(&root.fs, &root.cluster),
+            cluster_iter: FatClusterIter::new(&root.fs, &root.dir_info.start_cluster),
             last_cluster: None,
         }
     }
@@ -157,6 +166,12 @@ where
         }
 
         self.counter += 1;
+
+        // Ignore deleted entries
+        if dir_entry.is_deleted() {
+            info!("{:?}", dir_entry);
+            return self.next();
+        }
         Some(dir_entry)
     }
 }
@@ -234,6 +249,10 @@ impl FatDirEntry {
         self.data[0] == 0
     }
 
+    pub fn is_deleted(&self) -> bool {
+        self.data[0] == 0xE5
+    }
+
     pub fn attribute(&self) -> Attributes {
         Attributes::new(self.data[11])
     }
@@ -303,7 +322,14 @@ where
 {
     pub fn test(&self) -> Result<(), FileSystemError> {
         for dir_entry in self.iter() {
+            if dir_entry.file_name == "." || dir_entry.file_name == ".." {
+                continue;
+            }
             info!("{:?}", dir_entry);
+            if dir_entry.attribute.is_directory() {
+                let dir = Directory::from_entry(self.fs, dir_entry);
+                dir.test()?;
+            }
         }
         Ok(())
     }

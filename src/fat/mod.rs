@@ -4,10 +4,15 @@ pub mod directory;
 pub mod name;
 pub mod table;
 
+use alloc::string::String;
+
 use block::{Block, BlockCount, BlockDevice, BlockIndex};
+
+use directory::*;
 
 use byteorder::{ByteOrder, LittleEndian};
 
+use core::str::FromStr;
 use cluster::Cluster;
 
 use crate::FileSystemError;
@@ -45,10 +50,14 @@ where
     }
 
     pub fn get_root_directory(&self) -> directory::Directory<T> {
-        directory::Directory {
-            cluster: self.boot_record.root_dir_childs_cluster(),
-            fs: self,
-        }
+        let dir_info = DirectoryEntry {
+                start_cluster: self.boot_record.root_dir_childs_cluster(),
+                file_size: 0,
+                file_name: String::from_str("").unwrap(),
+                attribute: Attributes::new(Attributes::DIRECTORY),
+        };
+
+        Directory::from_entry(self, dir_info)
     }
 }
 
