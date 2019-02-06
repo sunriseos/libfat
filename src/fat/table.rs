@@ -15,9 +15,8 @@ pub enum FatValue {
 
 pub struct FatClusterIter<'a, T> {
     fs: &'a FatFileSystem<T>,
-    current_cluster: Cluster,
+    current_cluster: Option<Cluster>,
     last_fat: Option<FatValue>,
-    is_end: bool,
 }
 
 impl<'a, T> FatClusterIter<'a, T>
@@ -28,9 +27,8 @@ where
         let fat_value = FatValue::get(fs, &cluster).ok();
         FatClusterIter {
             fs,
-            current_cluster: Cluster(cluster.0),
+            current_cluster: Some(Cluster(cluster.0)),
             last_fat: fat_value,
-            is_end: false,
         }
     }
 }
@@ -41,23 +39,19 @@ where
 {
     type Item = Cluster;
     fn next(&mut self) -> Option<Cluster> {
-        if self.is_end {
-            return None;
-        }
-
-        let res = self.current_cluster.0;
+        let res = self.current_cluster.clone()?;
 
         match self.last_fat {
             Some(FatValue::Data(data)) => {
-                self.current_cluster = Cluster(data);
-                self.last_fat = FatValue::get(&self.fs, &self.current_cluster).ok();
+                self.current_cluster = Some(Cluster(data));
+                self.last_fat = FatValue::get(&self.fs, &self.current_cluster.clone()?).ok();
             }
             _ => {
-                self.is_end = true;
+                self.current_cluster = None;
             }
         };
 
-        Some(Cluster(res))
+        Some(res)
     }
 }
 

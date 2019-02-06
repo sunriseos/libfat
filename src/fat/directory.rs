@@ -11,7 +11,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 pub struct Directory<'a, T> {
     dir_info: DirectoryEntry,
-    fs: &'a FatFileSystem<T>,
+    pub fs: &'a FatFileSystem<T>,
 }
 
 impl<'a, T> Directory<'a, T> where T: BlockDevice {
@@ -68,13 +68,14 @@ where
 
                 file_name.insert_str(0, part.as_str());
             } else if entry.is_long_file_name() {
-                has_lfn = true;
+                // FIXME: uncomment this when done with debugging
+                /*has_lfn = true;
 
                 // FIXME: Custom Iterator to catches those errors
                 let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
                 for c in raw_name.iter() {
                     file_name.push(*c);
-                }
+                }*/
             } else {
                 if !has_lfn {
                     let raw_name = entry.short_name().unwrap().chars();
@@ -161,17 +162,14 @@ where
         let entry_end = (self.counter + 1) * FatDirEntry::LEN;
         let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end]);
 
-        if dir_entry.is_end() {
-            return None;
-        }
+        // The entry isn't a valid one but this doesn't mark the end of the directory
 
         self.counter += 1;
 
-        // Ignore deleted entries
-        if dir_entry.is_deleted() {
-            info!("{:?}", dir_entry);
+        if dir_entry.is_deleted() || dir_entry.is_free() {
             return self.next();
         }
+
         Some(dir_entry)
     }
 }
@@ -245,7 +243,7 @@ impl FatDirEntry {
         FatDirEntry { data: data_copied }
     }
 
-    pub fn is_end(&self) -> bool {
+    pub fn is_free(&self) -> bool {
         self.data[0] == 0
     }
 
@@ -271,7 +269,7 @@ impl FatDirEntry {
 
     pub fn is_valid(&self) -> bool {
         // TODO: do we need more?
-        self.is_end()
+        !self.is_free() && !self.is_deleted()
     }
 
     pub fn short_name(&self) -> Option<ShortFileName> {
@@ -320,20 +318,6 @@ impl<'a, T> Directory<'a, T>
 where
     T: BlockDevice,
 {
-    pub fn test(&self) -> Result<(), FileSystemError> {
-        for dir_entry in self.iter() {
-            if dir_entry.file_name == "." || dir_entry.file_name == ".." {
-                continue;
-            }
-            info!("{:?}", dir_entry);
-            if dir_entry.attribute.is_directory() {
-                let dir = Directory::from_entry(self.fs, dir_entry);
-                dir.test()?;
-            }
-        }
-        Ok(())
-    }
-
     pub fn fat_dir_entry_iter(&'a self) -> FatDirEntryIterator<'a, T> {
         FatDirEntryIterator::new(self)
     }
