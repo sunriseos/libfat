@@ -51,7 +51,7 @@ where
 
     pub fn get_root_directory(&self) -> directory::Directory<T> {
         let dir_info = DirectoryEntry {
-                start_cluster: self.boot_record.root_dir_childs_cluster(),
+                start_cluster: Cluster(5)/*self.boot_record.root_dir_childs_cluster()*/,
                 file_size: 0,
                 file_name: String::from_str("").unwrap(),
                 attribute: Attributes::new(Attributes::DIRECTORY),

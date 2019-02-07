@@ -5,7 +5,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use crate::FileSystemError;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum FatValue {
     Free,
     Data(u32),
@@ -46,7 +46,8 @@ where
                 self.current_cluster = Some(Cluster(data));
                 self.last_fat = FatValue::get(&self.fs, &self.current_cluster.clone()?).ok();
             }
-            _ => {
+            unk => {
+                info!(" ({:?})", unk);
                 self.current_cluster = None;
             }
         };
@@ -67,7 +68,6 @@ impl FatValue {
 
     pub fn from_block(block: &Block, cluster_offset: usize) -> FatValue {
         let val = LittleEndian::read_u32(&block[cluster_offset..cluster_offset + 4]) & 0x0FFF_FFFF;
-
         FatValue::from_u32(val)
     }
 

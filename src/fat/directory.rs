@@ -54,11 +54,91 @@ where
 {
     type Item = DirectoryEntry;
     fn next(&mut self) -> Option<DirectoryEntry> {
-        let mut has_lfn = false;
+        let mut next_is_end_entry = false;
+        let mut lfn_index: i32 = 0;
         let mut file_name = String::new();
 
         while let Some(entry) = self.raw_iter.next() {
-            if has_lfn && entry.is_long_file_name() {
+            // End of directory
+            if entry.is_free() {
+                break;
+            }
+
+            // Deleted entry? Clear everything and continue
+            if entry.is_deleted() {
+                lfn_index = 0;
+                file_name.clear();
+
+                continue;
+            }
+
+            // LFN
+            if entry.is_long_file_name() {
+                let first_byte = entry.get_first_byte();
+
+                if (first_byte & 0x40) != 0 {
+                    lfn_index = i32::from(first_byte ^ 0x40);
+                }
+
+                let mut part = String::new();
+                // FIXME: Custom Iterator to catches those errors
+                let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
+                for c in raw_name.iter() {
+                    part.push(*c);
+                }
+
+                file_name.insert_str(0, part.as_str());
+
+                let index_minus_one = lfn_index - 1;
+
+                if lfn_index == 0 || index_minus_one <= 1 {
+                    next_is_end_entry = true;
+                }
+
+                lfn_index = index_minus_one;
+
+                continue;
+            }
+
+            if !entry.attribute().is_volume() {
+                if !next_is_end_entry {
+
+                    // discard everything that could have previously be done
+                    file_name.clear();
+
+                    let raw_name = entry.short_name().unwrap().chars();
+                    for c in raw_name.iter().take(8) {
+                        file_name.push(*c);
+                    }
+
+                    // Short filename with extension
+                    if raw_name[8] != ' ' {
+                        file_name.push('.');
+                        for c in raw_name.iter().skip(8) {
+                            file_name.push(*c);
+                        }
+                    }
+                    file_name = file_name.trim_end().to_string();
+                }
+                if let Some(end_char_index) = file_name.find('\0') {
+                    file_name.truncate(end_char_index);
+                }
+
+                // only a SFN entry
+                return Some(DirectoryEntry {
+                    start_cluster: entry.get_cluster(),
+                    file_size: entry.get_file_size(),
+                    file_name: file_name,
+                    attribute: entry.attribute(),
+                });
+            }
+
+            lfn_index = 0;
+            next_is_end_entry = false;
+            file_name.clear();
+
+
+            /*if has_lfn && entry.is_long_file_name() {
                 let mut part = String::new();
                 // FIXME: Custom Iterator to catches those errors
                 let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
@@ -103,7 +183,7 @@ where
                     file_name: file_name,
                     attribute: entry.attribute(),
                 });
-            }
+            }*/
         }
 
         None
@@ -165,10 +245,6 @@ where
         // The entry isn't a valid one but this doesn't mark the end of the directory
 
         self.counter += 1;
-
-        if dir_entry.is_deleted() || dir_entry.is_free() {
-            return self.next();
-        }
 
         Some(dir_entry)
     }
@@ -243,12 +319,16 @@ impl FatDirEntry {
         FatDirEntry { data: data_copied }
     }
 
+    pub fn get_first_byte(&self) -> u8 {
+        self.data[0]
+    }
+
     pub fn is_free(&self) -> bool {
-        self.data[0] == 0
+        self.get_first_byte() == 0
     }
 
     pub fn is_deleted(&self) -> bool {
-        self.data[0] == 0xE5
+        self.get_first_byte() == 0xE5
     }
 
     pub fn attribute(&self) -> Attributes {
