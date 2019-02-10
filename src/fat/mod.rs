@@ -124,7 +124,7 @@ impl FatVolumeBootRecord {
         }
 
         // TODO: bytes per block that are > to 512 bytes.
-        if self.bytes_per_block() != 512 {
+        if self.bytes_per_block() != Block::LEN as u16 {
             return false;
         }
 

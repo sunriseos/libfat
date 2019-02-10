@@ -108,7 +108,7 @@ impl ShortFileName {
     }
 
     pub fn as_bytes(&self) -> [u8; ShortFileName::MAX_LEN] {
-        self.contents.clone()
+        self.contents
     }
 
     pub fn checksum(short_name: &[u8; ShortFileName::MAX_LEN]) -> u8 {

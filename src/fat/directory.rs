@@ -128,7 +128,7 @@ where
                 return Some(DirectoryEntry {
                     start_cluster: entry.get_cluster(),
                     file_size: entry.get_file_size(),
-                    file_name: file_name,
+                    file_name,
                     attribute: entry.attribute(),
                 });
             }
@@ -136,54 +136,6 @@ where
             lfn_index = 0;
             next_is_end_entry = false;
             file_name.clear();
-
-
-            /*if has_lfn && entry.is_long_file_name() {
-                let mut part = String::new();
-                // FIXME: Custom Iterator to catches those errors
-                let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
-                for c in raw_name.iter() {
-                    part.push(*c);
-                }
-
-                file_name.insert_str(0, part.as_str());
-            } else if entry.is_long_file_name() {
-                // FIXME: uncomment this when done with debugging
-                /*has_lfn = true;
-
-                // FIXME: Custom Iterator to catches those errors
-                let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
-                for c in raw_name.iter() {
-                    file_name.push(*c);
-                }*/
-            } else {
-                if !has_lfn {
-                    let raw_name = entry.short_name().unwrap().chars();
-                    for c in raw_name.iter().take(8) {
-                        file_name.push(*c);
-                    }
-
-                    // Short filename with extension
-                    if raw_name[8] != ' ' {
-                        file_name.push('.');
-                        for c in raw_name.iter().skip(8) {
-                            file_name.push(*c);
-                        }
-                    }
-                    file_name = file_name.trim_end().to_string();
-                }
-                if let Some(end_char_index) = file_name.find('\0') {
-                    file_name.truncate(end_char_index);
-                }
-
-                // only a SFN entry
-                return Some(DirectoryEntry {
-                    start_cluster: entry.get_cluster(),
-                    file_size: entry.get_file_size(),
-                    file_name: file_name,
-                    attribute: entry.attribute(),
-                });
-            }*/
         }
 
         None
@@ -247,7 +199,6 @@ where
         let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end]);
 
         // The entry isn't a valid one but this doesn't mark the end of the directory
-
         self.counter += 1;
 
         Some(dir_entry)
@@ -365,8 +316,8 @@ impl FatDirEntry {
     }
 
     pub fn get_cluster(&self) -> Cluster {
-        let high_cluster = LittleEndian::read_u16(&self.data[20..22]) as u32;
-        let low_cluster = LittleEndian::read_u16(&self.data[26..28]) as u32;
+        let high_cluster = u32::from(LittleEndian::read_u16(&self.data[20..22]));
+        let low_cluster = u32::from(LittleEndian::read_u16(&self.data[26..28]));
 
         Cluster(low_cluster | (high_cluster << 16))
     }
