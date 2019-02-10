@@ -10,10 +10,10 @@ pub struct Block {
     pub contents: [u8; Block::LEN],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct BlockIndex(pub u32);
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct BlockCount(pub u32);
 
 impl Block {

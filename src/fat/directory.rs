@@ -1,4 +1,4 @@
-use crate::fat::block::{Block, BlockDevice};
+use crate::fat::block::{Block, BlockDevice, BlockIndex};
 use crate::fat::cluster::Cluster;
 use crate::fat::name::{LongFileName, ShortFileName};
 use crate::fat::table::FatClusterIter;
@@ -10,7 +10,7 @@ use alloc::string::ToString;
 use byteorder::{ByteOrder, LittleEndian};
 
 pub struct Directory<'a, T> {
-    dir_info: DirectoryEntry,
+    pub dir_info: DirectoryEntry,
     pub fs: &'a FatFileSystem<T>,
 }
 
@@ -204,7 +204,7 @@ where
     pub fn new(root: &'a Directory<'a, T>) -> Self {
         FatDirEntryIterator {
             dir: root,
-            counter: 16,
+            counter: (Block::LEN / FatDirEntry::LEN) * root.fs.boot_record.blocks_per_cluster() as usize,
             cluster_iter: FatClusterIter::new(&root.fs, &root.dir_info.start_cluster),
             last_cluster: None,
         }
@@ -217,29 +217,33 @@ where
 {
     type Item = FatDirEntry;
     fn next(&mut self) -> Option<FatDirEntry> {
-        let cluster_opt = match self.counter {
-            16 => {
-                self.counter = 0;
-                self.last_cluster = self.cluster_iter.next();
-                self.last_cluster.clone()
-            }
-            _ => self.last_cluster.clone(),
+        let entry_per_block_count = Block::LEN / FatDirEntry::LEN;
+
+        let cluster_opt = if self.counter == entry_per_block_count * self.dir.fs.boot_record.blocks_per_cluster() as usize {
+            self.counter = 0;
+            self.last_cluster = self.cluster_iter.next();
+            self.last_cluster.clone()
+        } else {
+            self.last_cluster.clone()
         };
 
         let cluster = cluster_opt?;
 
         let mut blocks = [Block::new()];
 
+        let block_index = (self.counter / entry_per_block_count) as u32;
+        let entry_index = self.counter % entry_per_block_count;
+
         // FIXME: Custom Iterator to catches those errors
         self.dir
             .fs
             .block_device
-            .read(&mut blocks, cluster.to_data_block_index(&self.dir.fs))
+            .read(&mut blocks, BlockIndex(cluster.to_data_block_index(&self.dir.fs).0 + block_index))
             .or(Err(FileSystemError::ReadFailed))
             .unwrap();
 
-        let entry_start = self.counter * FatDirEntry::LEN;
-        let entry_end = (self.counter + 1) * FatDirEntry::LEN;
+        let entry_start = entry_index * FatDirEntry::LEN;
+        let entry_end = (entry_index + 1) * FatDirEntry::LEN;
         let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end]);
 
         // The entry isn't a valid one but this doesn't mark the end of the directory

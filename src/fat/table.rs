@@ -47,7 +47,6 @@ where
                 self.last_fat = FatValue::get(&self.fs, &self.current_cluster.clone()?).ok();
             }
             unk => {
-                info!(" ({:?})", unk);
                 self.current_cluster = None;
             }
         };
