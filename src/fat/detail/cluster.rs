@@ -1,5 +1,5 @@
-use crate::fat::block::{Block, BlockDevice, BlockIndex};
-use crate::fat::FatFileSystem;
+use super::block::{Block, BlockDevice, BlockIndex};
+use super::FatFileSystem;
 
 #[derive(Debug, Clone)]
 pub struct Cluster(pub u32);

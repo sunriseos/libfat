@@ -1,8 +1,8 @@
-use crate::fat::block::{Block, BlockDevice, BlockIndex};
-use crate::fat::cluster::Cluster;
-use crate::fat::name::{LongFileName, ShortFileName};
-use crate::fat::table::FatClusterIter;
-use crate::fat::FatFileSystem;
+use super::block::{Block, BlockDevice, BlockIndex};
+use super::cluster::Cluster;
+use super::name::{LongFileName, ShortFileName};
+use super::table::FatClusterIter;
+use super::FatFileSystem;
 use crate::FileSystemError;
 
 use alloc::string::String;

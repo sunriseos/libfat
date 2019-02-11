@@ -1,6 +1,6 @@
-use crate::fat::Cluster;
-use crate::fat::FatFileSystem;
-use crate::fat::{Block, BlockDevice};
+use super::filesystem::FatFileSystem;
+use super::Cluster;
+use super::{Block, BlockDevice};
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::FileSystemError;
