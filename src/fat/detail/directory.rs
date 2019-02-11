@@ -32,7 +32,6 @@ pub struct DirectoryEntry {
 }
 
 pub struct DirectoryEntryIterator<'a, T> {
-    pub dir: &'a Directory<'a, T>,
     pub raw_iter: FatDirEntryIterator<'a, T>,
 }
 
@@ -40,9 +39,8 @@ impl<'a, T> DirectoryEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
-    pub fn new(root: &'a Directory<'a, T>) -> Self {
+    pub fn new(root: Directory<'a, T>) -> Self {
         DirectoryEntryIterator {
-            dir: root,
             raw_iter: FatDirEntryIterator::new(root),
         }
     }
@@ -142,7 +140,6 @@ where
 }
 
 pub struct FatDirEntryIterator<'a, T> {
-    pub dir: &'a Directory<'a, T>,
     pub cluster_iter: FatClusterIter<'a, T>,
     pub last_cluster: Option<Cluster>,
     pub counter: usize,
@@ -152,12 +149,15 @@ impl<'a, T> FatDirEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
-    pub fn new(root: &'a Directory<'a, T>) -> Self {
+    pub fn new(root: Directory<'a, T>) -> Self {
+        let cluster = root.dir_info.start_cluster.clone();
+        let fs = &root.fs;
+        let blocks_per_cluster = fs.boot_record.blocks_per_cluster() as usize;
+
         FatDirEntryIterator {
-            dir: root,
             counter: (Block::LEN / FatDirEntry::LEN)
-                * root.fs.boot_record.blocks_per_cluster() as usize,
-            cluster_iter: FatClusterIter::new(&root.fs, &root.dir_info.start_cluster),
+                * blocks_per_cluster,
+            cluster_iter: FatClusterIter::new(fs, cluster),
             last_cluster: None,
         }
     }
@@ -172,7 +172,7 @@ where
         let entry_per_block_count = Block::LEN / FatDirEntry::LEN;
 
         let cluster_opt = if self.counter
-            == entry_per_block_count * self.dir.fs.boot_record.blocks_per_cluster() as usize
+            == entry_per_block_count * self.cluster_iter.fs.boot_record.blocks_per_cluster() as usize
         {
             self.counter = 0;
             self.last_cluster = self.cluster_iter.next();
@@ -189,12 +189,12 @@ where
         let entry_index = self.counter % entry_per_block_count;
 
         // FIXME: Custom Iterator to catches those errors
-        self.dir
+        self.cluster_iter
             .fs
             .block_device
             .read(
                 &mut blocks,
-                BlockIndex(cluster.to_data_block_index(&self.dir.fs).0 + block_index),
+                BlockIndex(cluster.to_data_block_index(&self.cluster_iter.fs).0 + block_index),
             )
             .or(Err(FileSystemError::ReadFailed))
             .unwrap();
@@ -358,11 +358,11 @@ impl<'a, T> Directory<'a, T>
 where
     T: BlockDevice,
 {
-    pub fn fat_dir_entry_iter(&'a self) -> FatDirEntryIterator<'a, T> {
+    pub fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, T> {
         FatDirEntryIterator::new(self)
     }
 
-    pub fn iter(&'a self) -> DirectoryEntryIterator<'a, T> {
+    pub fn iter(self) -> DirectoryEntryIterator<'a, T> {
         DirectoryEntryIterator::new(self)
     }
 }

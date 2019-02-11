@@ -29,6 +29,7 @@ pub enum FileSystemError {
     Custom { name: &'static str },
 }
 
+#[derive(Debug)]
 pub enum DirectoryEntryType {
     File,
     Directory,
@@ -79,8 +80,8 @@ pub trait DirectoryOperations {
 pub trait FileSystemOperations {
     fn create_file(&self, name: &str, mode: FileModeFlags, size: u64) -> Result<()>;
     fn delete_file(&self, name: &str) -> Result<()>;
-    fn open_file<'a, T>(&'a self, name: &str, mode: FileModeFlags) -> Result<Box<dyn FileOperations + 'a>>;
+    fn open_file<'a>(&'a self, name: &str, mode: FileModeFlags) -> Result<Box<dyn FileOperations + 'a>>;
 
-    fn open_directory<'a, T>(&'a self, name: &str, filter: DirFilterFlags) -> Result<Box<dyn DirectoryOperations + 'a>>;
+    fn open_directory<'a>(&'a self, name: &str, filter: DirFilterFlags) -> Result<Box<dyn DirectoryOperations + 'a>>;
     fn delete_directory(&self, name: &str) -> Result<()>;
 }

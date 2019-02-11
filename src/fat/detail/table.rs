@@ -14,7 +14,7 @@ pub enum FatValue {
 }
 
 pub struct FatClusterIter<'a, T> {
-    fs: &'a FatFileSystem<T>,
+    pub fs: &'a FatFileSystem<T>,
     current_cluster: Option<Cluster>,
     last_fat: Option<FatValue>,
 }
@@ -23,11 +23,11 @@ impl<'a, T> FatClusterIter<'a, T>
 where
     T: BlockDevice,
 {
-    pub fn new(fs: &'a FatFileSystem<T>, cluster: &Cluster) -> FatClusterIter<'a, T> {
+    pub fn new(fs: &'a FatFileSystem<T>, cluster: Cluster) -> FatClusterIter<'a, T> {
         let fat_value = FatValue::get(fs, &cluster).ok();
         FatClusterIter {
             fs,
-            current_cluster: Some(Cluster(cluster.0)),
+            current_cluster: Some(cluster),
             last_fat: fat_value,
         }
     }

@@ -1,6 +1,7 @@
 pub mod detail;
 
 use alloc::boxed::Box;
+use core::iter::Iterator;
 use detail::block::BlockDevice;
 use detail::filesystem::FatFileSystem;
 
@@ -11,8 +12,8 @@ use crate::{
 };
 
 struct DirectoryReader<'a, T> {
-    internal: detail::directory::Directory<'a, T>,
-    //internal_iter: detail::directory::DirectoryEntryIterator<'a, T>,
+    internal_iter: detail::directory::DirectoryEntryIterator<'a, T>,
+    filter_fn: &'static Fn(&detail::directory::DirectoryEntry,) -> bool,
     entry_count: u64
 }
 
@@ -28,6 +29,21 @@ impl DirectoryFilterPredicate {
 
     fn files(entry: &detail::directory::DirectoryEntry) -> bool {
         !entry.attribute.is_directory()        
+    }
+}
+
+impl<B> FatFileSystem<B>
+where
+    B: BlockDevice,
+{
+    fn get_dir_from_path(&self, path: &str) -> FileSystemResult<detail::directory::Directory<B>> {
+        if path == "/" {
+            Ok(self.get_root_directory())
+        } else {
+            Err(FileSystemError::Custom {
+                name: "not implemented",
+            })
+        }
     }
 }
 
@@ -47,27 +63,15 @@ where
         })
     }
 
-    fn open_file<'a, T>(&'a self, name: &str, mode: FileModeFlags) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
+    fn open_file<'a>(&'a self, name: &str, mode: FileModeFlags) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
     }
 
-    fn open_directory<'a, T>(&'a self, name: &str, filter: DirFilterFlags) -> FileSystemResult<Box<dyn DirectoryOperations + 'a>>
+    fn open_directory<'a>(&'a self, name: &str, filter: DirFilterFlags) -> FileSystemResult<Box<dyn DirectoryOperations + 'a>>
     {
-        let internal_directory_res = if name == "/" {
-            Ok(self.get_root_directory())
-        } else {
-            Err(FileSystemError::Custom {
-                name: "not implemented",
-            })
-        };
-
-        let internal_directory = internal_directory_res?;
-
-        //FnMut(&Self::Item) -> bool
-
-        let filter_fn: &Fn(&detail::directory::DirectoryEntry,) -> bool = if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
+        let filter_fn: &'static Fn(&detail::directory::DirectoryEntry,) -> bool = if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
             &DirectoryFilterPredicate::all
         } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
             &DirectoryFilterPredicate::dirs
@@ -75,15 +79,13 @@ where
             &DirectoryFilterPredicate::files
         };
 
-        let entry_count = internal_directory.iter().filter(filter_fn).count() as u64;
+        let entry_count = self.get_dir_from_path(name)?.iter().filter(filter_fn).count() as u64;
 
-        let mut res_struct = DirectoryReader {
-            internal: internal_directory,
-            //internal_iter: internal.iter(),
+        let res = Box::new(DirectoryReader {
+            internal_iter: self.get_dir_from_path(name)?.iter(),
+            filter_fn,
             entry_count
-        };
-
-        let res = Box::new(res_struct);
+        });
         
         Ok(res as Box<dyn DirectoryOperations + 'a>)
     }
@@ -95,24 +97,41 @@ where
     }
 }
 
-impl<'a, T> DirectoryOperations for DirectoryReader<'a, T> {
+impl<'a, T> DirectoryOperations for DirectoryReader<'a, T> where T: BlockDevice {
     fn read(&mut self, buf: &mut [DirectoryEntry]) -> FileSystemResult<u64> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+
+        for (index, entry) in buf.iter_mut().enumerate() {
+            let mut raw_dir_entry;
+            loop {
+                let entry_opt = self.internal_iter.next();
+
+                // Prematury ending
+                if entry_opt.is_none() {
+                    return Ok(index as u64);
+                }
+
+                raw_dir_entry = entry_opt.unwrap();
+                let filter_fn = self.filter_fn;
+
+                if filter_fn(&raw_dir_entry) {
+                    break;
+                }
+            }
+
+            *entry = raw_dir_entry.into_fs();
+        }
+
+        // everything was read correctly
+        Ok(buf.len() as u64)
     }
 
     fn entry_count(&self) -> FileSystemResult<u64> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+        Ok(self.entry_count)
     }
 }
 
-
-
-impl Into<DirectoryEntry> for detail::directory::DirectoryEntry {
-    fn into(self) -> DirectoryEntry {
+impl detail::directory::DirectoryEntry {
+    fn into_fs(self) -> DirectoryEntry {
         let mut path: [u8; DirectoryEntry::PATH_LEN] = [0x0; DirectoryEntry::PATH_LEN];
 
         let file_size = self.file_size;
@@ -128,6 +147,7 @@ impl Into<DirectoryEntry> for detail::directory::DirectoryEntry {
         }
 
         DirectoryEntry {
+            // TODO: add real path
             path,
             entry_type,
             file_size: u64::from(file_size)
