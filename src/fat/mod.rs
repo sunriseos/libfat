@@ -12,8 +12,8 @@ use directory::*;
 
 use byteorder::{ByteOrder, LittleEndian};
 
-use core::str::FromStr;
 use cluster::Cluster;
+use core::str::FromStr;
 
 use crate::FileSystemError;
 
@@ -51,10 +51,10 @@ where
 
     pub fn get_root_directory(&self) -> directory::Directory<T> {
         let dir_info = DirectoryEntry {
-                start_cluster: self.boot_record.root_dir_childs_cluster(),
-                file_size: 0,
-                file_name: String::from_str("").unwrap(),
-                attribute: Attributes::new(Attributes::DIRECTORY),
+            start_cluster: self.boot_record.root_dir_childs_cluster(),
+            file_size: 0,
+            file_name: String::from_str("").unwrap(),
+            attribute: Attributes::new(Attributes::DIRECTORY),
         };
 
         Directory::from_entry(self, dir_info)
@@ -302,5 +302,53 @@ where
             BlockCount(partition_block_count),
         ),
         _ => Err(FileSystemError::UnknownPartitionFormat { partition_type }),
+    }
+}
+
+// Front end
+
+use crate::Result as FileSystemResult;
+use crate::{
+    DirFilterFlags, DirectoryOperations, FileModeFlags, FileOperations, FileSystemOperations,
+};
+
+impl<B> FileSystemOperations for FatFileSystem<B>
+where
+    B: BlockDevice,
+{
+    fn create_file(name: &str, mode: FileModeFlags, size: u64) -> FileSystemResult<()> {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
+    }
+
+    fn delete_file(name: &str) -> FileSystemResult<()> {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
+    }
+
+    fn open_file<T>(name: &str, mode: FileModeFlags) -> FileSystemResult<T>
+    where
+        T: FileOperations,
+    {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
+    }
+
+    fn open_directory<T>(name: &str, filter: DirFilterFlags) -> FileSystemResult<T>
+    where
+        T: DirectoryOperations,
+    {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
+    }
+
+    fn delete_directory(name: &str) -> FileSystemResult<()> {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
     }
 }

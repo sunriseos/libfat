@@ -46,7 +46,7 @@ where
                 self.current_cluster = Some(Cluster(data));
                 self.last_fat = FatValue::get(&self.fs, &self.current_cluster.clone()?).ok();
             }
-            _ => self.current_cluster = None
+            _ => self.current_cluster = None,
         };
 
         Some(res)

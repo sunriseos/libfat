@@ -24,7 +24,7 @@ pub enum FileSystemError {
     PartitionNotFound,
     UnknownPartitionFormat { partition_type: u32 },
     InvalidPartition,
-    Custom,
+    Custom { name: &'static str },
 }
 
 pub enum DirectoryEntryType {

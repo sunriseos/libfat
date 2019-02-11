@@ -14,12 +14,12 @@ pub struct Directory<'a, T> {
     pub fs: &'a FatFileSystem<T>,
 }
 
-impl<'a, T> Directory<'a, T> where T: BlockDevice {
+impl<'a, T> Directory<'a, T>
+where
+    T: BlockDevice,
+{
     pub fn from_entry(fs: &'a FatFileSystem<T>, dir_info: DirectoryEntry) -> Self {
-        Directory {
-            dir_info,
-            fs
-        }
+        Directory { dir_info, fs }
     }
 }
 
@@ -102,7 +102,6 @@ where
 
             if !entry.attribute().is_volume() {
                 if !next_is_end_entry {
-
                     // discard everything that could have previously be done
                     file_name.clear();
 
@@ -156,7 +155,8 @@ where
     pub fn new(root: &'a Directory<'a, T>) -> Self {
         FatDirEntryIterator {
             dir: root,
-            counter: (Block::LEN / FatDirEntry::LEN) * root.fs.boot_record.blocks_per_cluster() as usize,
+            counter: (Block::LEN / FatDirEntry::LEN)
+                * root.fs.boot_record.blocks_per_cluster() as usize,
             cluster_iter: FatClusterIter::new(&root.fs, &root.dir_info.start_cluster),
             last_cluster: None,
         }
@@ -171,7 +171,9 @@ where
     fn next(&mut self) -> Option<FatDirEntry> {
         let entry_per_block_count = Block::LEN / FatDirEntry::LEN;
 
-        let cluster_opt = if self.counter == entry_per_block_count * self.dir.fs.boot_record.blocks_per_cluster() as usize {
+        let cluster_opt = if self.counter
+            == entry_per_block_count * self.dir.fs.boot_record.blocks_per_cluster() as usize
+        {
             self.counter = 0;
             self.last_cluster = self.cluster_iter.next();
             self.last_cluster.clone()
@@ -190,7 +192,10 @@ where
         self.dir
             .fs
             .block_device
-            .read(&mut blocks, BlockIndex(cluster.to_data_block_index(&self.dir.fs).0 + block_index))
+            .read(
+                &mut blocks,
+                BlockIndex(cluster.to_data_block_index(&self.dir.fs).0 + block_index),
+            )
             .or(Err(FileSystemError::ReadFailed))
             .unwrap();
 
