@@ -31,7 +31,7 @@ pub struct DirectoryEntry {
     pub attribute: Attributes,
 }
 
-pub struct DirectoryEntryIterator<'a, T: BlockDevice> {
+pub struct DirectoryEntryIterator<'a, T> {
     pub dir: &'a Directory<'a, T>,
     pub raw_iter: FatDirEntryIterator<'a, T>,
 }
@@ -141,7 +141,7 @@ where
     }
 }
 
-pub struct FatDirEntryIterator<'a, T: BlockDevice> {
+pub struct FatDirEntryIterator<'a, T> {
     pub dir: &'a Directory<'a, T>,
     pub cluster_iter: FatClusterIter<'a, T>,
     pub last_cluster: Option<Cluster>,

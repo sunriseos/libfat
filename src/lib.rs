@@ -14,6 +14,8 @@ extern crate byteorder;
 
 pub mod fat;
 
+use alloc::boxed::Box;
+
 #[derive(Debug)]
 pub enum FileSystemError {
     NotFound,
@@ -54,12 +56,13 @@ bitflags! {
     pub struct DirFilterFlags: u32 {
         const DIRECTORY = 0b0000_0001;
         const FILE = 0b0000_0010;
+        const ALL = Self::DIRECTORY.bits | Self::FILE.bits;
     }
 }
 
 type Result<T> = core::result::Result<T, FileSystemError>;
 
-pub trait FileOperations: Sized {
+pub trait FileOperations {
     fn read(&mut self, offset: u64, buf: &mut [u8]) -> Result<u64>;
     fn write_all(&mut self, offset: u64, buf: &[u8]) -> Result<()>;
 
@@ -68,20 +71,16 @@ pub trait FileOperations: Sized {
     fn get_len(&mut self) -> Result<u64>;
 }
 
-pub trait DirectoryOperations: Sized {
+pub trait DirectoryOperations {
     fn read(&mut self, buf: &mut [DirectoryEntry]) -> Result<u64>;
     fn entry_count(&self) -> Result<u64>;
 }
 
-pub trait FileSystemOperations: Sized {
-    fn create_file(name: &str, mode: FileModeFlags, size: u64) -> Result<()>;
-    fn delete_file(name: &str) -> Result<()>;
-    fn open_file<T>(name: &str, mode: FileModeFlags) -> Result<T>
-    where
-        T: FileOperations;
+pub trait FileSystemOperations {
+    fn create_file(&self, name: &str, mode: FileModeFlags, size: u64) -> Result<()>;
+    fn delete_file(&self, name: &str) -> Result<()>;
+    fn open_file<'a, T>(&'a self, name: &str, mode: FileModeFlags) -> Result<Box<dyn FileOperations + 'a>>;
 
-    fn open_directory<T>(name: &str, filter: DirFilterFlags) -> Result<T>
-    where
-        T: DirectoryOperations;
-    fn delete_directory(name: &str) -> Result<()>;
+    fn open_directory<'a, T>(&'a self, name: &str, filter: DirFilterFlags) -> Result<Box<dyn DirectoryOperations + 'a>>;
+    fn delete_directory(&self, name: &str) -> Result<()>;
 }
