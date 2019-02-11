@@ -33,9 +33,13 @@ pub enum DirectoryEntryType {
 }
 
 pub struct DirectoryEntry {
-    pub path: [u8; 0x301],
+    pub path: [u8; Self::PATH_LEN],
     pub entry_type: DirectoryEntryType,
     pub file_size: u64,
+}
+
+impl DirectoryEntry {
+    pub const PATH_LEN: usize = 0x301;
 }
 
 bitflags! {
