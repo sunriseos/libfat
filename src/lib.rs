@@ -10,10 +10,6 @@ extern crate bitflags;
 #[macro_use]
 extern crate log;
 
-extern crate byteorder;
-
-extern crate arrayvec;
-
 pub mod fat;
 
 use alloc::boxed::Box;
