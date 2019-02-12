@@ -5,8 +5,7 @@ use super::table::FatClusterIter;
 use super::FatFileSystem;
 use crate::FileSystemError;
 
-use alloc::string::String;
-use alloc::string::ToString;
+use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
 pub struct Directory<'a, T> {
@@ -23,12 +22,16 @@ where
     }
 }
 
-#[derive(Debug)]
 pub struct DirectoryEntry {
     pub start_cluster: Cluster,
     pub file_size: u32,
-    pub file_name: String,
+    pub file_name: ArrayString<[u8; Self::MAX_FILE_NAME_LEN]>,
     pub attribute: Attributes,
+}
+
+impl DirectoryEntry {
+    // entry can at best have 255 chars in UTF-8
+    pub const MAX_FILE_NAME_LEN: usize = 256 * 4;
 }
 
 pub struct DirectoryEntryIterator<'a, T> {
@@ -54,7 +57,7 @@ where
     fn next(&mut self) -> Option<DirectoryEntry> {
         let mut next_is_end_entry = false;
         let mut lfn_index: i32 = 0;
-        let mut file_name = String::new();
+        let mut file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
 
         while let Some(entry) = self.raw_iter.next() {
             // End of directory
@@ -78,14 +81,19 @@ where
                     lfn_index = i32::from(first_byte ^ 0x40);
                 }
 
-                let mut part = String::new();
+                let mut part = ArrayString::<[_; LongFileName::MAX_LEN * 4]>::new();
                 // FIXME: Custom Iterator to catches those errors
                 let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
                 for c in raw_name.iter() {
                     part.push(*c);
                 }
 
-                file_name.insert_str(0, part.as_str());
+                // FIXME: this is dirty
+                let mut tmp = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
+                tmp.push_str(file_name.as_str());
+                file_name.clear();
+                file_name.push_str(part.as_str());
+                file_name.push_str(tmp.as_str());
 
                 let index_minus_one = lfn_index - 1;
 
@@ -115,7 +123,7 @@ where
                             file_name.push(*c);
                         }
                     }
-                    file_name = file_name.trim_end().to_string();
+                    file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::from(file_name.trim_end()).unwrap();
                 }
                 if let Some(end_char_index) = file_name.find('\0') {
                     file_name.truncate(end_char_index);

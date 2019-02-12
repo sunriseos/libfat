@@ -121,7 +121,7 @@ impl ShortFileName {
 }
 
 impl LongFileName {
-    const MAX_LEN: usize = 13;
+    pub const MAX_LEN: usize = 13;
 
     pub fn from_data(data: &[u8]) -> Self {
         let mut long_name = [0x0; LongFileName::MAX_LEN];

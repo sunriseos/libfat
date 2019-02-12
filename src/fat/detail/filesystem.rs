@@ -1,5 +1,4 @@
-use alloc::string::String;
-use core::str::FromStr;
+use arrayvec::ArrayString;
 
 use super::block::{Block, BlockCount, BlockDevice, BlockIndex};
 use super::directory::{Attributes, Directory, DirectoryEntry};
@@ -42,7 +41,7 @@ where
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
             file_size: 0,
-            file_name: String::from_str("").unwrap(),
+            file_name: ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new(),
             attribute: Attributes::new(Attributes::DIRECTORY),
         };
 
