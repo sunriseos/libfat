@@ -37,13 +37,10 @@ where
     B: BlockDevice,
 {
     fn get_dir_from_path(&self, path: &str) -> FileSystemResult<detail::directory::Directory<B>> {
-        trace!("get_dir_from_path {}", path);
         if path == "/" {
             Ok(self.get_root_directory())
         } else {
-            Err(FileSystemError::Custom {
-                name: "not implemented",
-            })
+            self.get_root_directory().open_dir(path).ok_or(FileSystemError::NotFound)
         }
     }
 }

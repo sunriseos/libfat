@@ -23,12 +23,48 @@ impl<'a, T> Clone for Directory<'a, T> {
     }
 }
 
+
+fn split_path<'c>(path: &'c str) -> (&'c str, Option<&'c str>) {
+    let mut path_split = path.trim_matches('/').splitn(2, '/');
+    let comp = path_split.next().unwrap();
+    let rest_opt = path_split.next();
+
+    (comp, rest_opt)
+}
+
 impl<'a, T> Directory<'a, T>
 where
     T: BlockDevice,
 {
     pub fn from_entry(fs: &'a FatFileSystem<T>, dir_info: DirectoryEntry) -> Self {
         Directory { dir_info, fs }
+    }
+
+    pub fn find_entry(self, name: &str) -> Option<DirectoryEntry> {
+        for entry in self.iter() {
+            if entry.file_name.as_str() == name {
+                return Some(entry);
+            }
+        }
+
+        None
+    }
+
+    pub fn open_dir(self, path: &str) -> Option<Directory<'a, T>> {
+        let (name, rest_opt) = split_path(path);
+
+        let fs = self.fs;
+
+        let child_entry = self.find_entry(name)?;
+
+        if !child_entry.attribute.is_directory() {
+            return None;
+        }
+
+        match rest_opt {
+            Some(rest) => Directory::from_entry(fs, child_entry).open_dir(rest),
+            None => Some(Directory::from_entry(fs, child_entry)),
+        }
     }
 }
 
