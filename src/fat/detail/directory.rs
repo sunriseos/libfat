@@ -17,7 +17,7 @@ pub struct Directory<'a, T> {
 impl<'a, T> Clone for Directory<'a, T> {
     fn clone(&self) -> Self {
         Directory {
-            dir_info: self.dir_info.clone(),
+            dir_info: self.dir_info,
             fs: self.fs,
         }
     }
@@ -50,6 +50,24 @@ where
         None
     }
 
+    pub fn open_file(self, path: &str) -> Option<DirectoryEntry> {
+        let (name, rest_opt) = split_path(path);
+        let fs = self.fs;
+
+        let child_entry = self.find_entry(name)?;
+
+        match rest_opt {
+            Some(rest) => {
+                if !child_entry.attribute.is_directory() {
+                    None
+                } else {
+                    Directory::from_entry(fs, child_entry).open_file(rest)
+                }
+            },
+            None => Some(child_entry),
+        }
+    }
+
     pub fn open_dir(self, path: &str) -> Option<Directory<'a, T>> {
         let (name, rest_opt) = split_path(path);
 
@@ -68,7 +86,7 @@ where
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct DirectoryEntry {
     pub start_cluster: Cluster,
     pub file_size: u32,
@@ -208,7 +226,7 @@ where
     T: BlockDevice,
 {
     pub fn new(root: Directory<'a, T>) -> Self {
-        let cluster = root.dir_info.start_cluster.clone();
+        let cluster = root.dir_info.start_cluster;
         let fs = &root.fs;
         let blocks_per_cluster = fs.boot_record.blocks_per_cluster() as usize;
 
@@ -234,9 +252,9 @@ where
         {
             self.counter = 0;
             self.last_cluster = self.cluster_iter.next();
-            self.last_cluster.clone()
+            self.last_cluster
         } else {
-            self.last_cluster.clone()
+            self.last_cluster
         };
 
         let cluster = cluster_opt?;
@@ -285,31 +303,31 @@ impl Attributes {
         Attributes(value)
     }
 
-    pub fn is_read_only(&self) -> bool {
+    pub fn is_read_only(self) -> bool {
         (self.0 & Self::READ_ONLY) == Self::READ_ONLY
     }
 
-    pub fn is_hidden(&self) -> bool {
+    pub fn is_hidden(self) -> bool {
         (self.0 & Self::HIDDEN) == Self::HIDDEN
     }
 
-    pub fn is_system(&self) -> bool {
+    pub fn is_system(self) -> bool {
         (self.0 & Self::SYSTEM) == Self::SYSTEM
     }
 
-    pub fn is_volume(&self) -> bool {
+    pub fn is_volume(self) -> bool {
         (self.0 & Self::VOLUME) == Self::VOLUME
     }
 
-    pub fn is_directory(&self) -> bool {
+    pub fn is_directory(self) -> bool {
         (self.0 & Self::DIRECTORY) == Self::DIRECTORY
     }
 
-    pub fn is_archive(&self) -> bool {
+    pub fn is_archive(self) -> bool {
         (self.0 & Self::ARCHIVE) == Self::ARCHIVE
     }
 
-    pub fn is_lfn(&self) -> bool {
+    pub fn is_lfn(self) -> bool {
         (self.0 & Self::LFN) == Self::LFN
     }
 }

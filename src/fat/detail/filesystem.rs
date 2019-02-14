@@ -1,6 +1,6 @@
 use arrayvec::ArrayString;
 
-use super::block::{Block, BlockCount, BlockDevice, BlockIndex};
+use super::block::{BlockCount, BlockDevice, BlockIndex};
 use super::directory::{Attributes, Directory, DirectoryEntry};
 use super::FatVolumeBootRecord;
 

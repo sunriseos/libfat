@@ -13,7 +13,6 @@ extern crate log;
 pub mod fat;
 
 use alloc::boxed::Box;
-use arrayvec::ArrayString;
 
 #[derive(Debug)]
 pub enum FileSystemError {
@@ -64,7 +63,7 @@ type Result<T> = core::result::Result<T, FileSystemError>;
 
 pub trait FileOperations {
     fn read(&mut self, offset: u64, buf: &mut [u8]) -> Result<u64>;
-    fn write_all(&mut self, offset: u64, buf: &[u8]) -> Result<()>;
+    fn write(&mut self, offset: u64, buf: &[u8]) -> Result<()>;
 
     fn flush(&mut self) -> Result<()>;
     fn set_len(&mut self, size: u64) -> Result<()>;

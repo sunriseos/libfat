@@ -24,7 +24,7 @@ where
     T: BlockDevice,
 {
     pub fn new(fs: &'a FatFileSystem<T>, cluster: Cluster) -> FatClusterIter<'a, T> {
-        let fat_value = FatValue::get(fs, &cluster).ok();
+        let fat_value = FatValue::get(fs, cluster).ok();
         FatClusterIter {
             fs,
             current_cluster: Some(cluster),
@@ -39,12 +39,12 @@ where
 {
     type Item = Cluster;
     fn next(&mut self) -> Option<Cluster> {
-        let res = self.current_cluster.clone()?;
+        let res = self.current_cluster?;
 
         match self.last_fat {
             Some(FatValue::Data(data)) => {
                 self.current_cluster = Some(Cluster(data));
-                self.last_fat = FatValue::get(&self.fs, &self.current_cluster.clone()?).ok();
+                self.last_fat = FatValue::get(&self.fs, self.current_cluster?).ok();
             }
             _ => self.current_cluster = None,
         };
@@ -68,7 +68,7 @@ impl FatValue {
         FatValue::from_u32(val)
     }
 
-    pub fn get<T>(fs: &FatFileSystem<T>, cluster: &Cluster) -> Result<FatValue, FileSystemError>
+    pub fn get<T>(fs: &FatFileSystem<T>, cluster: Cluster) -> Result<FatValue, FileSystemError>
     where
         T: BlockDevice,
     {
@@ -90,7 +90,7 @@ impl FatValue {
 
 pub fn get_cluster_count<T>(
     fs: &FatFileSystem<T>,
-    cluster: &Cluster,
+    cluster: Cluster,
 ) -> Result<u32, FileSystemError>
 where
     T: BlockDevice,
@@ -98,7 +98,7 @@ where
     let mut res = 1;
     let mut current_cluster = Cluster(cluster.0);
 
-    while let FatValue::Data(val) = FatValue::get(fs, &current_cluster)? {
+    while let FatValue::Data(val) = FatValue::get(fs, current_cluster)? {
         res += 1;
         current_cluster = Cluster(val);
     }

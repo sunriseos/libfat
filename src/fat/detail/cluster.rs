@@ -5,7 +5,7 @@ use super::FatFileSystem;
 pub struct Cluster(pub u32);
 
 impl Cluster {
-    pub fn to_data_block_index<T>(&self, fs: &FatFileSystem<T>) -> BlockIndex
+    pub fn to_data_block_index<T>(self, fs: &FatFileSystem<T>) -> BlockIndex
     where
         T: BlockDevice,
     {
@@ -13,11 +13,11 @@ impl Cluster {
         BlockIndex(fs.partition_start.0 + fs.first_data_offset.0 + first_block_of_cluster)
     }
 
-    pub fn to_fat_offset(&self) -> u32 {
+    pub fn to_fat_offset(self) -> u32 {
         self.0 * 4
     }
 
-    pub fn to_fat_block_index<T>(&self, fs: &FatFileSystem<T>) -> BlockIndex
+    pub fn to_fat_block_index<T>(self, fs: &FatFileSystem<T>) -> BlockIndex
     where
         T: BlockDevice,
     {
