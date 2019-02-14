@@ -8,9 +8,19 @@ use crate::FileSystemError;
 use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
+#[derive(Copy)]
 pub struct Directory<'a, T> {
     pub dir_info: DirectoryEntry,
     pub fs: &'a FatFileSystem<T>,
+}
+
+impl<'a, T> Clone for Directory<'a, T> {
+    fn clone(&self) -> Self {
+        Directory {
+            dir_info: self.dir_info.clone(),
+            fs: self.fs,
+        }
+    }
 }
 
 impl<'a, T> Directory<'a, T>
@@ -22,6 +32,7 @@ where
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct DirectoryEntry {
     pub start_cluster: Cluster,
     pub file_size: u32,
@@ -123,7 +134,10 @@ where
                             file_name.push(*c);
                         }
                     }
-                    file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::from(file_name.trim_end()).unwrap();
+                    file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::from(
+                        file_name.trim_end(),
+                    )
+                    .unwrap();
                 }
                 if let Some(end_char_index) = file_name.find('\0') {
                     file_name.truncate(end_char_index);
@@ -163,8 +177,7 @@ where
         let blocks_per_cluster = fs.boot_record.blocks_per_cluster() as usize;
 
         FatDirEntryIterator {
-            counter: (Block::LEN / FatDirEntry::LEN)
-                * blocks_per_cluster,
+            counter: (Block::LEN / FatDirEntry::LEN) * blocks_per_cluster,
             cluster_iter: FatClusterIter::new(fs, cluster),
             last_cluster: None,
         }
@@ -180,7 +193,8 @@ where
         let entry_per_block_count = Block::LEN / FatDirEntry::LEN;
 
         let cluster_opt = if self.counter
-            == entry_per_block_count * self.cluster_iter.fs.boot_record.blocks_per_cluster() as usize
+            == entry_per_block_count
+                * self.cluster_iter.fs.boot_record.blocks_per_cluster() as usize
         {
             self.counter = 0;
             self.last_cluster = self.cluster_iter.next();
@@ -218,7 +232,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Attributes(u8);
 
 impl Attributes {

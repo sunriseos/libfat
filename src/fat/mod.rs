@@ -7,14 +7,14 @@ use detail::filesystem::FatFileSystem;
 
 use crate::Result as FileSystemResult;
 use crate::{
-    DirFilterFlags, DirectoryOperations, DirectoryEntry, DirectoryEntryType, FileModeFlags, FileOperations, FileSystemError,
-    FileSystemOperations,
+    DirFilterFlags, DirectoryEntry, DirectoryEntryType, DirectoryOperations, FileModeFlags,
+    FileOperations, FileSystemError, FileSystemOperations,
 };
 
 struct DirectoryReader<'a, T> {
     internal_iter: detail::directory::DirectoryEntryIterator<'a, T>,
-    filter_fn: &'static Fn(&detail::directory::DirectoryEntry,) -> bool,
-    entry_count: u64
+    filter_fn: &'static Fn(&detail::directory::DirectoryEntry) -> bool,
+    entry_count: u64,
 }
 
 struct DirectoryFilterPredicate;
@@ -28,7 +28,7 @@ impl DirectoryFilterPredicate {
     }
 
     fn files(entry: &detail::directory::DirectoryEntry) -> bool {
-        !entry.attribute.is_directory()        
+        !entry.attribute.is_directory()
     }
 }
 
@@ -37,6 +37,7 @@ where
     B: BlockDevice,
 {
     fn get_dir_from_path(&self, path: &str) -> FileSystemResult<detail::directory::Directory<B>> {
+        trace!("get_dir_from_path {}", path);
         if path == "/" {
             Ok(self.get_root_directory())
         } else {
@@ -63,30 +64,41 @@ where
         })
     }
 
-    fn open_file<'a>(&'a self, name: &str, mode: FileModeFlags) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
+    fn open_file<'a>(
+        &'a self,
+        name: &str,
+        mode: FileModeFlags,
+    ) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
     }
 
-    fn open_directory<'a>(&'a self, name: &str, filter: DirFilterFlags) -> FileSystemResult<Box<dyn DirectoryOperations + 'a>>
-    {
-        let filter_fn: &'static Fn(&detail::directory::DirectoryEntry,) -> bool = if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
-            &DirectoryFilterPredicate::all
-        } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
-            &DirectoryFilterPredicate::dirs
-        } else {
-            &DirectoryFilterPredicate::files
-        };
+    fn open_directory<'a>(
+        &'a self,
+        name: &str,
+        filter: DirFilterFlags,
+    ) -> FileSystemResult<Box<dyn DirectoryOperations + 'a>> {
+        let filter_fn: &'static Fn(&detail::directory::DirectoryEntry) -> bool =
+            if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
+                &DirectoryFilterPredicate::all
+            } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
+                &DirectoryFilterPredicate::dirs
+            } else {
+                &DirectoryFilterPredicate::files
+            };
 
-        let entry_count = self.get_dir_from_path(name)?.iter().filter(filter_fn).count() as u64;
+        let target_dir = self.get_dir_from_path(name)?;
+        let target_dir_clone = target_dir.clone();
+
+        let entry_count = target_dir.iter().filter(filter_fn).count() as u64;
 
         let res = Box::new(DirectoryReader {
-            internal_iter: self.get_dir_from_path(name)?.iter(),
+            internal_iter: target_dir_clone.iter(),
             filter_fn,
-            entry_count
+            entry_count,
         });
-        
+
         Ok(res as Box<dyn DirectoryOperations + 'a>)
     }
 
@@ -97,9 +109,11 @@ where
     }
 }
 
-impl<'a, T> DirectoryOperations for DirectoryReader<'a, T> where T: BlockDevice {
+impl<'a, T> DirectoryOperations for DirectoryReader<'a, T>
+where
+    T: BlockDevice,
+{
     fn read(&mut self, buf: &mut [DirectoryEntry]) -> FileSystemResult<u64> {
-
         for (index, entry) in buf.iter_mut().enumerate() {
             let mut raw_dir_entry;
             loop {
@@ -142,7 +156,13 @@ impl detail::directory::DirectoryEntry {
             DirectoryEntryType::File
         };
 
-        for (index, c) in self.file_name.as_bytes().iter().enumerate().take(DirectoryEntry::PATH_LEN) {
+        for (index, c) in self
+            .file_name
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .take(DirectoryEntry::PATH_LEN)
+        {
             path[index] = *c;
         }
 
@@ -150,7 +170,7 @@ impl detail::directory::DirectoryEntry {
             // TODO: add real path
             path,
             entry_type,
-            file_size: u64::from(file_size)
+            file_size: u64::from(file_size),
         }
     }
 }
