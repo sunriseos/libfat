@@ -183,8 +183,7 @@ where
             let tmp_index = raw_tmp_offset / Block::LEN_U32;
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
 
-            // TODO catch error here
-            device.read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index)).unwrap();
+            device.read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index)).or(Err(FileSystemError::ReadFailed))?;
 
             let buf_slice = &mut buf[read_size as usize..];
             let buf_limit = if buf_slice.len() >= Block::LEN {

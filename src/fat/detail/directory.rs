@@ -26,6 +26,8 @@ impl<'a, T> Clone for Directory<'a, T> {
 
 fn split_path<'c>(path: &'c str) -> (&'c str, Option<&'c str>) {
     let mut path_split = path.trim_matches('/').splitn(2, '/');
+
+    // unwrap will never fail here
     let comp = path_split.next().unwrap();
     let rest_opt = path_split.next();
 
@@ -188,6 +190,8 @@ where
                             file_name.push(*c);
                         }
                     }
+
+                    // unwrap will never fail here
                     file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::from(
                         file_name.trim_end(),
                     )
@@ -415,11 +419,13 @@ impl<'a> core::fmt::Debug for FatDirEntry {
         if self.is_long_file_name() {
             let long_file_name_raw = self.long_file_name_raw();
             if let Some(long_file_name) = long_file_name_raw {
+                // FIXME: SHOULDN'T UNWRAP
                 write!(f, "LongFileName {{{:?}}}", long_file_name.chars().unwrap())?;
             } else {
                 write!(f, "LongFileName {{ \"not a long file name?????\" }}")?;
             }
         } else {
+            // FIXME: SHOULDN'T UNWRAP
             write!(
                 f,
                 "ShortFileName {{{:?}}}",
