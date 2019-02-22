@@ -99,7 +99,7 @@ where
         BlockIndexClusterIter {
             counter: blocks_per_cluster,
             cluster_iter: FatClusterIter::new(fs, cluster),
-            block_index: block_index,
+            block_index,
             last_cluster: None,
         }
     }
@@ -124,7 +124,6 @@ where
 
         let cluster = cluster_opt?;
 
-        // The entry isn't a valid one but this doesn't mark the end of the directory
         self.counter += 1;
 
         Some(cluster)

@@ -120,7 +120,7 @@ where
         Ok(res as Box<dyn DirectoryOperations + 'a>)
     }
 
-    fn delete_directory(&self, name: &str) -> FileSystemResult<()> {
+    fn delete_directory(&self, _name: &str) -> FileSystemResult<()> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
@@ -177,12 +177,12 @@ where
         let mut raw_tmp_offset = offset as u32;
         let cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
         let mut cluster_block_iterator = BlockIndexClusterIter::new(self.fs, self.file_info.start_cluster, Some(cluster_offset));
-        let blocks_per_cluster = self.fs.boot_record.blocks_per_cluster() as u32;
+        let blocks_per_cluster = u32::from(self.fs.boot_record.blocks_per_cluster());
 
         let mut read_size = 0u64;
         let mut blocks = [Block::new()];
 
-        raw_tmp_offset = raw_tmp_offset % Block::LEN_U32;
+        raw_tmp_offset %= Block::LEN_U32;
 
         while read_size < buf.len() as u64 {
             let cluster_opt = cluster_block_iterator.next();

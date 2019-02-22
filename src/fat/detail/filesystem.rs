@@ -39,8 +39,8 @@ where
             boot_record,
             // TODO: extract fs info to get some hints
             fat_info: FatFileSystemInfo {
-                last_cluster: 0xFFFFFFFF,
-                free_cluster: 0xFFFFFFFF,
+                last_cluster: 0xFFFF_FFFF,
+                free_cluster: 0xFFFF_FFFF,
             }
         }
     }

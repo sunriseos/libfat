@@ -1,7 +1,6 @@
-use super::block::{Block, BlockDevice, BlockIndex};
+use super::block::{Block, BlockDevice, BlockIndex, BlockIndexClusterIter};
 use super::cluster::Cluster;
 use super::name::{LongFileName, ShortFileName};
-use super::table::FatClusterIter;
 use super::FatFileSystem;
 use crate::FileSystemError;
 
@@ -24,7 +23,7 @@ impl<'a, T> Clone for Directory<'a, T> {
 }
 
 
-fn split_path<'c>(path: &'c str) -> (&'c str, Option<&'c str>) {
+fn split_path(path: &str) -> (&str, Option<&str>) {
     let mut path_split = path.trim_matches('/').splitn(2, '/');
 
     // unwrap will never fail here
@@ -220,9 +219,11 @@ where
 }
 
 pub struct FatDirEntryIterator<'a, T> {
-    pub cluster_iter: FatClusterIter<'a, T>,
+    pub cluster_iter: BlockIndexClusterIter<'a, T>,
     pub last_cluster: Option<Cluster>,
-    pub counter: usize,
+    pub block_index: u32,
+    pub counter: u8,
+    pub is_first: bool,
 }
 
 impl<'a, T> FatDirEntryIterator<'a, T>
@@ -232,11 +233,12 @@ where
     pub fn new(root: Directory<'a, T>) -> Self {
         let cluster = root.dir_info.start_cluster;
         let fs = &root.fs;
-        let blocks_per_cluster = fs.boot_record.blocks_per_cluster() as usize;
 
         FatDirEntryIterator {
-            counter: (Block::LEN / FatDirEntry::LEN) * blocks_per_cluster,
-            cluster_iter: FatClusterIter::new(fs, cluster),
+            counter: 0,
+            block_index: 0,
+            is_first: true,
+            cluster_iter: BlockIndexClusterIter::new(fs, cluster, None),
             last_cluster: None,
         }
     }
@@ -248,13 +250,15 @@ where
 {
     type Item = FatDirEntry;
     fn next(&mut self) -> Option<FatDirEntry> {
-        let entry_per_block_count = Block::LEN / FatDirEntry::LEN;
+        let entry_per_block_count = (Block::LEN / FatDirEntry::LEN) as u8;
+        let fs = self.cluster_iter.cluster_iter.fs;
 
-        let cluster_opt = if self.counter
-            == entry_per_block_count
-                * self.cluster_iter.fs.boot_record.blocks_per_cluster() as usize
-        {
+        let cluster_opt = if self.counter == entry_per_block_count || self.is_first {
             self.counter = 0;
+            if !self.is_first {
+                self.block_index += 1;
+            }
+            self.is_first = false;
             self.last_cluster = self.cluster_iter.next();
             self.last_cluster
         } else {
@@ -265,19 +269,13 @@ where
 
         let mut blocks = [Block::new()];
 
-        let block_index = (self.counter / entry_per_block_count) as u32;
-        let entry_index = self.counter % entry_per_block_count;
+
+        let entry_index = (self.counter % entry_per_block_count) as usize;
 
         // FIXME: Custom Iterator to catches those errors
-        self.cluster_iter
-            .fs
-            .block_device
-            .read(
-                &mut blocks,
-                BlockIndex(cluster.to_data_block_index(&self.cluster_iter.fs).0 + block_index),
-            )
-            .or(Err(FileSystemError::ReadFailed))
-            .unwrap();
+        fs.block_device.read(&mut blocks, BlockIndex(cluster.to_data_block_index(fs).0 + self.block_index))
+                       .or(Err(FileSystemError::ReadFailed))
+                       .unwrap();
 
         let entry_start = entry_index * FatDirEntry::LEN;
         let entry_end = (entry_index + 1) * FatDirEntry::LEN;
