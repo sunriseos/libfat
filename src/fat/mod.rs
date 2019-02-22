@@ -5,6 +5,7 @@ use core::iter::Iterator;
 use detail::block::BlockDevice;
 use detail::block::Block;
 use detail::block::BlockIndex;
+use detail::block::BlockIndexClusterIter;
 use detail::filesystem::FatFileSystem;
 
 
@@ -173,14 +174,25 @@ where
 
         let device: &T = &self.fs.block_device;
 
-        let mut read_size = 0u64;
-        let block_start_index = self.file_info.start_cluster.to_data_block_index(self.fs);
         let mut raw_tmp_offset = offset as u32;
+        let cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+        let mut cluster_block_iterator = BlockIndexClusterIter::new(self.fs, self.file_info.start_cluster, Some(cluster_offset));
+        let blocks_per_cluster = self.fs.boot_record.blocks_per_cluster() as u32;
+
+        let mut read_size = 0u64;
         let mut blocks = [Block::new()];
 
+        raw_tmp_offset = raw_tmp_offset % Block::LEN_U32;
+
         while read_size < buf.len() as u64 {
-            
-            let tmp_index = raw_tmp_offset / Block::LEN_U32;
+            let cluster_opt = cluster_block_iterator.next();
+            if cluster_opt.is_none() {
+                break;
+            }
+
+            let cluster = cluster_opt.unwrap();
+            let block_start_index = cluster.to_data_block_index(self.fs);        
+            let tmp_index = cluster_offset.0 % blocks_per_cluster;
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
 
             device.read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index)).or(Err(FileSystemError::ReadFailed))?;
