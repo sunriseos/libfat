@@ -63,6 +63,15 @@ impl FatValue {
         }
     }
 
+    pub fn to_u32(self) -> u32 {
+        match self {
+            FatValue::Free => 0,
+            FatValue::Bad => 0x0FFF_FFF7,
+            FatValue::EndOfChain => 0x0FFF_FFFF,
+            FatValue::Data(n) => n
+        }
+    }
+
     pub fn from_block(block: &Block, cluster_offset: usize) -> FatValue {
         let val = LittleEndian::read_u32(&block[cluster_offset..cluster_offset + 4]) & 0x0FFF_FFFF;
         FatValue::from_u32(val)
@@ -86,6 +95,37 @@ impl FatValue {
 
         Ok(res)
     }
+
+    pub fn put<T>(fs: &FatFileSystem<T>, cluster: Cluster, value: FatValue) -> Result<(), FileSystemError>
+        where
+        T: BlockDevice,
+    {
+        let mut blocks = [Block::new()];
+
+        let fat_offset = cluster.to_fat_offset();
+        let cluster_block_index = cluster.to_fat_block_index(fs);
+        let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
+
+        fs.block_device
+            .read(&mut blocks, cluster_block_index)
+            .or(Err(FileSystemError::ReadFailed))?;
+
+        let res = FatValue::from_block(&blocks[0], cluster_offset);
+        
+        // no write needed
+        if res == value {
+            return Ok(())
+        }
+
+        let value = value.to_u32() & 0x0FFF_FFFF;
+        LittleEndian::write_u32(&mut blocks[0][cluster_offset..cluster_offset + 4], value);
+
+        fs.block_device
+            .write(&blocks, cluster_block_index)
+            .or(Err(FileSystemError::WriteFailed))?;
+
+        Ok(())
+    }
 }
 
 pub fn get_cluster_count<T>(
@@ -96,7 +136,7 @@ where
     T: BlockDevice,
 {
     let mut res = 1;
-    let mut current_cluster = Cluster(cluster.0);
+    let mut current_cluster = cluster;
 
     while let FatValue::Data(val) = FatValue::get(fs, current_cluster)? {
         res += 1;

@@ -17,6 +17,7 @@ use alloc::boxed::Box;
 #[derive(Debug)]
 pub enum FileSystemError {
     NotFound,
+    NoSpaceLeft,
     AccessDenied,
     WriteFailed,
     ReadFailed,

@@ -24,6 +24,7 @@ pub enum FatFsType {
 pub struct FatVolumeBootRecord {
     pub data: Block,
     pub fat_type: FatFsType,
+    pub cluster_count: u32,
 }
 
 impl FatVolumeBootRecord {
@@ -31,6 +32,7 @@ impl FatVolumeBootRecord {
         let mut res = FatVolumeBootRecord {
             data,
             fat_type: FatFsType::Fat12,
+            cluster_count: 0
         };
 
         let root_dir_blocks = ((u32::from(res.root_dir_childs_count()) * 32)
@@ -48,6 +50,7 @@ impl FatVolumeBootRecord {
         } else {
             res.fat_type = FatFsType::Fat32;
         }
+        res.cluster_count = cluster_count + 2;
 
         res
     }

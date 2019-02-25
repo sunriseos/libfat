@@ -1,7 +1,7 @@
 use super::block::{Block, BlockDevice, BlockIndex};
 use super::FatFileSystem;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Cluster(pub u32);
 
 impl Cluster {
