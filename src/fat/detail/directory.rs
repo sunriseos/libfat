@@ -22,7 +22,6 @@ impl<'a, T> Clone for Directory<'a, T> {
     }
 }
 
-
 fn split_path(path: &str) -> (&str, Option<&str>) {
     let mut path_split = path.trim_matches('/').splitn(2, '/');
 
@@ -64,7 +63,7 @@ where
                 } else {
                     Directory::from_entry(fs, child_entry).open_file(rest)
                 }
-            },
+            }
             None => Some(child_entry),
         }
     }
@@ -269,13 +268,16 @@ where
 
         let mut blocks = [Block::new()];
 
-
         let entry_index = (self.counter % entry_per_block_count) as usize;
 
         // FIXME: Custom Iterator to catches those errors
-        fs.block_device.read(&mut blocks, BlockIndex(cluster.to_data_block_index(fs).0 + self.block_index))
-                       .or(Err(FileSystemError::ReadFailed))
-                       .unwrap();
+        fs.block_device
+            .read(
+                &mut blocks,
+                BlockIndex(cluster.to_data_block_index(fs).0 + self.block_index),
+            )
+            .or(Err(FileSystemError::ReadFailed))
+            .unwrap();
 
         let entry_start = entry_index * FatDirEntry::LEN;
         let entry_end = (entry_index + 1) * FatDirEntry::LEN;
@@ -298,6 +300,7 @@ impl Attributes {
     pub const VOLUME: u8 = 0x08;
     pub const DIRECTORY: u8 = 0x10;
     pub const ARCHIVE: u8 = 0x20;
+    pub const DEVICE: u8 = 0x40;
 
     pub const LFN: u8 = Self::READ_ONLY | Self::HIDDEN | Self::SYSTEM | Self::VOLUME;
 
@@ -331,6 +334,10 @@ impl Attributes {
 
     pub fn is_lfn(self) -> bool {
         (self.0 & Self::LFN) == Self::LFN
+    }
+
+    pub fn is_device(self) -> bool {
+        (self.0 & Self::DEVICE) == Self::DEVICE
     }
 }
 
@@ -366,7 +373,7 @@ impl FatDirEntry {
     }
 
     pub fn is_deleted(&self) -> bool {
-        self.get_first_byte() == 0xE5
+        self.get_first_byte() == 0xE5 || self.get_first_byte() == 0x05
     }
 
     pub fn attribute(&self) -> Attributes {
@@ -417,8 +424,11 @@ impl<'a> core::fmt::Debug for FatDirEntry {
         if self.is_long_file_name() {
             let long_file_name_raw = self.long_file_name_raw();
             if let Some(long_file_name) = long_file_name_raw {
-                // FIXME: SHOULDN'T UNWRAP
-                write!(f, "LongFileName {{{:?}}}", long_file_name.chars().unwrap())?;
+                if let Some(data) = long_file_name.chars() {
+                    write!(f, "LongFileName {{{:?}}}", data)?;
+                } else {
+                    write!(f, "BROKEN LongFileName")?;
+                }
             } else {
                 write!(f, "LongFileName {{ \"not a long file name?????\" }}")?;
             }

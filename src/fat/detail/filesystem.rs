@@ -4,16 +4,15 @@ use super::block::{BlockCount, BlockDevice, BlockIndex};
 use super::directory::{Attributes, Directory, DirectoryEntry};
 use super::FatVolumeBootRecord;
 
-use crate::Result as FileSystemResult;
-use crate::FileSystemError;
 use super::cluster::Cluster;
 use super::table::FatValue;
-
+use crate::FileSystemError;
+use crate::Result as FileSystemResult;
 
 pub struct FatFileSystemInfo {
     // Last allocated cluster
     last_cluster: u32,
-    free_cluster: u32
+    free_cluster: u32,
 }
 
 // TODO: reduce field accesibility
@@ -47,7 +46,7 @@ where
             fat_info: FatFileSystemInfo {
                 last_cluster: 0xFFFF_FFFF,
                 free_cluster: 0xFFFF_FFFF,
-            }
+            },
         }
     }
 
@@ -66,17 +65,20 @@ where
         Directory::from_entry(self, dir_info)
     }
 
-    pub fn alloc_cluster(&self, last_cluster_allocated_opt: Option<Cluster>) -> FileSystemResult<Cluster> {
+    pub fn alloc_cluster(
+        &self,
+        last_cluster_allocated_opt: Option<Cluster>,
+    ) -> FileSystemResult<Cluster> {
         let mut start_cluster = Cluster(self.fat_info.last_cluster);
-        
+
         let mut last_cluster_allocated = Cluster(0);
-        
+
         if let Some(cluster) = last_cluster_allocated_opt {
             // TODO: precheck if the size is availaible
             start_cluster = last_cluster_allocated;
             last_cluster_allocated = cluster;
         } else if start_cluster.0 == 0 || start_cluster.0 >= self.boot_record.cluster_count {
-                start_cluster = Cluster(1);
+            start_cluster = Cluster(1);
         }
 
         if self.fat_info.free_cluster == 0 {
@@ -87,7 +89,6 @@ where
 
         // Resize of exisiting cluster?
         if start_cluster == last_cluster_allocated {
-
             number_cluster = start_cluster.0 + 1;
             if number_cluster >= self.boot_record.cluster_count {
                 number_cluster = 2;
@@ -129,10 +130,14 @@ where
 
         let allocated_cluster = Cluster(number_cluster);
         FatValue::put(self, allocated_cluster, FatValue::EndOfChain)?;
-        
+
         // Link existing cluster with the new one availaible
         if last_cluster_allocated.0 != 0 {
-            FatValue::put(self, last_cluster_allocated, FatValue::Data(allocated_cluster.0))?;
+            FatValue::put(
+                self,
+                last_cluster_allocated,
+                FatValue::Data(allocated_cluster.0),
+            )?;
         }
 
         // TODO: update FS info
@@ -140,7 +145,11 @@ where
         Ok(allocated_cluster)
     }
 
-    pub fn free_cluster(&self, to_remove: Cluster, previous_cluster: Option<Cluster>) -> FileSystemResult<()> {
+    pub fn free_cluster(
+        &self,
+        to_remove: Cluster,
+        previous_cluster: Option<Cluster>,
+    ) -> FileSystemResult<()> {
         if let Some(previous_cluster) = previous_cluster {
             FatValue::put(self, previous_cluster, FatValue::EndOfChain)?;
         }
@@ -161,10 +170,9 @@ where
             match value {
                 FatValue::Data(data) => {
                     current_cluster = Cluster(data);
-                },
-                _ => break
+                }
+                _ => break,
             }
-
         }
         Ok(())
     }

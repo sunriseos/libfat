@@ -32,7 +32,7 @@ impl FatVolumeBootRecord {
         let mut res = FatVolumeBootRecord {
             data,
             fat_type: FatFsType::Fat12,
-            cluster_count: 0
+            cluster_count: 0,
         };
 
         let root_dir_blocks = ((u32::from(res.root_dir_childs_count()) * 32)

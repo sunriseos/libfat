@@ -2,12 +2,11 @@ pub mod detail;
 
 use alloc::boxed::Box;
 use core::iter::Iterator;
-use detail::block::BlockDevice;
 use detail::block::Block;
+use detail::block::BlockDevice;
 use detail::block::BlockIndex;
 use detail::block::BlockIndexClusterIter;
 use detail::filesystem::FatFileSystem;
-
 
 use crate::Result as FileSystemResult;
 use crate::{
@@ -16,6 +15,7 @@ use crate::{
 };
 
 struct DirectoryReader<'a, T> {
+    base_path: [u8; DirectoryEntry::PATH_LEN],
     internal_iter: detail::directory::DirectoryEntryIterator<'a, T>,
     filter_fn: &'static Fn(&detail::directory::DirectoryEntry) -> bool,
     entry_count: u64,
@@ -23,21 +23,22 @@ struct DirectoryReader<'a, T> {
 
 struct FileInterface<'a, T> {
     fs: &'a FatFileSystem<T>,
-    file_info: detail::directory::DirectoryEntry
+    file_info: detail::directory::DirectoryEntry,
 }
 
 struct DirectoryFilterPredicate;
 impl DirectoryFilterPredicate {
-    fn all(_entry: &detail::directory::DirectoryEntry) -> bool {
-        true
+    fn all(entry: &detail::directory::DirectoryEntry) -> bool {
+        let name = entry.file_name.as_str();
+        name != "." && name != ".."
     }
 
     fn dirs(entry: &detail::directory::DirectoryEntry) -> bool {
-        entry.attribute.is_directory()
+        entry.attribute.is_directory() && Self::all(entry)
     }
 
     fn files(entry: &detail::directory::DirectoryEntry) -> bool {
-        !entry.attribute.is_directory()
+        !entry.attribute.is_directory() && Self::all(entry)
     }
 }
 
@@ -49,7 +50,9 @@ where
         if path == "/" {
             Ok(self.get_root_directory())
         } else {
-            self.get_root_directory().open_dir(path).ok_or(FileSystemError::NotFound)
+            self.get_root_directory()
+                .open_dir(path)
+                .ok_or(FileSystemError::NotFound)
         }
     }
 }
@@ -78,15 +81,18 @@ where
         // TODO resize files ect
         if (mode & FileModeFlags::APPENDABLE) == FileModeFlags::APPENDABLE {
             return Err(FileSystemError::Custom {
-                name: "not implemented"
+                name: "not implemented",
             });
         }
 
-        let dir_entry = self.get_root_directory().open_file(name).ok_or(FileSystemError::NotFound)?;
+        let dir_entry = self
+            .get_root_directory()
+            .open_file(name)
+            .ok_or(FileSystemError::NotFound)?;
 
         let res = Box::new(FileInterface {
             fs: self,
-            file_info: dir_entry
+            file_info: dir_entry,
         });
 
         Ok(res as Box<dyn FileOperations + 'a>)
@@ -97,6 +103,11 @@ where
         name: &str,
         filter: DirFilterFlags,
     ) -> FileSystemResult<Box<dyn DirectoryOperations + 'a>> {
+        // reject path that are too big (shoudn't never happens but well we don't know)
+        if name.len() >= DirectoryEntry::PATH_LEN {
+            return Err(FileSystemError::NotFound);
+        }
+
         let filter_fn: &'static Fn(&detail::directory::DirectoryEntry) -> bool =
             if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
                 &DirectoryFilterPredicate::all
@@ -111,7 +122,25 @@ where
 
         let entry_count = target_dir.iter().filter(filter_fn).count() as u64;
 
+        let mut data: [u8; DirectoryEntry::PATH_LEN] = [0x0; DirectoryEntry::PATH_LEN];
+        for (index, c) in name
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .take(DirectoryEntry::PATH_LEN)
+        {
+            data[index] = *c;
+        }
+
+        // Add '/' if missing at the end
+        if let Some('/') = name.chars().last() {
+            // Already valid
+        } else {
+            data[name.as_bytes().len()] = 0x2F;
+        }
+
         let res = Box::new(DirectoryReader {
+            base_path: data,
             internal_iter: target_dir_clone.iter(),
             filter_fn,
             entry_count,
@@ -150,7 +179,7 @@ where
                 }
             }
 
-            *entry = raw_dir_entry.into_fs();
+            *entry = raw_dir_entry.into_fs(&self.base_path);
         }
 
         // everything was read correctly
@@ -166,17 +195,17 @@ impl<'a, T> FileOperations for FileInterface<'a, T>
 where
     T: BlockDevice,
 {
-    fn read(&mut self, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64>
-    {
+    fn read(&mut self, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> {
         if offset >= u64::from(self.file_info.file_size) {
-            return Ok(0)
+            return Ok(0);
         }
 
         let device: &T = &self.fs.block_device;
 
         let mut raw_tmp_offset = offset as u32;
         let cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
-        let mut cluster_block_iterator = BlockIndexClusterIter::new(self.fs, self.file_info.start_cluster, Some(cluster_offset));
+        let mut cluster_block_iterator =
+            BlockIndexClusterIter::new(self.fs, self.file_info.start_cluster, Some(cluster_offset));
         let blocks_per_cluster = u32::from(self.fs.boot_record.blocks_per_cluster());
 
         let mut read_size = 0u64;
@@ -191,11 +220,13 @@ where
             }
 
             let cluster = cluster_opt.unwrap();
-            let block_start_index = cluster.to_data_block_index(self.fs);        
+            let block_start_index = cluster.to_data_block_index(self.fs);
             let tmp_index = cluster_offset.0 % blocks_per_cluster;
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
 
-            device.read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index)).or(Err(FileSystemError::ReadFailed))?;
+            device
+                .read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index))
+                .or(Err(FileSystemError::ReadFailed))?;
 
             let buf_slice = &mut buf[read_size as usize..];
             let buf_limit = if buf_slice.len() >= Block::LEN {
@@ -215,34 +246,30 @@ where
         Ok(read_size)
     }
 
-    fn write(&mut self, _offset: u64, _buf: &[u8]) -> FileSystemResult<()>
-    {
+    fn write(&mut self, _offset: u64, _buf: &[u8]) -> FileSystemResult<()> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
     }
 
-    fn flush(&mut self) -> FileSystemResult<()>
-    {
+    fn flush(&mut self) -> FileSystemResult<()> {
         // NOP
         Ok(())
     }
 
-    fn set_len(&mut self, _size: u64) -> FileSystemResult<()>
-    {
+    fn set_len(&mut self, _size: u64) -> FileSystemResult<()> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
     }
 
-    fn get_len(&mut self) -> FileSystemResult<u64>
-    {
+    fn get_len(&mut self) -> FileSystemResult<u64> {
         Ok(u64::from(self.file_info.file_size))
     }
 }
 
 impl detail::directory::DirectoryEntry {
-    fn into_fs(self) -> DirectoryEntry {
+    fn into_fs(self, base_path: &[u8; DirectoryEntry::PATH_LEN]) -> DirectoryEntry {
         let mut path: [u8; DirectoryEntry::PATH_LEN] = [0x0; DirectoryEntry::PATH_LEN];
 
         let file_size = self.file_size;
@@ -253,14 +280,26 @@ impl detail::directory::DirectoryEntry {
             DirectoryEntryType::File
         };
 
+        let mut base_index = 0;
+
+        loop {
+            let c = base_path[base_index];
+            if c == 0x0 {
+                break;
+            }
+
+            path[base_index] = c;
+            base_index += 1;
+        }
+
         for (index, c) in self
             .file_name
             .as_bytes()
             .iter()
             .enumerate()
-            .take(DirectoryEntry::PATH_LEN)
+            .take(DirectoryEntry::PATH_LEN - base_index)
         {
-            path[index] = *c;
+            path[base_index + index] = *c;
         }
 
         DirectoryEntry {

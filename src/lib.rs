@@ -28,7 +28,7 @@ pub enum FileSystemError {
     Custom { name: &'static str },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DirectoryEntryType {
     File,
     Directory,

@@ -68,7 +68,7 @@ impl FatValue {
             FatValue::Free => 0,
             FatValue::Bad => 0x0FFF_FFF7,
             FatValue::EndOfChain => 0x0FFF_FFFF,
-            FatValue::Data(n) => n
+            FatValue::Data(n) => n,
         }
     }
 
@@ -96,8 +96,12 @@ impl FatValue {
         Ok(res)
     }
 
-    pub fn put<T>(fs: &FatFileSystem<T>, cluster: Cluster, value: FatValue) -> Result<(), FileSystemError>
-        where
+    pub fn put<T>(
+        fs: &FatFileSystem<T>,
+        cluster: Cluster,
+        value: FatValue,
+    ) -> Result<(), FileSystemError>
+    where
         T: BlockDevice,
     {
         let mut blocks = [Block::new()];
@@ -111,10 +115,10 @@ impl FatValue {
             .or(Err(FileSystemError::ReadFailed))?;
 
         let res = FatValue::from_block(&blocks[0], cluster_offset);
-        
+
         // no write needed
         if res == value {
-            return Ok(())
+            return Ok(());
         }
 
         let value = value.to_u32() & 0x0FFF_FFFF;
@@ -128,10 +132,7 @@ impl FatValue {
     }
 }
 
-pub fn get_cluster_count<T>(
-    fs: &FatFileSystem<T>,
-    cluster: Cluster,
-) -> Result<u32, FileSystemError>
+pub fn get_cluster_count<T>(fs: &FatFileSystem<T>, cluster: Cluster) -> Result<u32, FileSystemError>
 where
     T: BlockDevice,
 {
