@@ -155,8 +155,6 @@ impl LongFileName {
             if let Ok(c) = c {
                 res[i] = c;
             } else {
-                trace!("{:?}", self.contents);
-                trace!("{:?}", c);
                 return None;
             }
         }

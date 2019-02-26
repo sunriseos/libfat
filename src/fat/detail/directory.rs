@@ -257,6 +257,7 @@ where
             if !self.is_first {
                 self.block_index += 1;
             }
+            self.block_index = self.block_index % fs.boot_record.blocks_per_cluster() as u32;
             self.is_first = false;
             self.last_cluster = self.cluster_iter.next();
             self.last_cluster
