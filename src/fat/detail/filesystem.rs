@@ -139,4 +139,33 @@ where
 
         Ok(allocated_cluster)
     }
+
+    pub fn free_cluster(&self, to_remove: Cluster, previous_cluster: Option<Cluster>) -> FileSystemResult<()> {
+        if let Some(previous_cluster) = previous_cluster {
+            FatValue::put(self, previous_cluster, FatValue::EndOfChain)?;
+        }
+
+        let mut current_cluster = to_remove;
+
+        loop {
+            let value = FatValue::get(self, current_cluster)?;
+
+            if value == FatValue::Free {
+                break;
+            }
+
+            FatValue::put(self, current_cluster, FatValue::Free)?;
+
+            // TODO: update FS info
+
+            match value {
+                FatValue::Data(data) => {
+                    current_cluster = Cluster(data);
+                },
+                _ => break
+            }
+
+        }
+        Ok(())
+    }
 }
