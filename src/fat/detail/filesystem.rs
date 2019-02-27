@@ -54,15 +54,34 @@ where
         // TODO: check fs info struct
     }
 
+    fn get_parent(path: &str) -> (&str, &str) {
+
+        let separator_index_opt = path.rfind('/');
+
+        if let Some(separator_index) = separator_index_opt {
+            let (first, last) = path.split_at(separator_index);
+            (first, &last[1..])
+        } else {
+            ("", path)
+        }
+    }
+
     pub fn get_root_directory(&self) -> Directory<T> {
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
+            raw_info: None,
             file_size: 0,
             file_name: ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new(),
             attribute: Attributes::new(Attributes::DIRECTORY),
         };
 
         Directory::from_entry(self, dir_info)
+    }
+
+    pub fn unlink(&self, path: &str) -> FileSystemResult<()> {
+        let (parent_name, file_name) = Self::get_parent(path);
+        let parent_dir = self.get_root_directory().open_dir(parent_name).ok_or(FileSystemError::NotFound)?;
+        parent_dir.unlink(file_name)
     }
 
     pub fn alloc_cluster(

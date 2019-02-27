@@ -3,6 +3,8 @@ use super::cluster::Cluster;
 use super::name::{LongFileName, ShortFileName};
 use super::FatFileSystem;
 use crate::FileSystemError;
+use crate::Result as FileSystemResult;
+
 
 use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
@@ -84,11 +86,57 @@ where
             None => Some(Directory::from_entry(fs, child_entry)),
         }
     }
+
+    fn delete_dir_entry(fs: &'a FatFileSystem<T>, dir_entry: &DirectoryEntry) -> FileSystemResult<()> {
+        if let Some(raw_info) = dir_entry.raw_info {
+            let mut block_iter = FatDirEntryIterator::new(fs, raw_info.parent_cluster, raw_info.first_entry_block_index, raw_info.first_entry_offset);
+            
+            let mut i = 0;
+            while i < raw_info.entry_count {
+                let mut res = block_iter.next().ok_or(FileSystemError::ReadFailed)?;
+                res.set_deleted();
+                res.flush(fs)?;
+                i += 1;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn unlink(self, name: &str) -> FileSystemResult<()> {
+        let fs = self.fs;
+
+        let dir_entry = self.find_entry(name).ok_or(FileSystemError::NotFound)?;
+
+        // Check for directory not being empty
+        if dir_entry.attribute.is_directory() {
+            if let Some(entry) = Self::from_entry(fs, dir_entry).clone().iter().skip(2).next() {
+                return Err(FileSystemError::AccessDenied);
+            }
+        }
+
+        Self::delete_dir_entry(fs, &dir_entry)?;
+
+        if dir_entry.start_cluster.0 != 0 {
+            fs.free_cluster(dir_entry.start_cluster, None)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct DirectoryEntryRawInfo {
+    pub parent_cluster: Cluster,
+    pub first_entry_block_index: BlockIndex,
+    pub first_entry_offset: u32,
+    pub entry_count: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct DirectoryEntry {
     pub start_cluster: Cluster,
+    pub(crate) raw_info: Option<DirectoryEntryRawInfo>,
     pub file_size: u32,
     pub file_name: ArrayString<[u8; Self::MAX_FILE_NAME_LEN]>,
     pub attribute: Attributes,
@@ -100,6 +148,7 @@ impl DirectoryEntry {
 }
 
 pub struct DirectoryEntryIterator<'a, T> {
+    pub directory_cluster: Cluster,
     pub raw_iter: FatDirEntryIterator<'a, T>,
 }
 
@@ -109,7 +158,8 @@ where
 {
     pub fn new(root: Directory<'a, T>) -> Self {
         DirectoryEntryIterator {
-            raw_iter: FatDirEntryIterator::new(root),
+            directory_cluster: root.dir_info.start_cluster,
+            raw_iter: FatDirEntryIterator::from_directory(root),
         }
     }
 }
@@ -121,10 +171,17 @@ where
     type Item = DirectoryEntry;
     fn next(&mut self) -> Option<DirectoryEntry> {
         let mut next_is_end_entry = false;
+        let mut first_raw_dir_entry: Option<FatDirEntry> = None;
+        let mut entry_count = 0;
         let mut lfn_index: i32 = 0;
         let mut file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
 
         while let Some(entry) = self.raw_iter.next() {
+            if first_raw_dir_entry.is_none() {
+                first_raw_dir_entry = Some(entry);
+            }
+            entry_count += 1;
+
             // End of directory
             if entry.is_free() {
                 break;
@@ -134,6 +191,8 @@ where
             if entry.is_deleted() {
                 lfn_index = 0;
                 file_name.clear();
+                first_raw_dir_entry = None;
+                entry_count = 0;
 
                 continue;
             }
@@ -199,9 +258,17 @@ where
                     file_name.truncate(end_char_index);
                 }
 
+                let first_raw_dir_entry = first_raw_dir_entry.unwrap();
+
                 // only a SFN entry
                 return Some(DirectoryEntry {
                     start_cluster: entry.get_cluster(),
+                    raw_info: Some(DirectoryEntryRawInfo {
+                        parent_cluster: first_raw_dir_entry.entry_cluster,
+                        first_entry_block_index: BlockIndex(first_raw_dir_entry.entry_index),
+                        first_entry_offset: first_raw_dir_entry.entry_offset,
+                        entry_count: entry_count,
+                    }),
                     file_size: entry.get_file_size(),
                     file_name,
                     attribute: entry.attribute(),
@@ -211,6 +278,8 @@ where
             lfn_index = 0;
             next_is_end_entry = false;
             file_name.clear();
+            first_raw_dir_entry = None;
+            entry_count = 0;
         }
 
         None
@@ -229,7 +298,7 @@ impl<'a, T> FatDirEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
-    pub fn new(root: Directory<'a, T>) -> Self {
+    pub fn from_directory(root: Directory<'a, T>) -> Self {
         let cluster = root.dir_info.start_cluster;
         let fs = &root.fs;
 
@@ -238,6 +307,17 @@ where
             block_index: 0,
             is_first: true,
             cluster_iter: BlockIndexClusterIter::new(fs, cluster, None),
+            last_cluster: None,
+        }
+    }
+
+    pub fn new(fs: &'a FatFileSystem<T>, start_cluster: Cluster, block_index: BlockIndex, offset: u32) -> Self {
+
+        FatDirEntryIterator {
+            counter: (offset / FatDirEntry::LEN as u32) as u8,
+            block_index: block_index.0,
+            is_first: true,
+            cluster_iter: BlockIndexClusterIter::new(fs, start_cluster, Some(block_index)),
             last_cluster: None,
         }
     }
@@ -253,8 +333,8 @@ where
         let fs = self.cluster_iter.cluster_iter.fs;
 
         let cluster_opt = if self.counter == entry_per_block_count || self.is_first {
-            self.counter = 0;
             if !self.is_first {
+                self.counter = 0;
                 self.block_index += 1;
             }
             self.block_index %= u32::from(fs.boot_record.blocks_per_cluster());
@@ -282,7 +362,7 @@ where
 
         let entry_start = entry_index * FatDirEntry::LEN;
         let entry_end = (entry_index + 1) * FatDirEntry::LEN;
-        let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end]);
+        let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end], cluster, self.block_index, entry_start as u32);
 
         // The entry isn't a valid one but this doesn't mark the end of the directory
         self.counter += 1;
@@ -347,14 +427,18 @@ pub enum FatDirEntryType {
     LongFileName,
 }
 
+#[derive(Clone, Copy)]
 pub struct FatDirEntry {
+    entry_cluster: Cluster,
+    entry_index: u32,
+    entry_offset: u32,
     data: [u8; Self::LEN],
 }
 
 impl FatDirEntry {
     pub const LEN: usize = 32;
 
-    pub fn from_raw(data: &[u8]) -> FatDirEntry {
+    pub fn from_raw(data: &[u8], entry_cluster: Cluster, entry_index: u32, entry_offset: u32) -> FatDirEntry {
         let mut data_copied = [0x0u8; Self::LEN];
 
         if data.len() != FatDirEntry::LEN {
@@ -362,7 +446,12 @@ impl FatDirEntry {
         }
 
         data_copied[..data.len()].clone_from_slice(&data[..]);
-        FatDirEntry { data: data_copied }
+        FatDirEntry {
+            entry_cluster,
+            entry_index,
+            entry_offset,
+            data: data_copied
+        }
     }
 
     pub fn get_first_byte(&self) -> u8 {
@@ -375,6 +464,38 @@ impl FatDirEntry {
 
     pub fn is_deleted(&self) -> bool {
         self.get_first_byte() == 0xE5 || self.get_first_byte() == 0x05
+    }
+
+    pub fn set_deleted(&mut self) {
+        self.data[0] = 0xE5;
+    }
+
+    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()> where T: BlockDevice {
+
+        let mut blocks = [Block::new()];
+
+        // FIXME: Custom Iterator to catches those errors
+        fs.block_device
+            .read(
+                &mut blocks,
+                BlockIndex(self.entry_cluster.to_data_block_index(fs).0 + self.entry_index),
+            )
+            .or(Err(FileSystemError::ReadFailed))?;
+
+        let block = &mut blocks[0];
+        let entry_start = self.entry_offset as usize;
+        let entry_end = entry_start + Self::LEN;
+
+        for (i, val) in block[entry_start..entry_end].iter_mut().enumerate() {
+            *val = self.data[i];
+        }
+
+        fs.block_device
+            .write(
+                &mut blocks,
+                BlockIndex(self.entry_cluster.to_data_block_index(fs).0 + self.entry_index),
+            )
+            .or(Err(FileSystemError::WriteFailed))
     }
 
     pub fn attribute(&self) -> Attributes {
@@ -450,7 +571,7 @@ where
     T: BlockDevice,
 {
     pub fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, T> {
-        FatDirEntryIterator::new(self)
+        FatDirEntryIterator::from_directory(self)
     }
 
     pub fn iter(self) -> DirectoryEntryIterator<'a, T> {
