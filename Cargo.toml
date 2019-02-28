@@ -15,6 +15,10 @@ default-features = false
 version = "0.4.10"
 features = ["array-sizes-33-128"]
 
+[dependencies.num-traits]
+version = "0.2"
+default-features = false
+
 [[bin]]
 name = "test_std"
 path = "src/bin/test_std.rs"

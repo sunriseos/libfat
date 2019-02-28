@@ -4,6 +4,7 @@ pub mod directory;
 pub mod filesystem;
 pub mod name;
 pub mod table;
+pub(crate) mod utils;
 
 use block::{Block, BlockCount, BlockDevice, BlockIndex};
 use byteorder::{ByteOrder, LittleEndian};

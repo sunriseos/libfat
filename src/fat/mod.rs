@@ -257,10 +257,28 @@ where
         Ok(())
     }
 
-    fn set_len(&mut self, _size: u64) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn set_len(&mut self, size: u64) -> FileSystemResult<()> {
+        let current_len = self.get_len()?;
+        if size == current_len {
+            return Ok(());
+        } else if size > 0xFFFFFFFF {
+            return Err(FileSystemError::NoSpaceLeft);
+        }
+
+        if size > current_len {
+            let diff_size = size - current_len;
+            let cluster_size_align = u64::from(u16::from(self.fs.boot_record.blocks_per_cluster()) * self.fs.boot_record.bytes_per_block());
+            let cluster_to_add_count = detail::utils::align_up(diff_size, cluster_size_align) / cluster_size_align;
+            trace!("cluster_to_add_count {}", cluster_to_add_count);
+            Err(FileSystemError::Custom {
+                name: "not implemented",
+            })
+        } else {
+            Err(FileSystemError::Custom {
+                name: "not implemented",
+            })
+        }
+
     }
 
     fn get_len(&mut self) -> FileSystemResult<u64> {
