@@ -147,3 +147,16 @@ where
 
     Ok(res)
 }
+
+pub fn get_last_cluster<T>(fs: &FatFileSystem<T>, cluster: Cluster) -> Result<Cluster, FileSystemError>
+where
+    T: BlockDevice,
+{
+    let mut current_cluster = cluster;
+
+    while let FatValue::Data(val) = FatValue::get(fs, current_cluster)? {
+        current_cluster = Cluster(val);
+    }
+
+    Ok(current_cluster)
+}
