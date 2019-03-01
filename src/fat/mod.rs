@@ -235,11 +235,16 @@ where
                 .or(Err(FileSystemError::ReadFailed))?;
 
             let buf_slice = &mut buf[read_size as usize..];
-            let buf_limit = if buf_slice.len() >= Block::LEN {
+            let mut buf_limit = if buf_slice.len() >= Block::LEN {
                 Block::LEN
             } else {
                 buf_slice.len()
             };
+
+            let bytes_left = (self.file_info.file_size as u64 - read_size) as usize;
+            if bytes_left < buf_limit {
+                buf_limit = bytes_left;
+            }
 
             for (index, buf_entry) in buf_slice.iter_mut().take(buf_limit).enumerate() {
                 *buf_entry = blocks[0][tmp_offset as usize + index];
