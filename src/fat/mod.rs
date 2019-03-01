@@ -8,6 +8,7 @@ use detail::block::BlockIndex;
 use detail::block::BlockIndexClusterIter;
 use detail::directory::FatDirEntryIterator;
 use detail::filesystem::FatFileSystem;
+use detail::utils::align_up;
 
 use crate::Result as FileSystemResult;
 use crate::{
@@ -277,23 +278,21 @@ where
                 })?;
 
         if size > current_len {
-            let diff_size = size - current_len;
-            let cluster_size_align = u64::from(
+            let cluster_size = u64::from(
                 u16::from(self.fs.boot_record.blocks_per_cluster())
                     * self.fs.boot_record.bytes_per_block(),
             );
-            let mut cluster_to_add_count =
-                detail::utils::align_up(diff_size, cluster_size_align) / cluster_size_align;
+            let aligned_size = align_up(size, cluster_size);
+            let aligned_current_len = align_up(current_len, cluster_size);
+            let diff_size = size - current_len;
+            let mut cluster_to_add_count = (aligned_size - aligned_current_len) / cluster_size;
+
             let mut last_cluster =
                 detail::table::get_last_cluster(self.fs, self.file_info.start_cluster)?;
-            loop {
-                cluster_to_add_count -= 1;
 
+            while cluster_to_add_count != 0 {
                 last_cluster = self.fs.alloc_cluster(Some(last_cluster))?;
-
-                if cluster_to_add_count == 0 {
-                    break;
-                }
+                cluster_to_add_count -= 1;
             }
 
             let new_size = self.file_info.file_size + diff_size as u32;
