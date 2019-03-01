@@ -6,7 +6,6 @@ use detail::block::Block;
 use detail::block::BlockDevice;
 use detail::block::BlockIndex;
 use detail::block::BlockIndexClusterIter;
-use detail::directory::FatDirEntryIterator;
 use detail::filesystem::FatFileSystem;
 use detail::utils::align_up;
 
@@ -263,7 +262,7 @@ where
         let current_len = self.get_len()?;
         if size == current_len {
             return Ok(());
-        } else if size > 0xFFFFFFFF {
+        } else if size > 0xFFFF_FFFF {
             return Err(FileSystemError::NoSpaceLeft);
         }
 
@@ -280,7 +279,7 @@ where
         let cluster_size = u64::from(
             u16::from(self.fs.boot_record.blocks_per_cluster())
                 * self.fs.boot_record.bytes_per_block(),
-            );
+        );
         let aligned_size = align_up(size, cluster_size);
         let aligned_current_len = align_up(current_len, cluster_size);
 
@@ -289,11 +288,12 @@ where
         if size > current_len {
             let diff_size = size - current_len;
             let mut cluster_to_add_count = (aligned_size - aligned_current_len) / cluster_size;
-            let mut start_cluster = if self.file_info.start_cluster.0 == 0 || self.file_info.file_size == 0 {
-                None
-            } else {
-                Some(self.file_info.start_cluster)
-            };
+            let mut start_cluster =
+                if self.file_info.start_cluster.0 == 0 || self.file_info.file_size == 0 {
+                    None
+                } else {
+                    Some(self.file_info.start_cluster)
+                };
 
             let mut last_cluster = start_cluster;
             let need_update_cluster = start_cluster.is_none();
@@ -315,7 +315,11 @@ where
             let mut cluster_to_remove_count = (aligned_current_len - aligned_size) / cluster_size;
 
             while cluster_to_remove_count != 0 {
-                let (last_cluster, previous_cluster) = detail::table::get_last_and_previous_cluster(self.fs, self.file_info.start_cluster)?;
+                let (last_cluster, previous_cluster) =
+                    detail::table::get_last_and_previous_cluster(
+                        self.fs,
+                        self.file_info.start_cluster,
+                    )?;
                 self.fs.free_cluster(last_cluster, previous_cluster)?;
                 cluster_to_remove_count -= 1;
             }

@@ -1,6 +1,6 @@
 use super::filesystem::FatFileSystem;
 use super::Cluster;
-use super::{Block, BlockIndex, BlockDevice};
+use super::{Block, BlockDevice, BlockIndex};
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::FileSystemError;
@@ -102,13 +102,14 @@ impl FatValue {
         value: FatValue,
         fat_index: u32,
     ) -> Result<(), FileSystemError>
-        where
+    where
         T: BlockDevice,
     {
         let mut blocks = [Block::new()];
 
         let fat_offset = cluster.to_fat_offset();
-        let cluster_block_index = BlockIndex(cluster.to_fat_block_index(fs).0 + (fat_index * fs.boot_record.fat_size()));
+        let cluster_block_index =
+            BlockIndex(cluster.to_fat_block_index(fs).0 + (fat_index * fs.boot_record.fat_size()));
         let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
 
         fs.block_device
@@ -141,7 +142,7 @@ impl FatValue {
     where
         T: BlockDevice,
     {
-        for fat_index in 0..fs.boot_record.fats_count() as u32 {
+        for fat_index in 0..u32::from(fs.boot_record.fats_count()) {
             Self::raw_put(fs, cluster, value, fat_index)?;
         }
         Ok(())

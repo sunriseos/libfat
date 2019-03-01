@@ -116,15 +116,14 @@ where
         let dir_entry = self.find_entry(name).ok_or(FileSystemError::NotFound)?;
 
         // Check for directory not being empty
-        if dir_entry.attribute.is_directory() {
-            if let Some(entry) = Self::from_entry(fs, dir_entry)
+        if dir_entry.attribute.is_directory()
+            && Self::from_entry(fs, dir_entry)
                 .clone()
                 .iter()
-                .skip(2)
-                .next()
-            {
-                return Err(FileSystemError::AccessDenied);
-            }
+                .nth(2)
+                .is_some()
+        {
+            return Err(FileSystemError::AccessDenied);
         }
 
         Self::delete_dir_entry(fs, &dir_entry)?;
@@ -303,7 +302,7 @@ where
                         parent_cluster: first_raw_dir_entry.entry_cluster,
                         first_entry_block_index: BlockIndex(first_raw_dir_entry.entry_index),
                         first_entry_offset: first_raw_dir_entry.entry_offset,
-                        entry_count: entry_count,
+                        entry_count,
                     }),
                     file_size: entry.get_file_size(),
                     file_name,
@@ -544,7 +543,7 @@ impl FatDirEntry {
 
         fs.block_device
             .write(
-                &mut blocks,
+                &blocks,
                 BlockIndex(self.entry_cluster.to_data_block_index(fs).0 + self.entry_index),
             )
             .or(Err(FileSystemError::WriteFailed))
@@ -601,7 +600,7 @@ impl FatDirEntry {
 
     pub fn set_file_size(&mut self, new_size: u32) {
         LittleEndian::write_u32(&mut self.data[28..32], new_size);
-        
+
         // Size is 0 so cluster need to be reset
         if new_size == 0 {
             self.set_cluster(Cluster(0))
