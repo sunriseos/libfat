@@ -170,11 +170,23 @@ pub fn get_last_cluster<T>(
 where
     T: BlockDevice,
 {
+    Ok(get_last_and_previous_cluster(fs, cluster)?.0)
+}
+
+pub fn get_last_and_previous_cluster<T>(
+    fs: &FatFileSystem<T>,
+    cluster: Cluster,
+) -> Result<(Cluster, Option<Cluster>), FileSystemError>
+where
+    T: BlockDevice,
+{
+    let mut previous_cluster = None;
     let mut current_cluster = cluster;
 
     while let FatValue::Data(val) = FatValue::get(fs, current_cluster)? {
+        previous_cluster = Some(cluster);
         current_cluster = Cluster(val);
     }
 
-    Ok(current_cluster)
+    Ok((current_cluster, previous_cluster))
 }

@@ -277,37 +277,59 @@ where
                     name: "MISSING DIR ENTRY",
                 })?;
 
-        if size > current_len {
-            let cluster_size = u64::from(
-                u16::from(self.fs.boot_record.blocks_per_cluster())
-                    * self.fs.boot_record.bytes_per_block(),
+        let cluster_size = u64::from(
+            u16::from(self.fs.boot_record.blocks_per_cluster())
+                * self.fs.boot_record.bytes_per_block(),
             );
-            let aligned_size = align_up(size, cluster_size);
-            let aligned_current_len = align_up(current_len, cluster_size);
+        let aligned_size = align_up(size, cluster_size);
+        let aligned_current_len = align_up(current_len, cluster_size);
+
+        let new_size;
+
+        if size > current_len {
             let diff_size = size - current_len;
             let mut cluster_to_add_count = (aligned_size - aligned_current_len) / cluster_size;
+            let mut start_cluster = if self.file_info.start_cluster.0 == 0 || self.file_info.file_size == 0 {
+                None
+            } else {
+                Some(self.file_info.start_cluster)
+            };
 
-            let mut last_cluster =
-                detail::table::get_last_cluster(self.fs, self.file_info.start_cluster)?;
+            let mut last_cluster = start_cluster;
+            let need_update_cluster = start_cluster.is_none();
 
             while cluster_to_add_count != 0 {
-                last_cluster = self.fs.alloc_cluster(Some(last_cluster))?;
+                last_cluster = Some(self.fs.alloc_cluster(last_cluster)?);
+                if start_cluster.is_none() {
+                    start_cluster = last_cluster;
+                }
                 cluster_to_add_count -= 1;
             }
 
-            let new_size = self.file_info.file_size + diff_size as u32;
-
-            // TODO: update modified date?
-            raw_dir_entry.set_file_size(new_size);
-            raw_dir_entry.flush(self.fs)?;
-
-            self.file_info.file_size = new_size;
-            Ok(())
+            new_size = self.file_info.file_size + diff_size as u32;
+            if need_update_cluster {
+                self.file_info.start_cluster = start_cluster.unwrap();
+            }
         } else {
-            Err(FileSystemError::Custom {
-                name: "not implemented",
-            })
+            let diff_size = current_len - size;
+            let mut cluster_to_remove_count = (aligned_current_len - aligned_size) / cluster_size;
+
+            while cluster_to_remove_count != 0 {
+                let (last_cluster, previous_cluster) = detail::table::get_last_and_previous_cluster(self.fs, self.file_info.start_cluster)?;
+                self.fs.free_cluster(last_cluster, previous_cluster)?;
+                cluster_to_remove_count -= 1;
+            }
+
+            new_size = self.file_info.file_size - diff_size as u32;
         }
+        // TODO: update modified date?
+        raw_dir_entry.set_cluster(self.file_info.start_cluster);
+        raw_dir_entry.set_file_size(new_size);
+        raw_dir_entry.flush(self.fs)?;
+
+        self.file_info.file_size = new_size;
+
+        Ok(())
     }
 
     fn get_len(&mut self) -> FileSystemResult<u64> {

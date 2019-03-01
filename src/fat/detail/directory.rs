@@ -586,12 +586,26 @@ impl FatDirEntry {
         Cluster(low_cluster | (high_cluster << 16))
     }
 
+    pub fn set_cluster(&mut self, cluster: Cluster) {
+        let value = cluster.0;
+        let high_cluster = ((value >> 16) & 0xFFFF) as u16;
+        let low_cluster = (value & 0xFFFF) as u16;
+
+        LittleEndian::write_u16(&mut self.data[20..22], high_cluster);
+        LittleEndian::write_u16(&mut self.data[26..28], low_cluster);
+    }
+
     pub fn get_file_size(&self) -> u32 {
         LittleEndian::read_u32(&self.data[28..32])
     }
 
     pub fn set_file_size(&mut self, new_size: u32) {
         LittleEndian::write_u32(&mut self.data[28..32], new_size);
+        
+        // Size is 0 so cluster need to be reset
+        if new_size == 0 {
+            self.set_cluster(Cluster(0))
+        }
     }
 }
 
