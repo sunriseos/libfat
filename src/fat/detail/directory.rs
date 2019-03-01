@@ -5,7 +5,6 @@ use super::FatFileSystem;
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
-
 use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
@@ -87,10 +86,18 @@ where
         }
     }
 
-    fn delete_dir_entry(fs: &'a FatFileSystem<T>, dir_entry: &DirectoryEntry) -> FileSystemResult<()> {
+    fn delete_dir_entry(
+        fs: &'a FatFileSystem<T>,
+        dir_entry: &DirectoryEntry,
+    ) -> FileSystemResult<()> {
         if let Some(raw_info) = dir_entry.raw_info {
-            let mut block_iter = FatDirEntryIterator::new(fs, raw_info.parent_cluster, raw_info.first_entry_block_index, raw_info.first_entry_offset);
-            
+            let mut block_iter = FatDirEntryIterator::new(
+                fs,
+                raw_info.parent_cluster,
+                raw_info.first_entry_block_index,
+                raw_info.first_entry_offset,
+            );
+
             let mut i = 0;
             while i < raw_info.entry_count {
                 let mut res = block_iter.next().ok_or(FileSystemError::ReadFailed)?;
@@ -110,7 +117,12 @@ where
 
         // Check for directory not being empty
         if dir_entry.attribute.is_directory() {
-            if let Some(entry) = Self::from_entry(fs, dir_entry).clone().iter().skip(2).next() {
+            if let Some(entry) = Self::from_entry(fs, dir_entry)
+                .clone()
+                .iter()
+                .skip(2)
+                .next()
+            {
                 return Err(FileSystemError::AccessDenied);
             }
         }
@@ -140,6 +152,30 @@ pub struct DirectoryEntry {
     pub file_size: u32,
     pub file_name: ArrayString<[u8; Self::MAX_FILE_NAME_LEN]>,
     pub attribute: Attributes,
+}
+
+impl DirectoryEntryRawInfo {
+    pub fn get_dir_entry<T>(&self, fs: &FatFileSystem<T>) -> Option<FatDirEntry>
+    where
+        T: BlockDevice,
+    {
+        let mut block_iter = FatDirEntryIterator::new(
+            fs,
+            self.parent_cluster,
+            self.first_entry_block_index,
+            self.first_entry_offset,
+        );
+
+        let mut i = 0;
+        let mut res = None;
+
+        while i < self.entry_count {
+            res = block_iter.next();
+            i += 1;
+        }
+
+        res
+    }
 }
 
 impl DirectoryEntry {
@@ -311,8 +347,12 @@ where
         }
     }
 
-    pub fn new(fs: &'a FatFileSystem<T>, start_cluster: Cluster, block_index: BlockIndex, offset: u32) -> Self {
-
+    pub fn new(
+        fs: &'a FatFileSystem<T>,
+        start_cluster: Cluster,
+        block_index: BlockIndex,
+        offset: u32,
+    ) -> Self {
         FatDirEntryIterator {
             counter: (offset / FatDirEntry::LEN as u32) as u8,
             block_index: block_index.0,
@@ -362,7 +402,12 @@ where
 
         let entry_start = entry_index * FatDirEntry::LEN;
         let entry_end = (entry_index + 1) * FatDirEntry::LEN;
-        let dir_entry = FatDirEntry::from_raw(&blocks[0][entry_start..entry_end], cluster, self.block_index, entry_start as u32);
+        let dir_entry = FatDirEntry::from_raw(
+            &blocks[0][entry_start..entry_end],
+            cluster,
+            self.block_index,
+            entry_start as u32,
+        );
 
         // The entry isn't a valid one but this doesn't mark the end of the directory
         self.counter += 1;
@@ -438,7 +483,12 @@ pub struct FatDirEntry {
 impl FatDirEntry {
     pub const LEN: usize = 32;
 
-    pub fn from_raw(data: &[u8], entry_cluster: Cluster, entry_index: u32, entry_offset: u32) -> FatDirEntry {
+    pub fn from_raw(
+        data: &[u8],
+        entry_cluster: Cluster,
+        entry_index: u32,
+        entry_offset: u32,
+    ) -> FatDirEntry {
         let mut data_copied = [0x0u8; Self::LEN];
 
         if data.len() != FatDirEntry::LEN {
@@ -450,7 +500,7 @@ impl FatDirEntry {
             entry_cluster,
             entry_index,
             entry_offset,
-            data: data_copied
+            data: data_copied,
         }
     }
 
@@ -470,8 +520,10 @@ impl FatDirEntry {
         self.data[0] = 0xE5;
     }
 
-    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()> where T: BlockDevice {
-
+    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
+    where
+        T: BlockDevice,
+    {
         let mut blocks = [Block::new()];
 
         // FIXME: Custom Iterator to catches those errors
@@ -536,6 +588,10 @@ impl FatDirEntry {
 
     pub fn get_file_size(&self) -> u32 {
         LittleEndian::read_u32(&self.data[28..32])
+    }
+
+    pub fn set_file_size(&mut self, new_size: u32) {
+        LittleEndian::write_u32(&mut self.data[28..32], new_size);
     }
 }
 

@@ -55,7 +55,6 @@ where
     }
 
     fn get_parent(path: &str) -> (&str, &str) {
-
         let separator_index_opt = path.rfind('/');
 
         if let Some(separator_index) = separator_index_opt {
@@ -80,7 +79,10 @@ where
 
     pub fn unlink(&self, path: &str) -> FileSystemResult<()> {
         let (parent_name, file_name) = Self::get_parent(path);
-        let parent_dir = self.get_root_directory().open_dir(parent_name).ok_or(FileSystemError::NotFound)?;
+        let parent_dir = self
+            .get_root_directory()
+            .open_dir(parent_name)
+            .ok_or(FileSystemError::NotFound)?;
         parent_dir.unlink(file_name)
     }
 

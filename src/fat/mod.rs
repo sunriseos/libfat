@@ -6,6 +6,7 @@ use detail::block::Block;
 use detail::block::BlockDevice;
 use detail::block::BlockIndex;
 use detail::block::BlockIndexClusterIter;
+use detail::directory::FatDirEntryIterator;
 use detail::filesystem::FatFileSystem;
 
 use crate::Result as FileSystemResult;
@@ -265,11 +266,26 @@ where
             return Err(FileSystemError::NoSpaceLeft);
         }
 
+        let raw_file_info = self.file_info.raw_info.ok_or(FileSystemError::Custom {
+            name: "Raw Info is missing ON A FILE",
+        })?;
+        let mut raw_dir_entry =
+            raw_file_info
+                .get_dir_entry(self.fs)
+                .ok_or(FileSystemError::Custom {
+                    name: "MISSING DIR ENTRY",
+                })?;
+
         if size > current_len {
             let diff_size = size - current_len;
-            let cluster_size_align = u64::from(u16::from(self.fs.boot_record.blocks_per_cluster()) * self.fs.boot_record.bytes_per_block());
-            let mut cluster_to_add_count = detail::utils::align_up(diff_size, cluster_size_align) / cluster_size_align;
-            let mut last_cluster = detail::table::get_last_cluster(self.fs, self.file_info.start_cluster)?;
+            let cluster_size_align = u64::from(
+                u16::from(self.fs.boot_record.blocks_per_cluster())
+                    * self.fs.boot_record.bytes_per_block(),
+            );
+            let mut cluster_to_add_count =
+                detail::utils::align_up(diff_size, cluster_size_align) / cluster_size_align;
+            let mut last_cluster =
+                detail::table::get_last_cluster(self.fs, self.file_info.start_cluster)?;
             loop {
                 cluster_to_add_count -= 1;
 
@@ -280,15 +296,19 @@ where
                 }
             }
 
-            // TODO: update dir entry
-            self.file_info.file_size += diff_size as u32;
+            let new_size = self.file_info.file_size + diff_size as u32;
+
+            // TODO: update modified date?
+            raw_dir_entry.set_file_size(new_size);
+            raw_dir_entry.flush(self.fs)?;
+
+            self.file_info.file_size = new_size;
             Ok(())
         } else {
             Err(FileSystemError::Custom {
                 name: "not implemented",
             })
         }
-
     }
 
     fn get_len(&mut self) -> FileSystemResult<u64> {

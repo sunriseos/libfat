@@ -148,7 +148,10 @@ where
     Ok(res)
 }
 
-pub fn get_last_cluster<T>(fs: &FatFileSystem<T>, cluster: Cluster) -> Result<Cluster, FileSystemError>
+pub fn get_last_cluster<T>(
+    fs: &FatFileSystem<T>,
+    cluster: Cluster,
+) -> Result<Cluster, FileSystemError>
 where
     T: BlockDevice,
 {
