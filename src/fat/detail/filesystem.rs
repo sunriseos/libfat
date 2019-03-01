@@ -51,7 +51,7 @@ where
     }
 
     pub fn init(&self) {
-        // TODO: check fs info struct
+        // TODO: check fs info struct for free cluster count & last allocated cluster
     }
 
     fn get_parent(path: &str) -> (&str, &str) {
@@ -95,7 +95,7 @@ where
         let mut last_cluster_allocated = Cluster(0);
 
         if let Some(cluster) = last_cluster_allocated_opt {
-            // TODO: precheck if the size is availaible
+            // TODO: precheck if the size is availaible, we don't truct this value
             start_cluster = last_cluster_allocated;
             last_cluster_allocated = cluster;
         } else if start_cluster.0 == 0 || start_cluster.0 >= self.boot_record.cluster_count {

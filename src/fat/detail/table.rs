@@ -133,7 +133,6 @@ impl FatValue {
         Ok(())
     }
 
-    // TODO: Write to backup FAT
     pub fn put<T>(
         fs: &FatFileSystem<T>,
         cluster: Cluster,

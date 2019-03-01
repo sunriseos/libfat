@@ -79,7 +79,7 @@ where
         name: &str,
         mode: FileModeFlags,
     ) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
-        // TODO resize files ect
+        // TODO: separate type file operation type
         if (mode & FileModeFlags::APPENDABLE) == FileModeFlags::APPENDABLE {
             return Err(FileSystemError::Custom {
                 name: "not implemented",
@@ -376,7 +376,6 @@ impl detail::directory::DirectoryEntry {
         }
 
         DirectoryEntry {
-            // TODO: add real path
             path,
             entry_type,
             file_size: u64::from(file_size),
