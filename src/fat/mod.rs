@@ -196,7 +196,12 @@ impl<'a, T> FileOperations for FileInterface<'a, T>
 where
     T: BlockDevice,
 {
+    // FIXME: this read past the file in some cases
     fn read(&mut self, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> {
+        if offset >= 0xFFFF_FFFF {
+            return Ok(0);
+        }
+        
         if offset >= u64::from(self.file_info.file_size) {
             return Ok(0);
         }
@@ -247,10 +252,66 @@ where
         Ok(read_size)
     }
 
-    fn write(&mut self, _offset: u64, _buf: &[u8]) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn write(&mut self, offset: u64, buf: &[u8]) -> FileSystemResult<()> {
+        if offset >= 0xFFFF_FFFF {
+            return Err(FileSystemError::AccessDenied);
+        }
+
+        let min_size = offset + buf.len() as u64;
+        if min_size > self.file_info.file_size as u64 {
+            self.set_len(min_size)?;
+        }
+
+        let device: &T = &self.fs.block_device;
+
+        let mut raw_tmp_offset = offset as u32;
+        let cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+        let mut cluster_block_iterator =
+            BlockIndexClusterIter::new(self.fs, self.file_info.start_cluster, Some(cluster_offset));
+        let blocks_per_cluster = u32::from(self.fs.boot_record.blocks_per_cluster());
+
+        let mut write_size = 0u64;
+        let mut blocks = [Block::new()];
+
+        raw_tmp_offset %= Block::LEN_U32;
+
+        while write_size < buf.len() as u64 {
+            let cluster_opt = cluster_block_iterator.next();
+            if cluster_opt.is_none() {
+                return Err(FileSystemError::WriteFailed);
+            }
+
+            let cluster = cluster_opt.unwrap();
+            let block_start_index = cluster.to_data_block_index(self.fs);
+            let tmp_index = cluster_offset.0 % blocks_per_cluster;
+            let tmp_offset = raw_tmp_offset % Block::LEN_U32;
+
+            device
+                .read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index))
+                .or(Err(FileSystemError::ReadFailed))?;
+
+            let buf_slice = &buf[write_size as usize..];
+            let buf_limit = if buf_slice.len() >= Block::LEN {
+                Block::LEN
+            } else {
+                buf_slice.len()
+            };
+
+            let block_slice = &mut blocks[0][tmp_offset as usize..];
+
+            for (index, buf_entry) in block_slice.iter_mut().take(buf_limit).enumerate() {
+                *buf_entry = buf_slice[index];
+            }
+
+            device
+                .write(&blocks, BlockIndex(block_start_index.0 + tmp_index))
+                .or(Err(FileSystemError::WriteFailed))?;
+
+            raw_tmp_offset += buf_limit as u32;
+            write_size += buf_limit as u64;
+        }
+
+        Ok(())
     }
 
     fn flush(&mut self) -> FileSystemResult<()> {
