@@ -241,7 +241,7 @@ where
                 buf_slice.len()
             };
 
-            let bytes_left = (self.file_info.file_size as u64 - read_size) as usize;
+            let bytes_left = (u64::from(self.file_info.file_size) - read_size) as usize;
             if bytes_left < buf_limit {
                 buf_limit = bytes_left;
             }
@@ -263,7 +263,7 @@ where
         }
 
         let min_size = offset + buf.len() as u64;
-        if min_size > self.file_info.file_size as u64 {
+        if min_size > u64::from(self.file_info.file_size) {
             self.set_len(min_size)?;
         }
 

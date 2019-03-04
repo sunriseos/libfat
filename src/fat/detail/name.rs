@@ -9,6 +9,7 @@ pub struct LongFileName {
     contents: [u16; LongFileName::MAX_LEN],
 }
 
+// TODO: use that
 enum FileNameError {
     InvalidCharacter,
     FilenameEmpty,

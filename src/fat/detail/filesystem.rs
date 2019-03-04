@@ -29,7 +29,7 @@ impl FatFileSystemInfo {
         let mut last_cluster = 0xFFFF_FFFF;
         let mut free_cluster = 0xFFFF_FFFF;
 
-        fs.block_device.read(&mut blocks, fs.partition_start, BlockIndex(fs.boot_record.fs_info_block() as u32)).or(Err(FileSystemError::ReadFailed))?;
+        fs.block_device.read(&mut blocks, fs.partition_start, BlockIndex(u32::from(fs.boot_record.fs_info_block()))).or(Err(FileSystemError::ReadFailed))?;
 
         // valid signature?
         if &blocks[0][0..4] == b"RRaA" && &blocks[0][0x1e4..0x1e8] == b"rrAa" && LittleEndian::read_u16(&blocks[0][0x1fe..0x200]) == 0xAA55 {
@@ -67,7 +67,7 @@ impl FatFileSystemInfo {
         LittleEndian::write_u32(&mut blocks[0][0x1ec..0x1f0] , self.last_cluster.load(Ordering::SeqCst));
         LittleEndian::write_u32(&mut blocks[0][0x1e8..0x1ec] , self.free_cluster.load(Ordering::SeqCst));
         
-        fs.block_device.write(&blocks, fs.partition_start, BlockIndex(fs.boot_record.fs_info_block() as u32)).or(Err(FileSystemError::ReadFailed))?;
+        fs.block_device.write(&blocks, fs.partition_start, BlockIndex(u32::from(fs.boot_record.fs_info_block()))).or(Err(FileSystemError::ReadFailed))?;
 
         Ok(())
     }
@@ -260,7 +260,7 @@ where
             loop  {
                 let res = self.fat_info.last_cluster.compare_exchange(current_cluster.0, 0xFFFF_FFFF, Ordering::SeqCst, Ordering::SeqCst);
 
-                if let Ok(_) = res {
+                if res.is_ok() {
                     break;
                 }
             }
