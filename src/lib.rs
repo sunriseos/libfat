@@ -1,4 +1,5 @@
 #![feature(alloc)]
+#![feature(integer_atomics)]
 #![no_std]
 
 #[macro_use]

@@ -118,7 +118,6 @@ where
         // Check for directory not being empty
         if dir_entry.attribute.is_directory()
             && Self::from_entry(fs, dir_entry)
-                .clone()
                 .iter()
                 .nth(2)
                 .is_some()

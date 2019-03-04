@@ -10,10 +10,14 @@ use super::table::FatValue;
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
+use core::sync::atomic::AtomicU32;
+use core::sync::atomic::Ordering;
+
 pub struct FatFileSystemInfo {
     // Last allocated cluster
-    last_cluster: u32,
-    free_cluster: u32,
+    // TODO: select Ordering wisely on operations
+    last_cluster: AtomicU32,
+    free_cluster: AtomicU32,
 }
 
 // TODO: reduce field accesibility
@@ -45,19 +49,18 @@ where
             boot_record,
             // TODO: extract fs info to get some hints
             fat_info: FatFileSystemInfo {
-                last_cluster: 0xFFFF_FFFF,
-                free_cluster: 0xFFFF_FFFF,
+                last_cluster: AtomicU32::new(0xFFFF_FFFF),
+                free_cluster: AtomicU32::new(0xFFFF_FFFF),
             },
         }
     }
 
     pub fn init(&mut self) -> FileSystemResult<()> {
-        if self.fat_info.free_cluster == 0xFFFF_FFFF {
-            self.fat_info.free_cluster = table::get_free_cluster_count(self)?;
+        if self.fat_info.free_cluster.load(Ordering::SeqCst) == 0xFFFF_FFFF {
+            self.fat_info.free_cluster.store(table::get_free_cluster_count(self)?, Ordering::SeqCst);
         }
 
         // TODO: check fs info struct for free cluster count & last allocated cluster
-        info!("Free cluster: {}", self.fat_info.free_cluster);
         Ok(())
     }
 
@@ -97,19 +100,19 @@ where
         &self,
         last_cluster_allocated_opt: Option<Cluster>,
     ) -> FileSystemResult<Cluster> {
-        let mut start_cluster = Cluster(self.fat_info.last_cluster);
+        let mut start_cluster = Cluster(self.fat_info.last_cluster.load(Ordering::SeqCst));
 
         let mut last_cluster_allocated = Cluster(0);
 
         if let Some(cluster) = last_cluster_allocated_opt {
-            // TODO: precheck if the size is availaible, we don't truct this value
+            // TODO: precheck if the size is availaible, we don't trust this value
             start_cluster = last_cluster_allocated;
             last_cluster_allocated = cluster;
         } else if start_cluster.0 == 0 || start_cluster.0 >= self.boot_record.cluster_count {
             start_cluster = Cluster(1);
         }
 
-        if self.fat_info.free_cluster == 0 {
+        if self.fat_info.free_cluster.load(Ordering::SeqCst) == 0 {
             return Err(FileSystemError::NoSpaceLeft);
         }
 
@@ -124,7 +127,7 @@ where
             let value = FatValue::get(self, Cluster(number_cluster))?;
 
             if let FatValue::Data(_) = value {
-                let new_start = Cluster(self.fat_info.last_cluster);
+                let new_start = Cluster(self.fat_info.last_cluster.load(Ordering::SeqCst));
                 if new_start.0 >= 2 && new_start.0 < self.boot_record.cluster_count {
                     start_cluster = new_start;
                 }
@@ -168,7 +171,10 @@ where
             )?;
         }
 
-        // TODO: update FS info
+        self.fat_info.last_cluster.store(allocated_cluster.0, Ordering::SeqCst);
+        self.fat_info.free_cluster.fetch_sub(1, Ordering::SeqCst);
+        // TODO: update FS info on device
+
 
         Ok(allocated_cluster)
     }
@@ -193,7 +199,18 @@ where
 
             FatValue::put(self, current_cluster, FatValue::Free)?;
 
-            // TODO: update FS info
+            // Invalidate last cluster if equals to the current cluster
+            loop  {
+                let res = self.fat_info.last_cluster.compare_exchange(current_cluster.0, 0xFFFF_FFFF, Ordering::SeqCst, Ordering::SeqCst);
+
+                if let Ok(_) = res {
+                    break;
+                }
+            }
+
+            self.fat_info.free_cluster.fetch_add(1, Ordering::SeqCst);
+
+            // TODO: update FS info on device
 
             match value {
                 FatValue::Data(data) => {
