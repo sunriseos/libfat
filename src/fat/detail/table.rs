@@ -88,7 +88,7 @@ impl FatValue {
         let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
 
         fs.block_device
-            .read(&mut blocks, cluster_block_index)
+            .read(&mut blocks, fs.partition_start, cluster_block_index)
             .or(Err(FileSystemError::ReadFailed))?;
 
         let res = FatValue::from_block(&blocks[0], cluster_offset);
@@ -113,7 +113,7 @@ impl FatValue {
         let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
 
         fs.block_device
-            .read(&mut blocks, cluster_block_index)
+            .read(&mut blocks, fs.partition_start, cluster_block_index)
             .or(Err(FileSystemError::ReadFailed))?;
 
         let res = FatValue::from_block(&blocks[0], cluster_offset);
@@ -127,7 +127,7 @@ impl FatValue {
         LittleEndian::write_u32(&mut blocks[0][cluster_offset..cluster_offset + 4], value);
 
         fs.block_device
-            .write(&blocks, cluster_block_index)
+            .write(&blocks, fs.partition_start, cluster_block_index)
             .or(Err(FileSystemError::WriteFailed))?;
 
         Ok(())

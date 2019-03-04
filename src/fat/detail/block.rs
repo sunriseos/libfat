@@ -67,8 +67,17 @@ impl BlockCount {
 }
 
 pub trait BlockDevice: Sized {
-    fn read(&self, blocks: &mut [Block], index: BlockIndex) -> Result<()>;
-    fn write(&self, blocks: &[Block], index: BlockIndex) -> Result<()>;
+    fn raw_read(&self, blocks: &mut [Block], index: BlockIndex) -> Result<()>;
+    fn raw_write(&self, blocks: &[Block], index: BlockIndex) -> Result<()>;
+
+    fn read(&self, blocks: &mut [Block], partition_start: BlockIndex, index: BlockIndex) -> Result<()> {
+        self.raw_read(blocks, BlockIndex(partition_start.0 + index.0))
+    }
+
+    fn write(&self, blocks: &[Block], partition_start: BlockIndex, index: BlockIndex) -> Result<()> {
+        self.raw_write(blocks, BlockIndex(partition_start.0 + index.0))
+    }
+
     fn count(&self) -> Result<BlockCount>;
 }
 

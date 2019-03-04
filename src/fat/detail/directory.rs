@@ -393,6 +393,7 @@ where
         fs.block_device
             .read(
                 &mut blocks,
+                fs.partition_start,
                 BlockIndex(cluster.to_data_block_index(fs).0 + self.block_index),
             )
             .or(Err(FileSystemError::ReadFailed))
@@ -528,6 +529,7 @@ impl FatDirEntry {
         fs.block_device
             .read(
                 &mut blocks,
+                fs.partition_start,
                 BlockIndex(self.entry_cluster.to_data_block_index(fs).0 + self.entry_index),
             )
             .or(Err(FileSystemError::ReadFailed))?;
@@ -543,6 +545,7 @@ impl FatDirEntry {
         fs.block_device
             .write(
                 &blocks,
+                fs.partition_start,
                 BlockIndex(self.entry_cluster.to_data_block_index(fs).0 + self.entry_index),
             )
             .or(Err(FileSystemError::WriteFailed))

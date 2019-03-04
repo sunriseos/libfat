@@ -231,7 +231,7 @@ where
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
 
             device
-                .read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index))
+                .read(&mut blocks, self.fs.partition_start, BlockIndex(block_start_index.0 + tmp_index))
                 .or(Err(FileSystemError::ReadFailed))?;
 
             let buf_slice = &mut buf[read_size as usize..];
@@ -287,7 +287,7 @@ where
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
 
             device
-                .read(&mut blocks, BlockIndex(block_start_index.0 + tmp_index))
+                .read(&mut blocks, self.fs.partition_start, BlockIndex(block_start_index.0 + tmp_index))
                 .or(Err(FileSystemError::ReadFailed))?;
 
             let buf_slice = &buf[write_size as usize..];
@@ -304,7 +304,7 @@ where
             }
 
             device
-                .write(&blocks, BlockIndex(block_start_index.0 + tmp_index))
+                .write(&blocks, self.fs.partition_start, BlockIndex(block_start_index.0 + tmp_index))
                 .or(Err(FileSystemError::WriteFailed))?;
 
             raw_tmp_offset += buf_limit as u32;

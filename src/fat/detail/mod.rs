@@ -179,7 +179,7 @@ where
     let mut blocks = [Block::new()];
 
     block_device
-        .read(&mut blocks, partition_start)
+        .read(&mut blocks, partition_start, BlockIndex(0))
         .or(Err(FileSystemError::ReadFailed))?;
 
     let block = &blocks[0];
@@ -229,7 +229,7 @@ where
     const PARITION_TABLE_ENTRY_SIZE: usize = 16;
 
     block_device
-        .read(&mut blocks, index)
+        .raw_read(&mut blocks, index)
         .or(Err(FileSystemError::ReadFailed))?;
 
     let block = &blocks[0];
