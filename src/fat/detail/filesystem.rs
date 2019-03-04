@@ -32,7 +32,8 @@ impl FatFileSystemInfo {
         fs.block_device.read(&mut blocks, BlockIndex(fs.partition_start.0 + fs.boot_record.fs_info_block() as u32)).or(Err(FileSystemError::ReadFailed))?;
 
         // valid signature?
-        if &blocks[0][0..4] == b"RRaA" && &blocks[0][0x1e4..0x1e8] == b"rrAa" {
+        if &blocks[0][0..4] == b"RRaA" && &blocks[0][0x1e4..0x1e8] == b"rrAa" && LittleEndian::read_u16(&blocks[0][0x1fe..0x200]) == 0xAA55 {
+            trace!("VALID");
             // check cluster sanity
             let fs_last_cluster = LittleEndian::read_u32(&blocks[0][0x1ec..0x1f0]);
             if fs_last_cluster >= 2 && fs_last_cluster < fs.boot_record.cluster_count {
