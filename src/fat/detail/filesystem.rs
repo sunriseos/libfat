@@ -33,7 +33,6 @@ impl FatFileSystemInfo {
 
         // valid signature?
         if &blocks[0][0..4] == b"RRaA" && &blocks[0][0x1e4..0x1e8] == b"rrAa" {
-
             // check cluster sanity
             let fs_last_cluster = LittleEndian::read_u32(&blocks[0][0x1ec..0x1f0]);
             if fs_last_cluster >= 2 && fs_last_cluster < fs.boot_record.cluster_count {
@@ -51,6 +50,26 @@ impl FatFileSystemInfo {
             last_cluster: AtomicU32::new(last_cluster),
             free_cluster: AtomicU32::new(free_cluster),
         })
+    }
+
+    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>  where T: BlockDevice {
+        if fs.boot_record.fat_type != FatFsType::Fat32 {
+            return Ok(());
+        }
+
+        let mut blocks = [Block::new()];
+
+        LittleEndian::write_u32(&mut blocks[0][0..4] , 0x4161_5252);
+        LittleEndian::write_u32(&mut blocks[0][0x1e4..0x1e8] , 0x6141_7272);
+        LittleEndian::write_u16(&mut blocks[0][0x1fe..0x200] , 0xAA55);
+
+
+        LittleEndian::write_u32(&mut blocks[0][0x1ec..0x1f0] , self.last_cluster.load(Ordering::SeqCst));
+        LittleEndian::write_u32(&mut blocks[0][0x1e8..0x1ec] , self.free_cluster.load(Ordering::SeqCst));
+        
+        fs.block_device.write(&blocks, BlockIndex(fs.partition_start.0 + fs.boot_record.fs_info_block() as u32)).or(Err(FileSystemError::ReadFailed))?;
+
+        Ok(())
     }
 }
 
@@ -99,7 +118,6 @@ where
             self.fat_info.free_cluster.store(table::get_free_cluster_count(self)?, Ordering::SeqCst);
         }
 
-        // TODO: check fs info struct for free cluster count & last allocated cluster
         Ok(())
     }
 
@@ -212,7 +230,7 @@ where
 
         self.fat_info.last_cluster.store(allocated_cluster.0, Ordering::SeqCst);
         self.fat_info.free_cluster.fetch_sub(1, Ordering::SeqCst);
-        // TODO: update FS info on device
+        self.fat_info.flush(self)?;
 
 
         Ok(allocated_cluster)
@@ -249,7 +267,6 @@ where
 
             self.fat_info.free_cluster.fetch_add(1, Ordering::SeqCst);
 
-            // TODO: update FS info on device
 
             match value {
                 FatValue::Data(data) => {
@@ -258,6 +275,7 @@ where
                 _ => break,
             }
         }
+        self.fat_info.flush(self)?;
         Ok(())
     }
 }
