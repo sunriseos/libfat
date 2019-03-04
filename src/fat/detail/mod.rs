@@ -194,14 +194,14 @@ where
         FatFsType::Fat32 => {
             let first_data_offset = u32::from(boot_record.reserved_block_count())
                 + (u32::from(boot_record.fats_count()) * boot_record.fat_size());
-            let file_system = FatFileSystem::new(
+            let mut file_system = FatFileSystem::new(
                 block_device,
                 partition_start,
                 BlockIndex(first_data_offset),
                 partition_block_count,
                 boot_record,
             );
-            file_system.init();
+            file_system.init()?;
             Ok(file_system)
         }
     }

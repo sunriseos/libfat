@@ -5,6 +5,7 @@ use super::directory::{Attributes, Directory, DirectoryEntry};
 use super::FatVolumeBootRecord;
 
 use super::cluster::Cluster;
+use super::table;
 use super::table::FatValue;
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
@@ -50,8 +51,14 @@ where
         }
     }
 
-    pub fn init(&self) {
+    pub fn init(&mut self) -> FileSystemResult<()> {
+        if self.fat_info.free_cluster == 0xFFFF_FFFF {
+            self.fat_info.free_cluster = table::get_free_cluster_count(self)?;
+        }
+
         // TODO: check fs info struct for free cluster count & last allocated cluster
+        info!("Free cluster: {}", self.fat_info.free_cluster);
+        Ok(())
     }
 
     fn get_parent(path: &str) -> (&str, &str) {

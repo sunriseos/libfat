@@ -190,3 +190,25 @@ where
 
     Ok((current_cluster, previous_cluster))
 }
+
+
+pub fn get_free_cluster_count<T>(
+    fs: &FatFileSystem<T>
+) -> Result<u32, FileSystemError>
+where
+    T: BlockDevice,
+{
+    let mut current_cluster = Cluster(2);
+
+    let mut res = 0;
+
+    while current_cluster.0 < fs.boot_record.cluster_count {
+        if let FatValue::Free = FatValue::get(fs, current_cluster)? {
+            res += 1;
+        }
+
+        current_cluster = Cluster(current_cluster.0 + 1);
+    }
+
+    Ok(res)
+}
