@@ -1,9 +1,12 @@
 use arrayvec::ArrayString;
+use byteorder::{ByteOrder, LittleEndian};
 
-use super::block::{BlockCount, BlockDevice, BlockIndex};
+
+use super::block::{Block, BlockCount, BlockDevice, BlockIndex};
 use super::directory::{Attributes, Directory, DirectoryEntry};
 use super::FatVolumeBootRecord;
 
+use super::FatFsType;
 use super::cluster::Cluster;
 use super::table;
 use super::table::FatValue;
@@ -14,10 +17,41 @@ use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 
 pub struct FatFileSystemInfo {
-    // Last allocated cluster
     // TODO: select Ordering wisely on operations
     last_cluster: AtomicU32,
     free_cluster: AtomicU32,
+}
+
+impl FatFileSystemInfo {
+    fn from_fs<T>(fs: &FatFileSystem<T>) -> FileSystemResult<Self>  where T: BlockDevice {
+        let mut blocks = [Block::new()];
+
+        let mut last_cluster = 0xFFFF_FFFF;
+        let mut free_cluster = 0xFFFF_FFFF;
+
+        fs.block_device.read(&mut blocks, BlockIndex(fs.partition_start.0 + fs.boot_record.fs_info_block() as u32)).or(Err(FileSystemError::ReadFailed))?;
+
+        // valid signature?
+        if &blocks[0][0..4] == b"RRaA" && &blocks[0][0x1e4..0x1e8] == b"rrAa" {
+
+            // check cluster sanity
+            let fs_last_cluster = LittleEndian::read_u32(&blocks[0][0x1ec..0x1f0]);
+            if fs_last_cluster >= 2 && fs_last_cluster < fs.boot_record.cluster_count {
+                last_cluster = fs_last_cluster;
+            }
+
+            // check sanity
+            let fs_free_cluster = LittleEndian::read_u32(&blocks[0][0x1e8..0x1ec]);
+            if fs_free_cluster <= fs.boot_record.cluster_count {
+                free_cluster = fs_free_cluster;
+            }
+        }
+        
+        Ok(FatFileSystemInfo {
+            last_cluster: AtomicU32::new(last_cluster),
+            free_cluster: AtomicU32::new(free_cluster),
+        })
+    }
 }
 
 // TODO: reduce field accesibility
@@ -47,7 +81,6 @@ where
             first_data_offset,
             partition_block_count,
             boot_record,
-            // TODO: extract fs info to get some hints
             fat_info: FatFileSystemInfo {
                 last_cluster: AtomicU32::new(0xFFFF_FFFF),
                 free_cluster: AtomicU32::new(0xFFFF_FFFF),
@@ -56,6 +89,12 @@ where
     }
 
     pub fn init(&mut self) -> FileSystemResult<()> {
+
+        // read FAT infos
+        if self.boot_record.fat_type == FatFsType::Fat32 {
+            self.fat_info = FatFileSystemInfo::from_fs(self)?;
+        }
+
         if self.fat_info.free_cluster.load(Ordering::SeqCst) == 0xFFFF_FFFF {
             self.fat_info.free_cluster.store(table::get_free_cluster_count(self)?, Ordering::SeqCst);
         }

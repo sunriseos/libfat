@@ -15,6 +15,7 @@ use filesystem::FatFileSystem;
 
 use crate::FileSystemError;
 
+#[derive(PartialEq)]
 pub enum FatFsType {
     Fat12,
     Fat16,
