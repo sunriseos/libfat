@@ -611,7 +611,7 @@ impl FatDirEntry {
 }
 
 impl<'a> core::fmt::Debug for FatDirEntry {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "FatDirEntry {{ ")?;
         write!(f, "{:?} ", self.attribute())?;
         if self.is_long_file_name() {

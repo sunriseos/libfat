@@ -58,7 +58,7 @@ impl FatValue {
         match val {
             0 => FatValue::Free,
             0x0FFF_FFF7 => FatValue::Bad,
-            0x0FFF_FFF8...0x0FFF_FFFF => FatValue::EndOfChain,
+            0x0FFF_FFF8..=0x0FFF_FFFF => FatValue::EndOfChain,
             n => FatValue::Data(n as u32),
         }
     }

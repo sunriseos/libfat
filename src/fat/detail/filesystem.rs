@@ -132,7 +132,7 @@ where
         }
     }
 
-    pub fn get_root_directory(&self) -> Directory<T> {
+    pub fn get_root_directory(&self) -> Directory<'_, T> {
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
             raw_info: None,

@@ -18,7 +18,7 @@ use crate::{
 struct DirectoryReader<'a, T> {
     base_path: [u8; DirectoryEntry::PATH_LEN],
     internal_iter: detail::directory::DirectoryEntryIterator<'a, T>,
-    filter_fn: &'static Fn(&detail::directory::DirectoryEntry) -> bool,
+    filter_fn: &'static dyn Fn(&detail::directory::DirectoryEntry) -> bool,
     entry_count: u64,
 }
 
@@ -47,7 +47,7 @@ impl<B> FatFileSystem<B>
 where
     B: BlockDevice,
 {
-    fn get_dir_from_path(&self, path: &str) -> FileSystemResult<detail::directory::Directory<B>> {
+    fn get_dir_from_path(&self, path: &str) -> FileSystemResult<detail::directory::Directory<'_, B>> {
         if path == "/" {
             Ok(self.get_root_directory())
         } else {
@@ -109,7 +109,7 @@ where
             return Err(FileSystemError::NotFound);
         }
 
-        let filter_fn: &'static Fn(&detail::directory::DirectoryEntry) -> bool =
+        let filter_fn: &'static dyn Fn(&detail::directory::DirectoryEntry) -> bool =
             if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
                 &DirectoryFilterPredicate::all
             } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
