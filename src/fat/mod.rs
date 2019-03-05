@@ -81,9 +81,7 @@ where
     ) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
         // TODO: separate type file operation type
         if (mode & FileModeFlags::APPENDABLE) == FileModeFlags::APPENDABLE {
-            return Err(FileSystemError::Custom {
-                name: "not implemented",
-            });
+            // TODO: do something about that
         }
 
         let dir_entry = self
@@ -241,7 +239,7 @@ where
                 buf_slice.len()
             };
 
-            let bytes_left = (u64::from(self.file_info.file_size) - read_size) as usize;
+            let bytes_left = (u64::from(self.file_info.file_size) - read_size - offset) as usize;
             if bytes_left < buf_limit {
                 buf_limit = bytes_left;
             }
