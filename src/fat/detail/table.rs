@@ -184,7 +184,7 @@ where
     let mut current_cluster = cluster;
 
     while let FatValue::Data(val) = FatValue::get(fs, current_cluster)? {
-        previous_cluster = Some(cluster);
+        previous_cluster = Some(current_cluster);
         current_cluster = Cluster(val);
     }
 
