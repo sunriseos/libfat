@@ -158,15 +158,24 @@ where
         last_cluster_allocated_opt: Option<Cluster>,
     ) -> FileSystemResult<Cluster> {
         let mut start_cluster = Cluster(self.fat_info.last_cluster.load(Ordering::SeqCst));
+        let mut resize_existing_cluster = false;
 
-        let mut last_cluster_allocated = Cluster(0);
-
-        if let Some(cluster) = last_cluster_allocated_opt {
-            // TODO: precheck if the size is availaible, we don't trust this value
+        if last_cluster_allocated_opt.is_none() {
+            start_cluster = Cluster(self.fat_info.last_cluster.load(Ordering::SeqCst));
+            if start_cluster.0 == 0 || start_cluster.0 >= self.boot_record.cluster_count {
+                start_cluster = Cluster(1);
+            }
+        } else if let Some(last_cluster_allocated) = last_cluster_allocated_opt {
             start_cluster = last_cluster_allocated;
-            last_cluster_allocated = cluster;
-        } else if start_cluster.0 == 0 || start_cluster.0 >= self.boot_record.cluster_count {
-            start_cluster = Cluster(1);
+
+            let cluster_val = FatValue::get(self, start_cluster)?;
+            if let FatValue::Data(valid_cluster) = cluster_val {
+                if valid_cluster < self.boot_record.cluster_count {
+                    return Ok(Cluster(valid_cluster));
+                }
+            }
+
+            resize_existing_cluster = true;
         }
 
         if self.fat_info.free_cluster.load(Ordering::SeqCst) == 0 {
@@ -176,14 +185,16 @@ where
         let mut number_cluster = 0;
 
         // Resize of exisiting cluster?
-        if start_cluster == last_cluster_allocated {
+        if resize_existing_cluster {
+            // test next chunk
             number_cluster = start_cluster.0 + 1;
             if number_cluster >= self.boot_record.cluster_count {
                 number_cluster = 2;
             }
+
             let value = FatValue::get(self, Cluster(number_cluster))?;
 
-            if let FatValue::Data(_) = value {
+            if value != FatValue::Free {
                 let new_start = Cluster(self.fat_info.last_cluster.load(Ordering::SeqCst));
                 if new_start.0 >= 2 && new_start.0 < self.boot_record.cluster_count {
                     start_cluster = new_start;
@@ -217,10 +228,12 @@ where
         }
 
         let allocated_cluster = Cluster(number_cluster);
+        debug_assert!(FatValue::get(self, allocated_cluster)? == FatValue::Free);
         FatValue::put(self, allocated_cluster, FatValue::EndOfChain)?;
 
         // Link existing cluster with the new one availaible
-        if last_cluster_allocated.0 != 0 {
+        if let Some(last_cluster_allocated) = last_cluster_allocated_opt {
+            debug_assert!(FatValue::get(self, last_cluster_allocated)? == FatValue::Free || FatValue::get(self, last_cluster_allocated)? == FatValue::EndOfChain);
             FatValue::put(
                 self,
                 last_cluster_allocated,
@@ -257,13 +270,7 @@ where
             FatValue::put(self, current_cluster, FatValue::Free)?;
 
             // Invalidate last cluster if equals to the current cluster
-            loop  {
-                let res = self.fat_info.last_cluster.compare_exchange(current_cluster.0, 0xFFFF_FFFF, Ordering::SeqCst, Ordering::SeqCst);
-
-                if res.is_ok() {
-                    break;
-                }
-            }
+            self.fat_info.last_cluster.compare_and_swap(0xFFFF_FFFF, current_cluster.0, Ordering::SeqCst);
 
             self.fat_info.free_cluster.fetch_add(1, Ordering::SeqCst);
 
