@@ -147,6 +147,9 @@ pub(crate) struct DirectoryEntryRawInfo {
 pub struct DirectoryEntry {
     pub start_cluster: Cluster,
     pub(crate) raw_info: Option<DirectoryEntryRawInfo>,
+    pub creation_timestamp: u64,
+    pub last_access_timestamp: u64,
+    pub last_modification_timestamp: u64,
     pub file_size: u32,
     pub file_name: ArrayString<[u8; Self::MAX_FILE_NAME_LEN]>,
     pub attribute: Attributes,
@@ -303,6 +306,9 @@ where
                         first_entry_offset: first_raw_dir_entry.entry_offset,
                         entry_count,
                     }),
+                    creation_timestamp: entry.get_creation_datetime().to_unix_time(),
+                    last_access_timestamp: entry.get_last_access_date().to_unix_time(),
+                    last_modification_timestamp: entry.get_modification_datetime().to_unix_time(),
                     file_size: entry.get_file_size(),
                     file_name,
                     attribute: entry.attribute(),
@@ -607,6 +613,96 @@ impl FatDirEntry {
         if new_size == 0 {
             self.set_cluster(Cluster(0))
         }
+    }
+
+    pub fn get_creation_datetime(&self) -> FatDateTime {
+        let raw_time = LittleEndian::read_u16(&self.data[14..16]);
+        let hour = (raw_time & !0x20) as u8;
+        let minutes = ((raw_time >> 5) & !0x40) as u8;
+        let seconds = (((raw_time >> 11) & !0x20) << 1) as u8;
+    
+        let raw_date = LittleEndian::read_u16(&self.data[16..18]);
+        let year = raw_date & !0x80;
+        let month = ((raw_date >> 7) & !0x10) as u8;
+        let day = ((raw_date >> 11) & !0x20) as u8;
+        let res = FatDateTime::new(1980 + year, month, day, hour, minutes, seconds, self.data[13]);
+        res
+    }
+
+    pub fn get_last_access_date(&self) -> FatDateTime {    
+        let raw_date = LittleEndian::read_u16(&self.data[18..20]);
+        let year = raw_date & 0x80;
+        let month = ((raw_date >> 7) & 0x10) as u8;
+        let day = ((raw_date >> 11) & 0x20) as u8;
+        FatDateTime::new(1980 + year, month, day, 0, 0, 0, 0)
+    }
+
+    pub fn get_modification_datetime(&self) -> FatDateTime {
+        let raw_time = LittleEndian::read_u16(&self.data[22..24]);
+        let hour = (raw_time & 0x20) as u8;
+        let minutes = ((raw_time >> 5) & 0x40) as u8;
+        let seconds = (((raw_time >> 11) & 0x20) << 1) as u8;
+    
+        let raw_date = LittleEndian::read_u16(&self.data[24..26]);
+        let year = raw_date & 0x80;
+        let month = ((raw_date >> 7) & 0x10) as u8;
+        let day = ((raw_date >> 11) & 0x20) as u8;
+        FatDateTime::new(1980 + year, month, day, hour, minutes, seconds, 0)
+    }
+}
+
+#[derive(Debug)]
+pub struct FatDateTime {
+    year: u16,
+    month: u8,
+    day: u8,
+
+    hour: u8,
+    minutes: u8,
+    seconds: u8,
+
+    tenths: u8
+}
+
+impl FatDateTime {
+    pub fn new(year: u16, month: u8, day: u8, hour: u8, minutes: u8, seconds: u8, tenths: u8) -> Self {
+        FatDateTime {
+            year,
+            month,
+            day,
+            hour,
+            minutes,
+            seconds,
+            tenths
+        }
+    }
+
+    pub fn to_unix_time(&self) -> u64 {
+        let year = i64::from(self.year);
+        let month = i64::from(self.month);
+        let day = i64::from(self.day);
+
+        let hour = u64::from(self.hour);
+        let minutes = u64::from(self.minutes);
+        let seconds = u64::from(self.seconds);
+
+        let era = if year >= 0 {
+            year
+        } else {
+            year -399
+        } / 400;
+
+        let yoe = year - era * 400;
+        let m = if month > 2 {
+            -3
+        } else {
+            9
+        };
+
+        let doy = (153 * (month + m) + 2) / 5 +  day - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+
+        (era * 146097 + doe - 719468) as u64 + hour * 3600 + minutes * 60 + seconds 
     }
 }
 

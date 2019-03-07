@@ -137,6 +137,9 @@ where
             start_cluster: self.boot_record.root_dir_childs_cluster(),
             raw_info: None,
             file_size: 0,
+            creation_timestamp: 0,
+            last_access_timestamp: 0,
+            last_modification_timestamp: 0,
             file_name: ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new(),
             attribute: Attributes::new(Attributes::DIRECTORY),
         };
