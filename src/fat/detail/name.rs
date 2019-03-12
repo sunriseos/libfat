@@ -23,10 +23,6 @@ impl ShortFileName {
     pub fn from_data(data: &[u8]) -> Self {
         let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
 
-        if data.len() != short_name.len() {
-            panic!()
-        }
-
         short_name[..data.len()].clone_from_slice(&data[..]);
         ShortFileName {
             contents: short_name,

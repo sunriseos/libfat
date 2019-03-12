@@ -41,17 +41,18 @@ where
         Directory { dir_info, fs }
     }
 
-    pub fn find_entry(self, name: &str) -> Option<DirectoryEntry> {
+    pub fn find_entry(self, name: &str) -> FileSystemResult<DirectoryEntry> {
         for entry in self.iter() {
+            let entry = entry?;
             if entry.file_name.as_str() == name {
-                return Some(entry);
+                return Ok(entry);
             }
         }
 
-        None
+        Err(FileSystemError::NotFound)
     }
 
-    pub fn open_file(self, path: &str) -> Option<DirectoryEntry> {
+    pub fn open_file(self, path: &str) -> FileSystemResult<DirectoryEntry> {
         let (name, rest_opt) = split_path(path);
         let fs = self.fs;
 
@@ -60,16 +61,16 @@ where
         match rest_opt {
             Some(rest) => {
                 if !child_entry.attribute.is_directory() {
-                    None
+                    Err(FileSystemError::NotFound)
                 } else {
                     Directory::from_entry(fs, child_entry).open_file(rest)
                 }
             }
-            None => Some(child_entry),
+            None => Ok(child_entry),
         }
     }
 
-    pub fn open_dir(self, path: &str) -> Option<Directory<'a, T>> {
+    pub fn open_dir(self, path: &str) -> FileSystemResult<Directory<'a, T>> {
         let (name, rest_opt) = split_path(path);
 
         let fs = self.fs;
@@ -77,12 +78,12 @@ where
         let child_entry = self.find_entry(name)?;
 
         if !child_entry.attribute.is_directory() {
-            return None;
+            return Err(FileSystemError::NotFound);
         }
 
         match rest_opt {
             Some(rest) => Directory::from_entry(fs, child_entry).open_dir(rest),
-            None => Some(Directory::from_entry(fs, child_entry)),
+            None => Ok(Directory::from_entry(fs, child_entry)),
         }
     }
 
@@ -100,10 +101,15 @@ where
 
             let mut i = 0;
             while i < raw_info.entry_count {
-                let mut res = block_iter.next().ok_or(FileSystemError::ReadFailed)?;
-                res.set_deleted();
-                res.flush(fs)?;
-                i += 1;
+                if let Some(block_res) = block_iter.next() {
+                    let mut res = block_res?;
+
+                    res.set_deleted();
+                    res.flush(fs)?;
+                    i += 1;
+                } else {
+                    return Err(FileSystemError::ReadFailed);
+                }
             }
         }
 
@@ -113,7 +119,7 @@ where
     pub fn unlink(self, name: &str) -> FileSystemResult<()> {
         let fs = self.fs;
 
-        let dir_entry = self.find_entry(name).ok_or(FileSystemError::NotFound)?;
+        let dir_entry = self.find_entry(name)?;
 
         // Check for directory not being empty
         if dir_entry.attribute.is_directory()
@@ -153,7 +159,7 @@ pub struct DirectoryEntry {
 }
 
 impl DirectoryEntryRawInfo {
-    pub fn get_dir_entry<T>(&self, fs: &FatFileSystem<T>) -> Option<FatDirEntry>
+    pub fn get_dir_entry<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<FatDirEntry>
     where
         T: BlockDevice,
     {
@@ -168,11 +174,20 @@ impl DirectoryEntryRawInfo {
         let mut res = None;
 
         while i < self.entry_count {
-            res = block_iter.next();
+            let result = block_iter.next();
+            if let Some(result) = result {
+                res = Some(result?);
+            } else {
+                res = None;
+            }
             i += 1;
         }
 
-        res
+        if let Some(res) = res {
+            Ok(res)
+        } else {
+            Err(FileSystemError::NotFound)
+        }
     }
 }
 
@@ -202,8 +217,8 @@ impl<'a, T> Iterator for DirectoryEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
-    type Item = DirectoryEntry;
-    fn next(&mut self) -> Option<DirectoryEntry> {
+    type Item = FileSystemResult<DirectoryEntry>;
+    fn next(&mut self) -> Option<FileSystemResult<DirectoryEntry>> {
         let mut next_is_end_entry = false;
         let mut first_raw_dir_entry: Option<FatDirEntry> = None;
         let mut entry_count = 0;
@@ -211,6 +226,11 @@ where
         let mut file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
 
         while let Some(entry) = self.raw_iter.next() {
+            if let Err(error) = entry {
+                return Some(Err(error));
+            }
+
+            let entry = entry.unwrap();
             if first_raw_dir_entry.is_none() {
                 first_raw_dir_entry = Some(entry);
             }
@@ -295,7 +315,7 @@ where
                 let first_raw_dir_entry = first_raw_dir_entry.unwrap();
 
                 // only a SFN entry
-                return Some(DirectoryEntry {
+                return Some(Ok(DirectoryEntry {
                     start_cluster: entry.get_cluster(),
                     raw_info: Some(DirectoryEntryRawInfo {
                         parent_cluster: first_raw_dir_entry.entry_cluster,
@@ -309,7 +329,7 @@ where
                     file_size: entry.get_file_size(),
                     file_name,
                     attribute: entry.attribute(),
-                });
+                }));
             }
 
             lfn_index = 0;
@@ -368,8 +388,8 @@ impl<'a, T> Iterator for FatDirEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
-    type Item = FatDirEntry;
-    fn next(&mut self) -> Option<FatDirEntry> {
+    type Item = FileSystemResult<FatDirEntry>;
+    fn next(&mut self) -> Option<FileSystemResult<FatDirEntry>> {
         let entry_per_block_count = (Block::LEN / FatDirEntry::LEN) as u8;
         let fs = self.cluster_iter.cluster_iter.fs;
 
@@ -392,15 +412,18 @@ where
 
         let entry_index = (self.counter % entry_per_block_count) as usize;
 
-        // FIXME: Custom Iterator to catches those errors
-        fs.block_device
+        let read_res = fs
+            .block_device
             .read(
                 &mut blocks,
                 fs.partition_start,
                 BlockIndex(cluster.to_data_block_index(fs).0 + self.block_index),
             )
-            .or(Err(FileSystemError::ReadFailed))
-            .unwrap();
+            .or(Err(FileSystemError::ReadFailed));
+
+        if let Err(error) = read_res {
+            return Some(Err(error));
+        }
 
         let entry_start = entry_index * FatDirEntry::LEN;
         let entry_end = (entry_index + 1) * FatDirEntry::LEN;
@@ -414,7 +437,7 @@ where
         // The entry isn't a valid one but this doesn't mark the end of the directory
         self.counter += 1;
 
-        Some(dir_entry)
+        Some(Ok(dir_entry))
     }
 }
 
@@ -492,10 +515,6 @@ impl FatDirEntry {
         entry_offset: u32,
     ) -> FatDirEntry {
         let mut data_copied = [0x0u8; Self::LEN];
-
-        if data.len() != FatDirEntry::LEN {
-            panic!()
-        }
 
         data_copied[..data.len()].clone_from_slice(&data[..]);
         FatDirEntry {

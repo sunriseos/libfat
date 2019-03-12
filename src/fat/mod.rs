@@ -18,7 +18,7 @@ use crate::{
 struct DirectoryReader<'a, T> {
     base_path: [u8; DirectoryEntry::PATH_LEN],
     internal_iter: detail::directory::DirectoryEntryIterator<'a, T>,
-    filter_fn: &'static dyn Fn(&detail::directory::DirectoryEntry) -> bool,
+    filter_fn: &'static dyn Fn(&FileSystemResult<detail::directory::DirectoryEntry>) -> bool,
     entry_count: u64,
 }
 
@@ -29,17 +29,41 @@ struct FileInterface<'a, T> {
 
 struct DirectoryFilterPredicate;
 impl DirectoryFilterPredicate {
-    fn all(entry: &detail::directory::DirectoryEntry) -> bool {
-        let name = entry.file_name.as_str();
-        name != "." && name != ".."
+    fn all(entry: &FileSystemResult<detail::directory::DirectoryEntry>) -> bool {
+        if entry.is_err() {
+            return false;
+        }
+
+        if let Ok(entry) = entry {
+            let name = entry.file_name.as_str();
+            name != "." && name != ".."
+        } else {
+            false
+        }
     }
 
-    fn dirs(entry: &detail::directory::DirectoryEntry) -> bool {
-        entry.attribute.is_directory() && Self::all(entry)
+    fn dirs(entry: &FileSystemResult<detail::directory::DirectoryEntry>) -> bool {
+        if entry.is_err() {
+            return false;
+        }
+
+        if let Ok(entry_val) = entry {
+            entry_val.attribute.is_directory() && Self::all(entry)
+        } else {
+            false
+        }
     }
 
-    fn files(entry: &detail::directory::DirectoryEntry) -> bool {
-        !entry.attribute.is_directory() && Self::all(entry)
+    fn files(entry: &FileSystemResult<detail::directory::DirectoryEntry>) -> bool {
+        if entry.is_err() {
+            return false;
+        }
+
+        if let Ok(entry_val) = entry {
+            !entry_val.attribute.is_directory() && Self::all(entry)
+        } else {
+            false
+        }
     }
 }
 
@@ -54,9 +78,7 @@ where
         if path == "/" {
             Ok(self.get_root_directory())
         } else {
-            self.get_root_directory()
-                .open_dir(path)
-                .ok_or(FileSystemError::NotFound)
+            self.get_root_directory().open_dir(path)
         }
     }
 }
@@ -87,10 +109,7 @@ where
             // TODO: do something about that
         }
 
-        let file_entry = self
-            .get_root_directory()
-            .open_file(name)
-            .ok_or(FileSystemError::NotFound)?;
+        let file_entry = self.get_root_directory().open_file(name)?;
 
         let res = Box::new(FileInterface {
             fs: self,
@@ -110,14 +129,15 @@ where
             return Err(FileSystemError::NotFound);
         }
 
-        let filter_fn: &'static dyn Fn(&detail::directory::DirectoryEntry) -> bool =
-            if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
-                &DirectoryFilterPredicate::all
-            } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
-                &DirectoryFilterPredicate::dirs
-            } else {
-                &DirectoryFilterPredicate::files
-            };
+        let filter_fn: &'static dyn Fn(
+            &FileSystemResult<detail::directory::DirectoryEntry>,
+        ) -> bool = if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
+            &DirectoryFilterPredicate::all
+        } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
+            &DirectoryFilterPredicate::dirs
+        } else {
+            &DirectoryFilterPredicate::files
+        };
 
         let target_dir = self.get_dir_from_path(name)?;
         // find a better way of doing this
@@ -159,10 +179,7 @@ where
     }
 
     fn get_file_timestamp_raw(&self, name: &str) -> FileSystemResult<FileTimeStampRaw> {
-        let file_entry = self
-            .get_root_directory()
-            .open_file(name)
-            .ok_or(FileSystemError::NotFound)?;
+        let file_entry = self.get_root_directory().open_file(name)?;
 
         let result = FileTimeStampRaw {
             creation_timestamp: file_entry.creation_timestamp,
@@ -198,7 +215,7 @@ where
                 }
             }
 
-            *entry = raw_dir_entry.into_fs(&self.base_path);
+            *entry = raw_dir_entry?.into_fs(&self.base_path);
         }
 
         // everything was read correctly
@@ -363,10 +380,7 @@ where
         })?;
         let mut raw_dir_entry =
             raw_file_info
-                .get_dir_entry(self.fs)
-                .ok_or(FileSystemError::Custom {
-                    name: "MISSING DIR ENTRY",
-                })?;
+                .get_dir_entry(self.fs)?;
 
         let cluster_size = u64::from(
             u16::from(self.fs.boot_record.blocks_per_cluster())
