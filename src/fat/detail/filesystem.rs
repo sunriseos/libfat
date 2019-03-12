@@ -1,15 +1,14 @@
 use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
-
 use super::block::{Block, BlockCount, BlockDevice, BlockIndex};
 use super::directory::{Attributes, Directory, DirectoryEntry};
 use super::FatVolumeBootRecord;
 
-use super::FatFsType;
 use super::cluster::Cluster;
 use super::table;
 use super::table::FatValue;
+use super::FatFsType;
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
@@ -23,16 +22,28 @@ pub struct FatFileSystemInfo {
 }
 
 impl FatFileSystemInfo {
-    fn from_fs<T>(fs: &FatFileSystem<T>) -> FileSystemResult<Self>  where T: BlockDevice {
+    fn from_fs<T>(fs: &FatFileSystem<T>) -> FileSystemResult<Self>
+    where
+        T: BlockDevice,
+    {
         let mut blocks = [Block::new()];
 
         let mut last_cluster = 0xFFFF_FFFF;
         let mut free_cluster = 0xFFFF_FFFF;
 
-        fs.block_device.read(&mut blocks, fs.partition_start, BlockIndex(u32::from(fs.boot_record.fs_info_block()))).or(Err(FileSystemError::ReadFailed))?;
+        fs.block_device
+            .read(
+                &mut blocks,
+                fs.partition_start,
+                BlockIndex(u32::from(fs.boot_record.fs_info_block())),
+            )
+            .or(Err(FileSystemError::ReadFailed))?;
 
         // valid signature?
-        if &blocks[0][0..4] == b"RRaA" && &blocks[0][0x1e4..0x1e8] == b"rrAa" && LittleEndian::read_u16(&blocks[0][0x1fe..0x200]) == 0xAA55 {
+        if &blocks[0][0..4] == b"RRaA"
+            && &blocks[0][0x1e4..0x1e8] == b"rrAa"
+            && LittleEndian::read_u16(&blocks[0][0x1fe..0x200]) == 0xAA55
+        {
             // check cluster sanity
             let fs_last_cluster = LittleEndian::read_u32(&blocks[0][0x1ec..0x1f0]);
             if fs_last_cluster >= 2 && fs_last_cluster < fs.boot_record.cluster_count {
@@ -45,29 +56,43 @@ impl FatFileSystemInfo {
                 free_cluster = fs_free_cluster;
             }
         }
-        
+
         Ok(FatFileSystemInfo {
             last_cluster: AtomicU32::new(last_cluster),
             free_cluster: AtomicU32::new(free_cluster),
         })
     }
 
-    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>  where T: BlockDevice {
+    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
+    where
+        T: BlockDevice,
+    {
         if fs.boot_record.fat_type != FatFsType::Fat32 {
             return Ok(());
         }
 
         let mut blocks = [Block::new()];
 
-        LittleEndian::write_u32(&mut blocks[0][0..4] , 0x4161_5252);
-        LittleEndian::write_u32(&mut blocks[0][0x1e4..0x1e8] , 0x6141_7272);
-        LittleEndian::write_u16(&mut blocks[0][0x1fe..0x200] , 0xAA55);
+        LittleEndian::write_u32(&mut blocks[0][0..4], 0x4161_5252);
+        LittleEndian::write_u32(&mut blocks[0][0x1e4..0x1e8], 0x6141_7272);
+        LittleEndian::write_u16(&mut blocks[0][0x1fe..0x200], 0xAA55);
 
+        LittleEndian::write_u32(
+            &mut blocks[0][0x1ec..0x1f0],
+            self.last_cluster.load(Ordering::SeqCst),
+        );
+        LittleEndian::write_u32(
+            &mut blocks[0][0x1e8..0x1ec],
+            self.free_cluster.load(Ordering::SeqCst),
+        );
 
-        LittleEndian::write_u32(&mut blocks[0][0x1ec..0x1f0] , self.last_cluster.load(Ordering::SeqCst));
-        LittleEndian::write_u32(&mut blocks[0][0x1e8..0x1ec] , self.free_cluster.load(Ordering::SeqCst));
-        
-        fs.block_device.write(&blocks, fs.partition_start, BlockIndex(u32::from(fs.boot_record.fs_info_block()))).or(Err(FileSystemError::ReadFailed))?;
+        fs.block_device
+            .write(
+                &blocks,
+                fs.partition_start,
+                BlockIndex(u32::from(fs.boot_record.fs_info_block())),
+            )
+            .or(Err(FileSystemError::ReadFailed))?;
 
         Ok(())
     }
@@ -108,14 +133,15 @@ where
     }
 
     pub fn init(&mut self) -> FileSystemResult<()> {
-
         // read FAT infos
         if self.boot_record.fat_type == FatFsType::Fat32 {
             self.fat_info = FatFileSystemInfo::from_fs(self)?;
         }
 
         if self.fat_info.free_cluster.load(Ordering::SeqCst) == 0xFFFF_FFFF {
-            self.fat_info.free_cluster.store(table::get_free_cluster_count(self)?, Ordering::SeqCst);
+            self.fat_info
+                .free_cluster
+                .store(table::get_free_cluster_count(self)?, Ordering::SeqCst);
         }
 
         Ok(())
@@ -236,7 +262,10 @@ where
 
         // Link existing cluster with the new one availaible
         if let Some(last_cluster_allocated) = last_cluster_allocated_opt {
-            debug_assert!(FatValue::get(self, last_cluster_allocated)? == FatValue::Free || FatValue::get(self, last_cluster_allocated)? == FatValue::EndOfChain);
+            debug_assert!(
+                FatValue::get(self, last_cluster_allocated)? == FatValue::Free
+                    || FatValue::get(self, last_cluster_allocated)? == FatValue::EndOfChain
+            );
             FatValue::put(
                 self,
                 last_cluster_allocated,
@@ -244,10 +273,11 @@ where
             )?;
         }
 
-        self.fat_info.last_cluster.store(allocated_cluster.0, Ordering::SeqCst);
+        self.fat_info
+            .last_cluster
+            .store(allocated_cluster.0, Ordering::SeqCst);
         self.fat_info.free_cluster.fetch_sub(1, Ordering::SeqCst);
         self.fat_info.flush(self)?;
-
 
         Ok(allocated_cluster)
     }
@@ -273,10 +303,13 @@ where
             FatValue::put(self, current_cluster, FatValue::Free)?;
 
             // Invalidate last cluster if equals to the current cluster
-            self.fat_info.last_cluster.compare_and_swap(0xFFFF_FFFF, current_cluster.0, Ordering::SeqCst);
+            self.fat_info.last_cluster.compare_and_swap(
+                0xFFFF_FFFF,
+                current_cluster.0,
+                Ordering::SeqCst,
+            );
 
             self.fat_info.free_cluster.fetch_add(1, Ordering::SeqCst);
-
 
             match value {
                 FatValue::Data(data) => {

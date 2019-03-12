@@ -191,10 +191,7 @@ where
     Ok((current_cluster, previous_cluster))
 }
 
-
-pub fn get_free_cluster_count<T>(
-    fs: &FatFileSystem<T>
-) -> Result<u32, FileSystemError>
+pub fn get_free_cluster_count<T>(fs: &FatFileSystem<T>) -> Result<u32, FileSystemError>
 where
     T: BlockDevice,
 {

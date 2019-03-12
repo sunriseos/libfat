@@ -12,7 +12,7 @@ use detail::utils::align_up;
 use crate::Result as FileSystemResult;
 use crate::{
     DirFilterFlags, DirectoryEntry, DirectoryEntryType, DirectoryOperations, FileModeFlags,
-    FileOperations, FileSystemError, FileSystemOperations,
+    FileOperations, FileSystemError, FileSystemOperations, FileTimeStampRaw,
 };
 
 struct DirectoryReader<'a, T> {
@@ -47,7 +47,10 @@ impl<B> FatFileSystem<B>
 where
     B: BlockDevice,
 {
-    fn get_dir_from_path(&self, path: &str) -> FileSystemResult<detail::directory::Directory<'_, B>> {
+    fn get_dir_from_path(
+        &self,
+        path: &str,
+    ) -> FileSystemResult<detail::directory::Directory<'_, B>> {
         if path == "/" {
             Ok(self.get_root_directory())
         } else {
@@ -84,14 +87,14 @@ where
             // TODO: do something about that
         }
 
-        let dir_entry = self
+        let file_entry = self
             .get_root_directory()
             .open_file(name)
             .ok_or(FileSystemError::NotFound)?;
 
         let res = Box::new(FileInterface {
             fs: self,
-            file_info: dir_entry,
+            file_info: file_entry,
         });
 
         Ok(res as Box<dyn FileOperations + 'a>)
@@ -154,6 +157,22 @@ where
             name: "not implemented",
         })
     }
+
+    fn get_file_timestamp_raw(&self, name: &str) -> FileSystemResult<FileTimeStampRaw> {
+        let file_entry = self
+            .get_root_directory()
+            .open_file(name)
+            .ok_or(FileSystemError::NotFound)?;
+
+        let result = FileTimeStampRaw {
+            creation_timestamp: file_entry.creation_timestamp,
+            modified_timestamp: file_entry.last_modification_timestamp,
+            accessed_timestamp: file_entry.last_access_timestamp,
+            is_valid: true,
+        };
+
+        Ok(result)
+    }
 }
 
 impl<'a, T> DirectoryOperations for DirectoryReader<'a, T>
@@ -199,7 +218,7 @@ where
         if offset >= 0xFFFF_FFFF {
             return Ok(0);
         }
-        
+
         if offset >= u64::from(self.file_info.file_size) {
             return Ok(0);
         }
@@ -229,7 +248,11 @@ where
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
 
             device
-                .read(&mut blocks, self.fs.partition_start, BlockIndex(block_start_index.0 + tmp_index))
+                .read(
+                    &mut blocks,
+                    self.fs.partition_start,
+                    BlockIndex(block_start_index.0 + tmp_index),
+                )
                 .or(Err(FileSystemError::ReadFailed))?;
 
             let buf_slice = &mut buf[read_size as usize..];
@@ -279,13 +302,19 @@ where
         raw_tmp_offset %= Block::LEN_U32;
 
         while write_size < buf.len() as u64 {
-            let cluster = cluster_block_iterator.next().ok_or(FileSystemError::WriteFailed)?;
+            let cluster = cluster_block_iterator
+                .next()
+                .ok_or(FileSystemError::WriteFailed)?;
             let block_start_index = cluster.to_data_block_index(self.fs);
             let tmp_index = cluster_offset.0 % blocks_per_cluster;
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
 
             device
-                .read(&mut blocks, self.fs.partition_start, BlockIndex(block_start_index.0 + tmp_index))
+                .read(
+                    &mut blocks,
+                    self.fs.partition_start,
+                    BlockIndex(block_start_index.0 + tmp_index),
+                )
                 .or(Err(FileSystemError::ReadFailed))?;
 
             let buf_slice = &buf[write_size as usize..];
@@ -302,7 +331,11 @@ where
             }
 
             device
-                .write(&blocks, self.fs.partition_start, BlockIndex(block_start_index.0 + tmp_index))
+                .write(
+                    &blocks,
+                    self.fs.partition_start,
+                    BlockIndex(block_start_index.0 + tmp_index),
+                )
                 .or(Err(FileSystemError::WriteFailed))?;
 
             raw_tmp_offset += buf_limit as u32;

@@ -117,10 +117,7 @@ where
 
         // Check for directory not being empty
         if dir_entry.attribute.is_directory()
-            && Self::from_entry(fs, dir_entry)
-                .iter()
-                .nth(2)
-                .is_some()
+            && Self::from_entry(fs, dir_entry).iter().nth(2).is_some()
         {
             return Err(FileSystemError::AccessDenied);
         }
@@ -617,36 +614,43 @@ impl FatDirEntry {
 
     pub fn get_creation_datetime(&self) -> FatDateTime {
         let raw_time = LittleEndian::read_u16(&self.data[14..16]);
-        let hour = (raw_time & !0x20) as u8;
-        let minutes = ((raw_time >> 5) & !0x40) as u8;
-        let seconds = (((raw_time >> 11) & !0x20) << 1) as u8;
-    
+        let seconds = ((raw_time & 0x1f) << 1) as u8;
+        let minutes = ((raw_time >> 5) & 0x3f) as u8;
+        let hour = ((raw_time >> 11) & 0x1f) as u8;
+
         let raw_date = LittleEndian::read_u16(&self.data[16..18]);
-        let year = raw_date & !0x80;
-        let month = ((raw_date >> 7) & !0x10) as u8;
-        let day = ((raw_date >> 11) & !0x20) as u8;
-        let res = FatDateTime::new(1980 + year, month, day, hour, minutes, seconds, self.data[13]);
-        res
+        let day = (raw_date & 0x1f) as u8;
+        let month = ((raw_date >> 5) & 0xf) as u8;
+        let year = (raw_date >> 9) & 0x7f;
+        FatDateTime::new(
+            1980 + year,
+            month,
+            day,
+            hour,
+            minutes,
+            seconds,
+            self.data[13],
+        )
     }
 
-    pub fn get_last_access_date(&self) -> FatDateTime {    
+    pub fn get_last_access_date(&self) -> FatDateTime {
         let raw_date = LittleEndian::read_u16(&self.data[18..20]);
-        let year = raw_date & 0x80;
-        let month = ((raw_date >> 7) & 0x10) as u8;
-        let day = ((raw_date >> 11) & 0x20) as u8;
+        let day = (raw_date & 0x1f) as u8;
+        let month = ((raw_date >> 5) & 0xf) as u8;
+        let year = (raw_date >> 9) & 0x7f;
         FatDateTime::new(1980 + year, month, day, 0, 0, 0, 0)
     }
 
     pub fn get_modification_datetime(&self) -> FatDateTime {
         let raw_time = LittleEndian::read_u16(&self.data[22..24]);
-        let hour = (raw_time & 0x20) as u8;
-        let minutes = ((raw_time >> 5) & 0x40) as u8;
-        let seconds = (((raw_time >> 11) & 0x20) << 1) as u8;
-    
+        let seconds = ((raw_time & 0x1f) << 1) as u8;
+        let minutes = ((raw_time >> 5) & 0x3f) as u8;
+        let hour = ((raw_time >> 11) & 0x1f) as u8;
+
         let raw_date = LittleEndian::read_u16(&self.data[24..26]);
-        let year = raw_date & 0x80;
-        let month = ((raw_date >> 7) & 0x10) as u8;
-        let day = ((raw_date >> 11) & 0x20) as u8;
+        let day = (raw_date & 0x1f) as u8;
+        let month = ((raw_date >> 5) & 0xf) as u8;
+        let year = (raw_date >> 9) & 0x7f;
         FatDateTime::new(1980 + year, month, day, hour, minutes, seconds, 0)
     }
 }
@@ -661,11 +665,29 @@ pub struct FatDateTime {
     minutes: u8,
     seconds: u8,
 
-    tenths: u8
+    tenths: u8,
 }
 
 impl FatDateTime {
-    pub fn new(year: u16, month: u8, day: u8, hour: u8, minutes: u8, seconds: u8, tenths: u8) -> Self {
+    const DAYS: [[u16; 12]; 4] = [
+        [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335],
+        [366, 397, 425, 456, 486, 517, 547, 578, 609, 639, 670, 700],
+        [
+            731, 762, 790, 821, 851, 882, 912, 943, 974, 1004, 1035, 1065,
+        ],
+        [
+            1096, 1127, 1155, 1186, 1216, 1247, 1277, 1308, 1339, 1369, 1400, 1430,
+        ],
+    ];
+    pub fn new(
+        year: u16,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minutes: u8,
+        seconds: u8,
+        tenths: u8,
+    ) -> Self {
         FatDateTime {
             year,
             month,
@@ -673,36 +695,34 @@ impl FatDateTime {
             hour,
             minutes,
             seconds,
-            tenths
+            tenths,
         }
     }
 
     pub fn to_unix_time(&self) -> u64 {
-        let year = i64::from(self.year);
-        let month = i64::from(self.month);
-        let day = i64::from(self.day);
+        // TODO: support other ranges than 2000-2099
+        if self.year > 2099 || self.year < 2000 {
+            return 0;
+        }
+
+        let year = u64::from(self.year) % 100;
+        let month = u64::from(self.month) - 1;
+        let day = u64::from(self.day) - 1;
 
         let hour = u64::from(self.hour);
         let minutes = u64::from(self.minutes);
         let seconds = u64::from(self.seconds);
 
-        let era = if year >= 0 {
-            year
-        } else {
-            year -399
-        } / 400;
-
-        let yoe = year - era * 400;
-        let m = if month > 2 {
-            -3
-        } else {
-            9
-        };
-
-        let doy = (153 * (month + m) + 2) / 5 +  day - 1;
-        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-
-        (era * 146097 + doe - 719468) as u64 + hour * 3600 + minutes * 60 + seconds 
+        946_684_800
+            + (((year / 4 * (365 * 4 + 1)
+                + u64::from(Self::DAYS[year as usize % 4][month as usize])
+                + day)
+                * 24
+                + hour)
+                * 60
+                + minutes)
+                * 60
+            + seconds
     }
 }
 

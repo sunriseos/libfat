@@ -61,6 +61,14 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
+pub struct FileTimeStampRaw {
+    pub creation_timestamp: u64,
+    pub modified_timestamp: u64,
+    pub accessed_timestamp: u64,
+    pub is_valid: bool,
+}
+
 type Result<T> = core::result::Result<T, FileSystemError>;
 
 pub trait FileOperations {
@@ -91,5 +99,8 @@ pub trait FileSystemOperations {
         name: &str,
         filter: DirFilterFlags,
     ) -> Result<Box<dyn DirectoryOperations + 'a>>;
+
     fn delete_directory(&self, name: &str) -> Result<()>;
+
+    fn get_file_timestamp_raw(&self, name: &str) -> Result<FileTimeStampRaw>;
 }
