@@ -173,10 +173,10 @@ where
         Directory::from_entry(self, dir_info)
     }
 
-    pub fn unlink(&self, path: &str) -> FileSystemResult<()> {
+    pub fn unlink(&self, path: &str, is_dir: bool) -> FileSystemResult<()> {
         let (parent_name, file_name) = Self::get_parent(path);
         let parent_dir = self.get_root_directory().open_dir(parent_name)?;
-        parent_dir.unlink(file_name)
+        parent_dir.unlink(file_name, is_dir)
     }
 
     pub fn alloc_cluster(

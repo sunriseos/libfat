@@ -87,27 +87,25 @@ impl<B> FileSystemOperations for FatFileSystem<B>
 where
     B: BlockDevice,
 {
-    fn create_file(&self, _name: &str, _size: u64) -> FileSystemResult<()> {
+    fn create_file(&self, _path: &str, _size: u64) -> FileSystemResult<()> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
     }
 
-    fn create_directory(&self, name: &str) -> FileSystemResult<()> {
+    fn create_directory(&self, _path: &str) -> FileSystemResult<()> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
     }
 
-    fn delete_file(&self, _name: &str) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn delete_file(&self, path: &str) -> FileSystemResult<()> {
+        self.unlink(path, false)
     }
 
     fn open_file<'a>(
         &'a self,
-        name: &str,
+        path: &str,
         mode: FileModeFlags,
     ) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
         // TODO: separate type file operation type
@@ -115,7 +113,7 @@ where
             // TODO: do something about that
         }
 
-        let file_entry = self.get_root_directory().open_file(name)?;
+        let file_entry = self.get_root_directory().open_file(path)?;
 
         let res = Box::new(FileInterface {
             fs: self,
@@ -127,11 +125,11 @@ where
 
     fn open_directory<'a>(
         &'a self,
-        name: &str,
+        path: &str,
         filter: DirFilterFlags,
     ) -> FileSystemResult<Box<dyn DirectoryOperations + 'a>> {
         // reject path that are too big (shoudn't never happens but well we don't know)
-        if name.len() >= DirectoryEntry::PATH_LEN {
+        if path.len() >= DirectoryEntry::PATH_LEN {
             return Err(FileSystemError::NotFound);
         }
 
@@ -145,14 +143,14 @@ where
             &DirectoryFilterPredicate::files
         };
 
-        let target_dir = self.get_dir_from_path(name)?;
+        let target_dir = self.get_dir_from_path(path)?;
         // find a better way of doing this
-        let target_dir_clone = self.get_dir_from_path(name)?;
+        let target_dir_clone = self.get_dir_from_path(path)?;
 
         let entry_count = target_dir.iter().filter(filter_fn).count() as u64;
 
         let mut data: [u8; DirectoryEntry::PATH_LEN] = [0x0; DirectoryEntry::PATH_LEN];
-        for (index, c) in name
+        for (index, c) in path
             .as_bytes()
             .iter()
             .enumerate()
@@ -162,10 +160,10 @@ where
         }
 
         // Add '/' if missing at the end
-        if let Some('/') = name.chars().last() {
+        if let Some('/') = path.chars().last() {
             // Already valid
         } else {
-            data[name.as_bytes().len()] = 0x2F;
+            data[path.as_bytes().len()] = 0x2F;
         }
 
         let res = Box::new(DirectoryReader {
@@ -178,10 +176,8 @@ where
         Ok(res as Box<dyn DirectoryOperations + 'a>)
     }
 
-    fn delete_directory(&self, _name: &str) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn delete_directory(&self, path: &str) -> FileSystemResult<()> {
+        self.unlink(path, true)
     }
 
     fn get_file_timestamp_raw(&self, name: &str) -> FileSystemResult<FileTimeStampRaw> {

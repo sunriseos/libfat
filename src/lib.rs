@@ -24,6 +24,8 @@ pub enum FileSystemError {
     ReadFailed,
     NoPartitionFound,
     PartitionNotFound,
+    NotAFile,
+    NotADirectory,
     UnknownPartitionFormat { partition_type: u32 },
     InvalidPartition,
     Custom { name: &'static str },
@@ -86,21 +88,21 @@ pub trait DirectoryOperations {
 }
 
 pub trait FileSystemOperations {
-    fn create_file(&self, name: &str, size: u64) -> Result<()>;
-    fn create_directory(&self, name: &str) -> Result<()>;
-    fn delete_file(&self, name: &str) -> Result<()>;
+    fn create_file(&self, path: &str, size: u64) -> Result<()>;
+    fn create_directory(&self, path: &str) -> Result<()>;
+    fn delete_file(&self, path: &str) -> Result<()>;
     fn open_file<'a>(
         &'a self,
-        name: &str,
+        path: &str,
         mode: FileModeFlags,
     ) -> Result<Box<dyn FileOperations + 'a>>;
 
     fn open_directory<'a>(
         &'a self,
-        name: &str,
+        path: &str,
         filter: DirFilterFlags,
     ) -> Result<Box<dyn DirectoryOperations + 'a>>;
 
-    fn delete_directory(&self, name: &str) -> Result<()>;
-    fn get_file_timestamp_raw(&self, name: &str) -> Result<FileTimeStampRaw>;
+    fn delete_directory(&self, path: &str) -> Result<()>;
+    fn get_file_timestamp_raw(&self, path: &str) -> Result<FileTimeStampRaw>;
 }

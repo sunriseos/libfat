@@ -116,10 +116,18 @@ where
         Ok(())
     }
 
-    pub fn unlink(self, name: &str) -> FileSystemResult<()> {
+    pub fn unlink(self, name: &str, is_dir: bool) -> FileSystemResult<()> {
         let fs = self.fs;
 
         let dir_entry = self.find_entry(name)?;
+
+        if dir_entry.attribute.is_directory() != is_dir {
+            if is_dir {
+                return Err(FileSystemError::NotADirectory);
+            }
+
+            return Err(FileSystemError::NotAFile);
+        }
 
         // Check for directory not being empty
         if dir_entry.attribute.is_directory()
