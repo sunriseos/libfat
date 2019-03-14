@@ -1,5 +1,6 @@
 use byteorder::{ByteOrder, LittleEndian};
 use core::num;
+use core::cmp;
 
 pub struct ShortFileName {
     contents: [u8; ShortFileName::MAX_LEN],
@@ -10,9 +11,104 @@ pub struct LongFileName {
 }
 
 // TODO: use that
-enum FileNameError {
+pub enum FileNameError {
     InvalidCharacter,
     FilenameEmpty,
+}
+
+pub struct ShortFileNameGenerator;
+pub struct ShortFileNameContext {
+    pub checksum_inserted: bool,
+    pub checksum: u16,
+    pub short_name_base: [u8; ShortFileName::BASE_FILE_NAME_LEN],
+    pub short_name_base_len: usize,
+    pub short_name_ext: [u8; ShortFileName::EXT_LEN],
+    pub short_name_ext_len: usize,
+    pub last_index_value: usize,
+    
+}
+
+impl ShortFileNameGenerator {
+     
+    fn get_index_len(index: usize) -> usize {
+        let mut tmp = index;
+        let mut len = 0;
+
+        while tmp != 0 {
+            tmp /= 10;
+            len += 1;
+        }
+
+        if len == 0 {
+            1
+        } else { len }
+    }
+
+    pub fn create(context: &mut ShortFileNameContext, lfn: &str) -> Result<(), FileNameError> {
+        let mut short_name_base = [0x20u8; ShortFileName::BASE_FILE_NAME_LEN];
+        let mut short_name_ext = [0x20u8; ShortFileName::EXT_LEN];
+
+        let (short_name_base_len, short_name_ext_len) = match lfn.rfind('.') {
+            Some(index) => {
+                let (basename_len, _basename_fits, _basename_lossy) =
+                    ShortFileName::copy_format_sfn_part(&mut short_name_base, &lfn[..index]);
+
+                let (ext_len, _ext_fits, _ext_lossy) =
+                    ShortFileName::copy_format_sfn_part(&mut short_name_ext, &lfn[index + 1..]);
+                (
+                    basename_len,
+                    ext_len
+                )
+            }
+            None => {
+                let (basename_len, _basename_fits, _basename_lossy) =
+                    ShortFileName::copy_format_sfn_part(&mut short_name_base, &lfn);
+                (basename_len, 0)
+            }
+        };
+
+        let mut index_len = Self::get_index_len(context.last_index_value);
+        let mut copy_len = 0;
+        let mut checksum = 0;
+
+        if context.checksum_inserted {
+            checksum = ShortFileName::checksum(&short_name_base);
+            copy_len = cmp::min(short_name_base_len, 8 - 4 - 1 - index_len);
+        } else {
+            copy_len = cmp::min(short_name_base_len, 8 - 1 - index_len);
+        }
+
+        if context.short_name_base_len == short_name_base_len &&
+           context.short_name_base == short_name_base &&
+           context.short_name_ext_len == short_name_ext_len &&
+           context.short_name_ext == short_name_ext &&
+           context.checksum == checksum &&
+           context.last_index_value < 999 {
+               context.last_index_value += 1;
+               if !context.checksum_inserted && context.last_index_value > 0 {
+                   context.checksum_inserted = true;
+                   context.checksum = ShortFileName::checksum(&short_name_base);
+               }
+        } else {
+            context.last_index_value = 1;
+            context.checksum_inserted = false;
+        }
+
+        // recompute copy_len as checksum_inserted might have changed
+        index_len = Self::get_index_len(context.last_index_value);
+        if context.checksum_inserted {
+            copy_len = cmp::min(short_name_base_len, 8 - 4 - 1 - index_len);
+        } else {
+            copy_len = cmp::min(short_name_base_len, 8 - 1 - index_len);
+        }
+
+        // TODO: build name (8.3)
+        // TODO: add checksum if needed
+
+        context.short_name_base_len = copy_len;
+        context.short_name_ext_len = short_name_ext_len;
+        unimplemented!()
+     }
 }
 
 impl ShortFileName {
@@ -61,7 +157,7 @@ impl ShortFileName {
         }
     }
 
-    fn copy_format_sfn_part(dst: &mut [u8], src: &str) -> (usize, bool, bool) {
+    pub fn copy_format_sfn_part(dst: &mut [u8], src: &str) -> (usize, bool, bool) {
         let mut dst_pos = 0;
         let mut lossy_convertion = false;
         for c in src.chars() {
@@ -108,10 +204,11 @@ impl ShortFileName {
         self.contents
     }
 
-    pub fn checksum(short_name: &[u8; ShortFileName::MAX_LEN]) -> u8 {
-        let mut checksum = num::Wrapping(0u8);
+    // TODO: rewrite this
+    pub fn checksum(short_name: &[u8]) -> u16 {
+        let mut checksum = num::Wrapping(0u16);
         for b in short_name {
-            checksum = (checksum << 7) + (checksum >> 1) + num::Wrapping(*b);
+            checksum = (checksum << 7) + (checksum >> 1) + num::Wrapping(*b as u16);
         }
         checksum.0
     }
