@@ -90,7 +90,13 @@ pub trait DirectoryOperations {
 pub trait FileSystemOperations {
     fn create_file(&self, path: &str, size: u64) -> Result<()>;
     fn create_directory(&self, path: &str) -> Result<()>;
+
+    fn rename_file(&self, old_path: &str, new_path: &str) -> Result<()>;
+    fn rename_directory(&self, old_path: &str, new_path: &str) -> Result<()>;
+
     fn delete_file(&self, path: &str) -> Result<()>;
+    fn delete_directory(&self, path: &str) -> Result<()>;
+    
     fn open_file<'a>(
         &'a self,
         path: &str,
@@ -103,6 +109,5 @@ pub trait FileSystemOperations {
         filter: DirFilterFlags,
     ) -> Result<Box<dyn DirectoryOperations + 'a>>;
 
-    fn delete_directory(&self, path: &str) -> Result<()>;
     fn get_file_timestamp_raw(&self, path: &str) -> Result<FileTimeStampRaw>;
 }

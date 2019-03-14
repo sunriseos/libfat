@@ -99,8 +99,24 @@ where
         })
     }
 
+    fn rename_file(&self, _old_path: &str, _new_path: &str) -> FileSystemResult<()> {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
+    }
+
+    fn rename_directory(&self, _old_path: &str, _new_path: &str) -> FileSystemResult<()> {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
+    }
+
     fn delete_file(&self, path: &str) -> FileSystemResult<()> {
         self.unlink(path, false)
+    }
+
+    fn delete_directory(&self, path: &str) -> FileSystemResult<()> {
+        self.unlink(path, true)
     }
 
     fn open_file<'a>(
@@ -174,10 +190,6 @@ where
         });
 
         Ok(res as Box<dyn DirectoryOperations + 'a>)
-    }
-
-    fn delete_directory(&self, path: &str) -> FileSystemResult<()> {
-        self.unlink(path, true)
     }
 
     fn get_file_timestamp_raw(&self, name: &str) -> FileSystemResult<FileTimeStampRaw> {
