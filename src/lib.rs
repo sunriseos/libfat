@@ -86,7 +86,8 @@ pub trait DirectoryOperations {
 }
 
 pub trait FileSystemOperations {
-    fn create_file(&self, name: &str, mode: FileModeFlags, size: u64) -> Result<()>;
+    fn create_file(&self, name: &str, size: u64) -> Result<()>;
+    fn create_directory(&self, name: &str) -> Result<()>;
     fn delete_file(&self, name: &str) -> Result<()>;
     fn open_file<'a>(
         &'a self,
@@ -101,6 +102,5 @@ pub trait FileSystemOperations {
     ) -> Result<Box<dyn DirectoryOperations + 'a>>;
 
     fn delete_directory(&self, name: &str) -> Result<()>;
-
     fn get_file_timestamp_raw(&self, name: &str) -> Result<FileTimeStampRaw>;
 }

@@ -87,7 +87,13 @@ impl<B> FileSystemOperations for FatFileSystem<B>
 where
     B: BlockDevice,
 {
-    fn create_file(&self, _name: &str, _mode: FileModeFlags, _size: u64) -> FileSystemResult<()> {
+    fn create_file(&self, _name: &str, _size: u64) -> FileSystemResult<()> {
+        Err(FileSystemError::Custom {
+            name: "not implemented",
+        })
+    }
+
+    fn create_directory(&self, name: &str) -> FileSystemResult<()> {
         Err(FileSystemError::Custom {
             name: "not implemented",
         })
