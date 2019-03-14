@@ -378,9 +378,7 @@ where
         let raw_file_info = self.file_info.raw_info.ok_or(FileSystemError::Custom {
             name: "Raw Info is missing ON A FILE",
         })?;
-        let mut raw_dir_entry =
-            raw_file_info
-                .get_dir_entry(self.fs)?;
+        let mut raw_dir_entry = raw_file_info.get_dir_entry(self.fs)?;
 
         let cluster_size = u64::from(
             u16::from(self.fs.boot_record.blocks_per_cluster())

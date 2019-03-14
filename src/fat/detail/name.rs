@@ -1,6 +1,6 @@
 use byteorder::{ByteOrder, LittleEndian};
-use core::num;
 use core::cmp;
+use core::num;
 
 pub struct ShortFileName {
     contents: [u8; ShortFileName::MAX_LEN],
@@ -17,6 +17,8 @@ pub enum FileNameError {
 }
 
 pub struct ShortFileNameGenerator;
+
+#[derive(Default, Debug)]
 pub struct ShortFileNameContext {
     pub checksum_inserted: bool,
     pub checksum: u16,
@@ -25,11 +27,9 @@ pub struct ShortFileNameContext {
     pub short_name_ext: [u8; ShortFileName::EXT_LEN],
     pub short_name_ext_len: usize,
     pub last_index_value: usize,
-    
 }
 
 impl ShortFileNameGenerator {
-     
     fn get_index_len(index: usize) -> usize {
         let mut tmp = index;
         let mut len = 0;
@@ -41,119 +41,8 @@ impl ShortFileNameGenerator {
 
         if len == 0 {
             1
-        } else { len }
-    }
-
-    pub fn create(context: &mut ShortFileNameContext, lfn: &str) -> Result<(), FileNameError> {
-        let mut short_name_base = [0x20u8; ShortFileName::BASE_FILE_NAME_LEN];
-        let mut short_name_ext = [0x20u8; ShortFileName::EXT_LEN];
-
-        let (short_name_base_len, short_name_ext_len) = match lfn.rfind('.') {
-            Some(index) => {
-                let (basename_len, _basename_fits, _basename_lossy) =
-                    ShortFileName::copy_format_sfn_part(&mut short_name_base, &lfn[..index]);
-
-                let (ext_len, _ext_fits, _ext_lossy) =
-                    ShortFileName::copy_format_sfn_part(&mut short_name_ext, &lfn[index + 1..]);
-                (
-                    basename_len,
-                    ext_len
-                )
-            }
-            None => {
-                let (basename_len, _basename_fits, _basename_lossy) =
-                    ShortFileName::copy_format_sfn_part(&mut short_name_base, &lfn);
-                (basename_len, 0)
-            }
-        };
-
-        let mut index_len = Self::get_index_len(context.last_index_value);
-        let mut copy_len = 0;
-        let mut checksum = 0;
-
-        if context.checksum_inserted {
-            checksum = ShortFileName::checksum(&short_name_base);
-            copy_len = cmp::min(short_name_base_len, 8 - 4 - 1 - index_len);
         } else {
-            copy_len = cmp::min(short_name_base_len, 8 - 1 - index_len);
-        }
-
-        if context.short_name_base_len == short_name_base_len &&
-           context.short_name_base == short_name_base &&
-           context.short_name_ext_len == short_name_ext_len &&
-           context.short_name_ext == short_name_ext &&
-           context.checksum == checksum &&
-           context.last_index_value < 999 {
-               context.last_index_value += 1;
-               if !context.checksum_inserted && context.last_index_value > 0 {
-                   context.checksum_inserted = true;
-                   context.checksum = ShortFileName::checksum(&short_name_base);
-               }
-        } else {
-            context.last_index_value = 1;
-            context.checksum_inserted = false;
-        }
-
-        // recompute copy_len as checksum_inserted might have changed
-        index_len = Self::get_index_len(context.last_index_value);
-        if context.checksum_inserted {
-            copy_len = cmp::min(short_name_base_len, 8 - 4 - 1 - index_len);
-        } else {
-            copy_len = cmp::min(short_name_base_len, 8 - 1 - index_len);
-        }
-
-        // TODO: build name (8.3)
-        // TODO: add checksum if needed
-
-        context.short_name_base_len = copy_len;
-        context.short_name_ext_len = short_name_ext_len;
-        unimplemented!()
-     }
-}
-
-impl ShortFileName {
-    const BASE_FILE_NAME_LEN: usize = 8;
-    const EXT_LEN: usize = 3;
-    const MAX_LEN: usize = ShortFileName::BASE_FILE_NAME_LEN + ShortFileName::EXT_LEN;
-
-    pub fn from_data(data: &[u8]) -> Self {
-        let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
-
-        short_name[..data.len()].clone_from_slice(&data[..]);
-        ShortFileName {
-            contents: short_name,
-        }
-    }
-
-    pub fn from_sfn_str(_name: &str) -> Self {
-        unimplemented!()
-    }
-
-    pub fn from_unformated_str(name: &str) -> Self {
-        let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
-
-        // does it have an extension?
-        let (_basename_len, _name_fits, _lossy_conv) = match name.rfind('.') {
-            Some(index) => {
-                let (basename_len, basename_fits, basename_lossy) =
-                    Self::copy_format_sfn_part(&mut short_name[0..8], &name[..index]);
-                let (_, ext_fits, ext_lossy) =
-                    Self::copy_format_sfn_part(&mut short_name[8..11], &name[index + 1..]);
-                (
-                    basename_len,
-                    basename_fits && ext_fits,
-                    basename_lossy || ext_lossy,
-                )
-            }
-            None => {
-                let (basename_len, basename_fits, basename_lossy) =
-                    Self::copy_format_sfn_part(&mut short_name[0..8], &name);
-                (basename_len, basename_fits, basename_lossy)
-            }
-        };
-
-        ShortFileName {
-            contents: short_name,
+            len
         }
     }
 
@@ -192,6 +81,127 @@ impl ShortFileName {
         (dst_pos, true, lossy_convertion)
     }
 
+    pub fn create(context: &mut ShortFileNameContext, lfn: &str) -> ShortFileName {
+        let mut short_name_base = [0x20u8; ShortFileName::BASE_FILE_NAME_LEN];
+        let mut short_name_ext = [0x20u8; ShortFileName::EXT_LEN];
+
+        let (short_name_base_len, short_name_ext_len) = match lfn.rfind('.') {
+            Some(index) => {
+                let (basename_len, _basename_fits, _basename_lossy) =
+                    Self::copy_format_sfn_part(&mut short_name_base, &lfn[..index]);
+
+                let (ext_len, _ext_fits, _ext_lossy) =
+                    Self::copy_format_sfn_part(&mut short_name_ext, &lfn[index + 1..]);
+                (basename_len, ext_len)
+            }
+            None => {
+                let (basename_len, _basename_fits, _basename_lossy) =
+                    Self::copy_format_sfn_part(&mut short_name_base, &lfn);
+                (basename_len, 0)
+            }
+        };
+
+        let mut index_len = Self::get_index_len(context.last_index_value);
+        let mut copy_len;
+        let mut checksum = 0;
+
+        if context.checksum_inserted {
+            checksum = ShortFileName::checksum(&short_name_base);
+            copy_len = cmp::min(short_name_base_len, 8 - 4 - 1 - index_len);
+        } else {
+            copy_len = cmp::min(short_name_base_len, 8 - 1 - index_len);
+        }
+
+        if context.short_name_base_len == copy_len
+            && context.short_name_base == short_name_base
+            && context.short_name_ext_len == short_name_ext_len
+            && context.short_name_ext == short_name_ext
+            && context.checksum == checksum
+            && context.last_index_value < 999
+        {
+            context.last_index_value += 1;
+            if !context.checksum_inserted && context.last_index_value > 9 {
+                context.checksum_inserted = true;
+                context.checksum = ShortFileName::checksum(&short_name_base);
+                context.last_index_value = 1;
+            }
+        } else {
+            context.last_index_value = 1;
+            context.checksum_inserted = false;
+        }
+
+        // recompute copy_len as checksum_inserted might have changed
+        index_len = Self::get_index_len(context.last_index_value);
+        if context.checksum_inserted {
+            copy_len = cmp::min(short_name_base_len, 8 - 4 - 1 - index_len);
+        } else {
+            copy_len = cmp::min(short_name_base_len, 8 - 1 - index_len);
+        }
+
+        let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
+        (&mut short_name[0..copy_len]).copy_from_slice(&short_name_base[0..copy_len]);
+        let mut j = copy_len;
+
+        if context.checksum_inserted {
+            j += 3;
+            checksum = context.checksum;
+            for _ in 0..4 {
+                let number = if checksum % 16 > 9 {
+                    (checksum % 16) as u8 + 0x41 - 0xA
+                } else {
+                    (checksum % 16) as u8 + 0x30
+                };
+
+                short_name[j] = number;
+                j -= 1;
+                checksum /= 16;
+            }
+
+            j = copy_len + 4;
+        }
+
+        // '~'
+        short_name[j] = 0x7e;
+        j += index_len;
+
+        let mut current_index = context.last_index_value;
+        for _ in 0..index_len {
+            short_name[j] = 0x30 + (current_index % 10) as u8;
+            current_index /= 10;
+            j -= 1;
+        }
+
+        j += index_len + 1;
+        (&mut short_name[j..j + short_name_ext_len])
+            .copy_from_slice(&short_name_ext[0..short_name_ext_len]);
+
+        context.short_name_base_len = copy_len;
+        context.short_name_base.copy_from_slice(&short_name_base);
+        context.short_name_ext_len = short_name_ext_len;
+        context.short_name_ext.copy_from_slice(&short_name_ext);
+
+        ShortFileName::from_data(&short_name)
+    }
+}
+
+impl ShortFileName {
+    const BASE_FILE_NAME_LEN: usize = 8;
+    const EXT_LEN: usize = 3;
+    const MAX_LEN: usize = ShortFileName::BASE_FILE_NAME_LEN + ShortFileName::EXT_LEN;
+
+    pub fn from_data(data: &[u8]) -> Self {
+        let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
+
+        short_name[..data.len()].clone_from_slice(&data[..]);
+        ShortFileName {
+            contents: short_name,
+        }
+    }
+
+    pub fn from_unformated_str(context: &mut ShortFileNameContext, name: &str) -> Self {
+        ShortFileNameGenerator::create(context, name)
+    }
+
     pub fn chars(&self) -> [char; ShortFileName::MAX_LEN] {
         let mut res: [char; ShortFileName::MAX_LEN] = [' '; ShortFileName::MAX_LEN];
         for (index, dst) in res.iter_mut().enumerate().take(self.contents.len()) {
@@ -208,7 +218,7 @@ impl ShortFileName {
     pub fn checksum(short_name: &[u8]) -> u16 {
         let mut checksum = num::Wrapping(0u16);
         for b in short_name {
-            checksum = (checksum << 7) + (checksum >> 1) + num::Wrapping(*b as u16);
+            checksum = (checksum << 7) + (checksum >> 1) + num::Wrapping(u16::from(*b));
         }
         checksum.0
     }
