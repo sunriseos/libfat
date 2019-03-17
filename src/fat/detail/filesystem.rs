@@ -175,7 +175,12 @@ where
 
     pub fn unlink(&self, path: &str, is_dir: bool) -> FileSystemResult<()> {
         let (parent_name, file_name) = Self::get_parent(path);
-        let parent_dir = self.get_root_directory().open_dir(parent_name)?;
+        let parent_dir = if parent_name == "" {
+            self.get_root_directory()
+        } else {
+            self.get_root_directory().open_dir(parent_name)?
+        };
+
         parent_dir.unlink(file_name, is_dir)
     }
 
