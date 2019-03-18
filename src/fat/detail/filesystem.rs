@@ -3,7 +3,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use super::attribute::Attributes;
 use super::block::{Block, BlockCount, BlockDevice, BlockIndex};
-use super::directory::{Directory, dir_entry::DirectoryEntry};
+use super::directory::{dir_entry::DirectoryEntry, Directory};
 use super::FatVolumeBootRecord;
 
 use super::cluster::Cluster;

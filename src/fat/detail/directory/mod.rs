@@ -1,19 +1,20 @@
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
-use super::block::{BlockDevice, BlockIndexClusterIter};
-use super::FatFileSystem;
+use super::block::{BlockDevice, BlockIndex, BlockIndexClusterIter};
 use super::utils;
+use super::FatFileSystem;
 
+pub mod dir_entry;
+pub mod dir_entry_iterator;
 pub mod raw_dir_entry;
 pub mod raw_dir_entry_iterator;
-pub mod dir_entry_iterator;
-pub mod dir_entry;
 
 use dir_entry::DirectoryEntry;
+use raw_dir_entry::FatDirEntry;
 
-use raw_dir_entry_iterator::FatDirEntryIterator;
 use dir_entry_iterator::DirectoryEntryIterator;
+use raw_dir_entry_iterator::FatDirEntryIterator;
 
 #[derive(Copy)]
 pub struct Directory<'a, T> {
@@ -84,6 +85,30 @@ where
         }
     }
 
+    fn allocate_entries(
+        &self,
+        fs: &'a FatFileSystem<T>,
+        count: u32,
+    ) -> FileSystemResult<FatDirEntryIterator<T>> {
+        let mut i = 0;
+        for raw_dir_entry in self.clone().fat_dir_entry_iter() {
+            let raw_dir_entry = raw_dir_entry?;
+            if raw_dir_entry.is_free() || raw_dir_entry.is_deleted() {
+                i += 1;
+                if i == count {
+                    return Ok(FatDirEntryIterator::new(
+                        fs,
+                        raw_dir_entry.entry_cluster,
+                        BlockIndex(raw_dir_entry.entry_index),
+                        raw_dir_entry.entry_offset,
+                    ));
+                }
+            }
+        }
+
+        return Err(FileSystemError::NoSpaceLeft);
+    }
+
     fn delete_dir_entry(
         fs: &'a FatFileSystem<T>,
         dir_entry: &DirectoryEntry,
@@ -120,6 +145,7 @@ where
     }
 
     pub fn touch(self, _name: &str) -> FileSystemResult<()> {
+        // TODO: create_sfn, create_lfn
         unimplemented!()
     }
 
@@ -195,4 +221,3 @@ where
         }
     }
 }
-

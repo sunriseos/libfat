@@ -149,15 +149,14 @@ where
             return Err(FileSystemError::NotFound);
         }
 
-        let filter_fn: &'static dyn Fn(
-            &FileSystemResult<FatDirectoryEntry>,
-        ) -> bool = if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
-            &DirectoryFilterPredicate::all
-        } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
-            &DirectoryFilterPredicate::dirs
-        } else {
-            &DirectoryFilterPredicate::files
-        };
+        let filter_fn: &'static dyn Fn(&FileSystemResult<FatDirectoryEntry>) -> bool =
+            if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
+                &DirectoryFilterPredicate::all
+            } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
+                &DirectoryFilterPredicate::dirs
+            } else {
+                &DirectoryFilterPredicate::files
+            };
 
         let target_dir = self.get_dir_from_path(path)?;
         // find a better way of doing this

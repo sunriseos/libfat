@@ -2,14 +2,14 @@ use arrayvec::ArrayString;
 
 use crate::fat::detail::block::{BlockDevice, BlockIndex};
 use crate::fat::detail::cluster::Cluster;
-use crate::fat::detail::name::{LongFileName};
+use crate::fat::detail::name::LongFileName;
 
 use crate::Result as FileSystemResult;
 
-use super::raw_dir_entry::FatDirEntry;
-use super::raw_dir_entry_iterator::FatDirEntryIterator;
 use super::dir_entry::DirectoryEntry;
 use super::dir_entry::DirectoryEntryRawInfo;
+use super::raw_dir_entry::FatDirEntry;
+use super::raw_dir_entry_iterator::FatDirEntryIterator;
 
 pub struct DirectoryEntryIterator<'a, T> {
     pub directory_cluster: Cluster,

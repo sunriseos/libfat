@@ -9,7 +9,6 @@ use crate::fat::detail::name::{LongFileName, ShortFileName};
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
-
 pub enum FatDirEntryType {
     ShortFileName,
     LongFileName,
@@ -52,7 +51,7 @@ impl FatDirEntry {
     }
 
     pub fn is_deleted(&self) -> bool {
-        self.get_first_byte() == 0xE5 || self.get_first_byte() == 0x05
+        self.get_first_byte() == 0xE5
     }
 
     pub fn set_deleted(&mut self) {

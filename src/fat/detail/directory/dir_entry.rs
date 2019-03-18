@@ -4,12 +4,11 @@ use crate::fat::detail::attribute::Attributes;
 use crate::fat::detail::block::{BlockDevice, BlockIndex};
 use crate::fat::detail::cluster::Cluster;
 
-use crate::FileSystemError;
 use crate::fat::detail::filesystem::FatFileSystem;
+use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
 use super::raw_dir_entry::FatDirEntry;
-
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct DirectoryEntryRawInfo {
