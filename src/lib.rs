@@ -26,6 +26,7 @@ pub enum FileSystemError {
     PartitionNotFound,
     NotAFile,
     NotADirectory,
+    FileExists,
     UnknownPartitionFormat { partition_type: u32 },
     InvalidPartition,
     Custom { name: &'static str },

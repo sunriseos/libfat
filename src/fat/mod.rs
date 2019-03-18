@@ -90,10 +90,9 @@ impl<B> FileSystemOperations for FatFileSystem<B>
 where
     B: BlockDevice,
 {
-    fn create_file(&self, _path: &str, _size: u64) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn create_file(&self, path: &str, _size: u64) -> FileSystemResult<()> {
+        // TODO set_size
+        self.touch(path)
     }
 
     fn create_directory(&self, path: &str) -> FileSystemResult<()> {

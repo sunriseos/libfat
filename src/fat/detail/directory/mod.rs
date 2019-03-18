@@ -119,6 +119,10 @@ where
         unimplemented!()
     }
 
+    pub fn touch(self, _name: &str) -> FileSystemResult<()> {
+        unimplemented!()
+    }
+
     pub fn unlink(self, name: &str, is_dir: bool) -> FileSystemResult<()> {
         let fs = self.fs;
 
