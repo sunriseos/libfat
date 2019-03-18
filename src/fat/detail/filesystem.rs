@@ -9,6 +9,7 @@ use super::FatVolumeBootRecord;
 use super::cluster::Cluster;
 use super::table;
 use super::table::FatValue;
+use super::utils;
 use super::FatFsType;
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
@@ -148,17 +149,6 @@ where
         Ok(())
     }
 
-    fn get_parent(path: &str) -> (&str, &str) {
-        let separator_index_opt = path.rfind('/');
-
-        if let Some(separator_index) = separator_index_opt {
-            let (first, last) = path.split_at(separator_index);
-            (first, &last[1..])
-        } else {
-            ("", path)
-        }
-    }
-
     pub fn get_root_directory(&self) -> Directory<'_, T> {
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
@@ -175,7 +165,7 @@ where
     }
 
     pub fn mkdir(&self, path: &str) -> FileSystemResult<()> {
-        let (parent_name, file_name) = Self::get_parent(path);
+        let (parent_name, file_name) = utils::get_parent(path);
         let parent_dir = if parent_name == "" {
             self.get_root_directory()
         } else {
@@ -185,14 +175,14 @@ where
         // precheck that it doesn't exist already
         if let Ok(_) = parent_dir.clone().find_entry(file_name) {
             // FIXME: better error here
-            return Err(FileSystemError::AccessDenied);
+            return Err(FileSystemError::FileExists);
         }
 
         parent_dir.mkdir(file_name)
     }
 
     pub fn touch(&self, path: &str) -> FileSystemResult<()> {
-        let (parent_name, file_name) = Self::get_parent(path);
+        let (parent_name, file_name) = utils::get_parent(path);
         let parent_dir = if parent_name == "" {
             self.get_root_directory()
         } else {
@@ -209,7 +199,7 @@ where
     }
 
     pub fn unlink(&self, path: &str, is_dir: bool) -> FileSystemResult<()> {
-        let (parent_name, file_name) = Self::get_parent(path);
+        let (parent_name, file_name) = utils::get_parent(path);
         let parent_dir = if parent_name == "" {
             self.get_root_directory()
         } else {
