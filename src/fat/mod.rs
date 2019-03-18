@@ -15,21 +15,24 @@ use crate::{
     FileOperations, FileSystemError, FileSystemOperations, FileTimeStampRaw,
 };
 
+use detail::directory::dir_entry::DirectoryEntry as FatDirectoryEntry;
+use detail::directory::dir_entry_iterator::DirectoryEntryIterator as FatDirectoryEntryIterator;
+
 struct DirectoryReader<'a, T> {
     base_path: [u8; DirectoryEntry::PATH_LEN],
-    internal_iter: detail::directory::DirectoryEntryIterator<'a, T>,
-    filter_fn: &'static dyn Fn(&FileSystemResult<detail::directory::DirectoryEntry>) -> bool,
+    internal_iter: FatDirectoryEntryIterator<'a, T>,
+    filter_fn: &'static dyn Fn(&FileSystemResult<FatDirectoryEntry>) -> bool,
     entry_count: u64,
 }
 
 struct FileInterface<'a, T> {
     fs: &'a FatFileSystem<T>,
-    file_info: detail::directory::DirectoryEntry,
+    file_info: FatDirectoryEntry,
 }
 
 struct DirectoryFilterPredicate;
 impl DirectoryFilterPredicate {
-    fn all(entry: &FileSystemResult<detail::directory::DirectoryEntry>) -> bool {
+    fn all(entry: &FileSystemResult<FatDirectoryEntry>) -> bool {
         if entry.is_err() {
             return false;
         }
@@ -42,7 +45,7 @@ impl DirectoryFilterPredicate {
         }
     }
 
-    fn dirs(entry: &FileSystemResult<detail::directory::DirectoryEntry>) -> bool {
+    fn dirs(entry: &FileSystemResult<FatDirectoryEntry>) -> bool {
         if entry.is_err() {
             return false;
         }
@@ -54,7 +57,7 @@ impl DirectoryFilterPredicate {
         }
     }
 
-    fn files(entry: &FileSystemResult<detail::directory::DirectoryEntry>) -> bool {
+    fn files(entry: &FileSystemResult<FatDirectoryEntry>) -> bool {
         if entry.is_err() {
             return false;
         }
@@ -148,7 +151,7 @@ where
         }
 
         let filter_fn: &'static dyn Fn(
-            &FileSystemResult<detail::directory::DirectoryEntry>,
+            &FileSystemResult<FatDirectoryEntry>,
         ) -> bool = if (filter & DirFilterFlags::ALL) == DirFilterFlags::ALL {
             &DirectoryFilterPredicate::all
         } else if (filter & DirFilterFlags::DIRECTORY) == DirFilterFlags::DIRECTORY {
@@ -457,7 +460,7 @@ where
     }
 }
 
-impl detail::directory::DirectoryEntry {
+impl FatDirectoryEntry {
     fn into_fs(self, base_path: &[u8; DirectoryEntry::PATH_LEN]) -> DirectoryEntry {
         let mut path: [u8; DirectoryEntry::PATH_LEN] = [0x0; DirectoryEntry::PATH_LEN];
 

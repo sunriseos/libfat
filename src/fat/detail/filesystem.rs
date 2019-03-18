@@ -1,8 +1,9 @@
 use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
+use super::attribute::Attributes;
 use super::block::{Block, BlockCount, BlockDevice, BlockIndex};
-use super::directory::{Attributes, Directory, DirectoryEntry};
+use super::directory::{Directory, dir_entry::DirectoryEntry};
 use super::FatVolumeBootRecord;
 
 use super::cluster::Cluster;
