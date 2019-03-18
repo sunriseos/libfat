@@ -81,6 +81,7 @@ impl ShortFileNameGenerator {
         (dst_pos, true, lossy_convertion)
     }
 
+    // FIXME: Generation seems broken, always generating numbered names
     pub fn create(context: &mut ShortFileNameContext, lfn: &str) -> ShortFileName {
         let mut short_name_base = [0x20u8; ShortFileName::BASE_FILE_NAME_LEN];
         let mut short_name_ext = [0x20u8; ShortFileName::EXT_LEN];
@@ -199,7 +200,14 @@ impl ShortFileName {
     }
 
     pub fn from_unformated_str(context: &mut ShortFileNameContext, name: &str) -> Self {
-        ShortFileNameGenerator::create(context, name)
+        let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
+        ShortFileNameGenerator::create(context, name);
+
+        // TODO: REMOVE THIS WHEN THE ABOVE IS FIXED
+        (&mut short_name[0..8]).copy_from_slice(&context.short_name_base);
+        (&mut short_name[8..11]).copy_from_slice(&context.short_name_ext);
+
+        Self::from_data(&short_name)
     }
 
     pub fn chars(&self) -> [char; ShortFileName::MAX_LEN] {

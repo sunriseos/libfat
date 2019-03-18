@@ -1,8 +1,12 @@
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
+use super::attribute::Attributes;
 use super::block::{BlockDevice, BlockIndex, BlockIndexClusterIter};
 use super::utils;
+use super::name::ShortFileName;
+use super::name::ShortFileNameContext;
+
 use super::FatFileSystem;
 
 pub mod dir_entry;
@@ -86,12 +90,12 @@ where
     }
 
     fn allocate_entries(
-        &self,
+        entry: &mut DirectoryEntry,
         fs: &'a FatFileSystem<T>,
         count: u32,
-    ) -> FileSystemResult<FatDirEntryIterator<T>> {
+    ) -> FileSystemResult<FatDirEntryIterator<'a, T>> {
         let mut i = 0;
-        for raw_dir_entry in self.clone().fat_dir_entry_iter() {
+        for raw_dir_entry in Directory::from_entry(fs, entry.clone()).fat_dir_entry_iter() {
             let raw_dir_entry = raw_dir_entry?;
             if raw_dir_entry.is_free() || raw_dir_entry.is_deleted() {
                 i += 1;
@@ -107,6 +111,29 @@ where
         }
 
         return Err(FileSystemError::NoSpaceLeft);
+    }
+
+    fn create_dir_entry(
+        fs: &'a FatFileSystem<T>,
+        parent_entry: &mut DirectoryEntry,
+        attribute: Attributes,
+        name: &str,
+    ) -> FileSystemResult<FatDirEntry> {
+        let count = 1;
+
+        let mut free_entries_iter = Self::allocate_entries(parent_entry, fs, count)?;
+        // TODO: create_lfn
+
+        let mut sfn_entry = free_entries_iter.next().unwrap()?;
+        sfn_entry.clear();
+        sfn_entry.set_file_size(0);
+        sfn_entry.set_attribute(attribute);
+        let mut context: ShortFileNameContext = Default::default();
+        let short_file_name = ShortFileName::from_unformated_str(&mut context, name);
+        sfn_entry.set_short_name(&short_file_name);
+        sfn_entry.flush(fs)?;
+
+        Ok(sfn_entry)
     }
 
     fn delete_dir_entry(
@@ -138,15 +165,18 @@ where
         Ok(())
     }
 
-    pub fn mkdir(self, _name: &str) -> FileSystemResult<()> {
-        // TODO: create_sfn, create_lfn
+    pub fn mkdir(&mut self, name: &str) -> FileSystemResult<()> {
+        let new_entry = Self::create_dir_entry(self.fs, &mut self.dir_info, Attributes::new(Attributes::DIRECTORY), name)?;
+
         // TODO: create "." ".." entries in the new directory cluster
-        unimplemented!()
+
+        Ok(())
     }
 
-    pub fn touch(self, _name: &str) -> FileSystemResult<()> {
-        // TODO: create_sfn, create_lfn
-        unimplemented!()
+    pub fn touch(&mut self, name: &str) -> FileSystemResult<()> {
+        Self::create_dir_entry(self.fs, &mut self.dir_info, Attributes::new(0), name)?;
+
+        Ok(())
     }
 
     pub fn unlink(self, name: &str, is_dir: bool) -> FileSystemResult<()> {

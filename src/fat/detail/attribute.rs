@@ -47,4 +47,8 @@ impl Attributes {
     pub fn is_device(self) -> bool {
         (self.0 & Self::DEVICE) == Self::DEVICE
     }
+
+    pub fn get_value(self) -> u8 {
+        self.0
+    }
 }

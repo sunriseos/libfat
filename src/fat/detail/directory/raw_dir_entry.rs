@@ -58,6 +58,10 @@ impl FatDirEntry {
         self.data[0] = 0xE5;
     }
 
+    pub fn clear(&mut self) {
+        self.data = [0x0u8; Self::LEN];
+    }
+
     pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
     where
         T: BlockDevice,
@@ -94,6 +98,10 @@ impl FatDirEntry {
         Attributes::new(self.data[11])
     }
 
+    pub fn set_attribute(&mut self, attribute: Attributes) {
+        self.data[11] = attribute.get_value();
+    }
+
     pub fn is_long_file_name(&self) -> bool {
         self.attribute().is_lfn()
     }
@@ -117,6 +125,10 @@ impl FatDirEntry {
         } else {
             None
         }
+    }
+
+    pub fn set_short_name(&mut self, short_name: &ShortFileName) {
+        (&mut self.data[0..11]).copy_from_slice(&short_name.as_bytes());
     }
 
     pub fn get_cluster(&self) -> Cluster {

@@ -166,7 +166,7 @@ where
 
     pub fn mkdir(&self, path: &str) -> FileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
-        let parent_dir = if parent_name == "" {
+        let mut parent_dir = if parent_name == "" {
             self.get_root_directory()
         } else {
             self.get_root_directory().open_dir(parent_name)?
@@ -183,7 +183,7 @@ where
 
     pub fn touch(&self, path: &str) -> FileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
-        let parent_dir = if parent_name == "" {
+        let mut parent_dir = if parent_name == "" {
             self.get_root_directory()
         } else {
             self.get_root_directory().open_dir(parent_name)?
