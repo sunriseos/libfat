@@ -96,7 +96,7 @@ pub trait FileSystemOperations {
 
     fn delete_file(&self, path: &str) -> Result<()>;
     fn delete_directory(&self, path: &str) -> Result<()>;
-    
+
     fn open_file<'a>(
         &'a self,
         path: &str,

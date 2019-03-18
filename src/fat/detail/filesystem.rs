@@ -173,6 +173,23 @@ where
         Directory::from_entry(self, dir_info)
     }
 
+    pub fn mkdir(&self, path: &str) -> FileSystemResult<()> {
+        let (parent_name, file_name) = Self::get_parent(path);
+        let parent_dir = if parent_name == "" {
+            self.get_root_directory()
+        } else {
+            self.get_root_directory().open_dir(parent_name)?
+        };
+
+        // precheck that it doesn't exist already
+        if let Ok(_) = parent_dir.clone().find_entry(file_name) {
+            // FIXME: better error here
+            return Err(FileSystemError::AccessDenied);
+        }
+
+        parent_dir.mkdir(file_name)
+    }
+
     pub fn unlink(&self, path: &str, is_dir: bool) -> FileSystemResult<()> {
         let (parent_name, file_name) = Self::get_parent(path);
         let parent_dir = if parent_name == "" {

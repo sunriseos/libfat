@@ -116,6 +116,12 @@ where
         Ok(())
     }
 
+    pub fn mkdir(self, _name: &str) -> FileSystemResult<()> {
+        // TODO: create_sfn, create_lfn
+        // TODO: create "." ".." entries in the new directory cluster
+        unimplemented!()
+    }
+
     pub fn unlink(self, name: &str, is_dir: bool) -> FileSystemResult<()> {
         let fs = self.fs;
 

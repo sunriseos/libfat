@@ -93,10 +93,8 @@ where
         })
     }
 
-    fn create_directory(&self, _path: &str) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn create_directory(&self, path: &str) -> FileSystemResult<()> {
+        self.mkdir(path)
     }
 
     fn rename_file(&self, _old_path: &str, _new_path: &str) -> FileSystemResult<()> {
