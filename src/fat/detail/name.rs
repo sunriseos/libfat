@@ -29,7 +29,11 @@ pub struct ShortFileNameContext {
 }
 
 impl ShortFileNameGenerator {
-    pub fn copy_format_sfn_part(dst: &mut [u8], src: &str, is_base_name: bool) -> (usize, bool, bool) {
+    pub fn copy_format_sfn_part(
+        dst: &mut [u8],
+        src: &str,
+        is_base_name: bool,
+    ) -> (usize, bool, bool) {
         let mut dst_pos = 0;
         let mut lossy_convertion = false;
         for c in src.chars() {
@@ -57,7 +61,7 @@ impl ShortFileNameGenerator {
                     } else {
                         'Õ'
                     }
-                },
+                }
 
                 // disallowed remap
                 _ => '_',
@@ -78,7 +82,11 @@ impl ShortFileNameGenerator {
         if context.short_name_base_len == 0 {
             let dot_position = lfn.rfind(".").unwrap_or(lfn.len());
 
-            let (basename_len, _basename_fits, basename_lossy) = Self::copy_format_sfn_part(&mut context.short_name_base, &lfn[..dot_position], true);
+            let (basename_len, _basename_fits, basename_lossy) = Self::copy_format_sfn_part(
+                &mut context.short_name_base,
+                &lfn[..dot_position],
+                true,
+            );
             is_lossy = is_lossy || basename_lossy;
             context.short_name_base_len = basename_len;
 
@@ -92,7 +100,11 @@ impl ShortFileNameGenerator {
                     copy_size = 3;
                 }
 
-                let (ext_len, _ext_fits, ext_lossy) = Self::copy_format_sfn_part(&mut context.short_name_ext[1..1 + copy_size], &lfn[dot_position + 1..], false);
+                let (ext_len, _ext_fits, ext_lossy) = Self::copy_format_sfn_part(
+                    &mut context.short_name_ext[1..1 + copy_size],
+                    &lfn[dot_position + 1..],
+                    false,
+                );
                 context.short_name_ext_len += ext_len;
 
                 is_lossy = is_lossy || ext_lossy;
@@ -162,7 +174,8 @@ impl ShortFileNameGenerator {
         let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
         let mut short_name_len = 0;
         if context.short_name_base_len != 0 {
-            (&mut short_name[0..context.short_name_base_len]).copy_from_slice(&context.short_name_base[0..context.short_name_base_len]);
+            (&mut short_name[0..context.short_name_base_len])
+                .copy_from_slice(&context.short_name_base[0..context.short_name_base_len]);
             short_name_len += context.short_name_base_len;
         }
 
@@ -179,7 +192,8 @@ impl ShortFileNameGenerator {
         short_name_len = ShortFileName::BASE_FILE_NAME_LEN;
 
         if context.short_name_ext_len > 1 {
-            (&mut short_name[short_name_len..short_name_len + context.short_name_ext_len - 1]).copy_from_slice(&context.short_name_ext[1..context.short_name_ext_len]);
+            (&mut short_name[short_name_len..short_name_len + context.short_name_ext_len - 1])
+                .copy_from_slice(&context.short_name_ext[1..context.short_name_ext_len]);
             short_name_len = ShortFileName::MAX_LEN;
         }
 

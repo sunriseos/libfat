@@ -247,6 +247,7 @@ impl<'a, T> FileOperations for FileInterface<'a, T>
 where
     T: BlockDevice,
 {
+    // FIXME: SEEMS REALLY WRONG?? (AS cluster_offset IS NEVER UPDATED)
     fn read(&mut self, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> {
         if offset >= 0xFFFF_FFFF {
             return Ok(0);
@@ -311,6 +312,7 @@ where
         Ok(read_size)
     }
 
+    // FIXME: SEEMS REALLY WRONG?? (AS cluster_offset IS NEVER UPDATED)
     fn write(&mut self, offset: u64, buf: &[u8]) -> FileSystemResult<()> {
         if offset >= 0xFFFF_FFFF {
             return Err(FileSystemError::AccessDenied);
@@ -415,6 +417,7 @@ where
                     Some(self.file_info.start_cluster)
                 };
 
+            // FIXME: seems wrong???
             let mut last_cluster = start_cluster;
             let need_update_cluster = start_cluster.is_none();
 

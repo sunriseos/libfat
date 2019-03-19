@@ -2,7 +2,7 @@ use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
 use super::attribute::Attributes;
-use super::block::{Block, BlockCount, BlockDevice, BlockIndex};
+use super::block::{Block, BlockCount, BlockDevice, BlockIndex, BlockIndexClusterIter};
 use super::directory::{dir_entry::DirectoryEntry, Directory};
 use super::FatVolumeBootRecord;
 
@@ -207,6 +207,24 @@ where
         };
 
         parent_dir.unlink(file_name, is_dir)
+    }
+
+    pub fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
+        let blocks = [Block::new()];
+        let mut block_index = 0;
+
+        for cluster in BlockIndexClusterIter::new(self, cluster, None) {
+            block_index = (block_index + 1) % u32::from(self.boot_record.blocks_per_cluster());
+            self.block_device
+                .write(
+                    &blocks,
+                    self.partition_start,
+                    BlockIndex(cluster.to_data_block_index(self).0 + block_index),
+                )
+                .or(Err(FileSystemError::WriteFailed))?;
+        }
+
+        Ok(())
     }
 
     // TODO: clean the zone if requested (for directory for example)

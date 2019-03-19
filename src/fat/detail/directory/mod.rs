@@ -1,11 +1,16 @@
+use arrayvec::ArrayString;
+
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
 use super::attribute::Attributes;
 use super::block::{BlockDevice, BlockIndex, BlockIndexClusterIter};
-use super::utils;
+use super::cluster::Cluster;
 use super::name::ShortFileName;
 use super::name::ShortFileNameContext;
+use super::utils;
+
+use super::table;
 
 use super::FatFileSystem;
 
@@ -14,8 +19,7 @@ pub mod dir_entry_iterator;
 pub mod raw_dir_entry;
 pub mod raw_dir_entry_iterator;
 
-use dir_entry::DirectoryEntry;
-use raw_dir_entry::FatDirEntry;
+use dir_entry::{DirectoryEntry, DirectoryEntryRawInfo};
 
 use dir_entry_iterator::DirectoryEntryIterator;
 use raw_dir_entry_iterator::FatDirEntryIterator;
@@ -90,7 +94,7 @@ where
     }
 
     fn allocate_entries(
-        entry: &mut DirectoryEntry,
+        entry: &DirectoryEntry,
         fs: &'a FatFileSystem<T>,
         count: u32,
     ) -> FileSystemResult<FatDirEntryIterator<'a, T>> {
@@ -110,32 +114,67 @@ where
             }
         }
 
-        // TODO: if the directory is full, try to allocate a cluster.
+        // if the directory is full, try to allocate a cluster and use it
+        let last_cluster = table::get_last_cluster(fs, entry.start_cluster)?;
+        let new_cluster = fs.alloc_cluster(Some(last_cluster))?;
 
-        return Err(FileSystemError::NoSpaceLeft);
+        // FIXME: check the error here and try to free the cluster if something happens?
+        fs.clean_cluster_data(new_cluster)?;
+
+        Ok(FatDirEntryIterator::new(fs, new_cluster, BlockIndex(0), 0))
     }
 
     fn create_dir_entry(
         fs: &'a FatFileSystem<T>,
-        parent_entry: &mut DirectoryEntry,
+        parent_entry: &DirectoryEntry,
         attribute: Attributes,
         name: &str,
-    ) -> FileSystemResult<FatDirEntry> {
+        cluster: Cluster,
+    ) -> FileSystemResult<DirectoryEntry> {
         let count = 1;
 
         let mut free_entries_iter = Self::allocate_entries(parent_entry, fs, count)?;
-        // TODO: create_lfn
+        let short_file_name;
+
+        let is_special_entry = name == "." || name == "..";
+        
+        if !is_special_entry {
+            // TODO: create_lfn
+            let mut context: ShortFileNameContext = Default::default();
+            short_file_name = ShortFileName::from_unformated_str(&mut context, name);
+        } else {
+            short_file_name = ShortFileName::from_data(&name.as_bytes());
+        }
 
         let mut sfn_entry = free_entries_iter.next().unwrap()?;
         sfn_entry.clear();
         sfn_entry.set_file_size(0);
+        sfn_entry.set_cluster(cluster);
         sfn_entry.set_attribute(attribute);
-        let mut context: ShortFileNameContext = Default::default();
-        let short_file_name = ShortFileName::from_unformated_str(&mut context, name);
+
         sfn_entry.set_short_name(&short_file_name);
         sfn_entry.flush(fs)?;
 
-        Ok(sfn_entry)
+        // TODO: change this when lfn is done.
+        let first_raw_dir_entry = sfn_entry;
+        let file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
+
+        // TODO: Move this
+        Ok(DirectoryEntry {
+            start_cluster: sfn_entry.get_cluster(),
+            raw_info: Some(DirectoryEntryRawInfo {
+                parent_cluster: first_raw_dir_entry.entry_cluster,
+                first_entry_block_index: BlockIndex(first_raw_dir_entry.entry_index),
+                first_entry_offset: first_raw_dir_entry.entry_offset,
+                entry_count: count,
+            }),
+            creation_timestamp: sfn_entry.get_creation_datetime().to_unix_time(),
+            last_access_timestamp: sfn_entry.get_last_access_date().to_unix_time(),
+            last_modification_timestamp: sfn_entry.get_modification_datetime().to_unix_time(),
+            file_size: sfn_entry.get_file_size(),
+            file_name,
+            attribute: sfn_entry.attribute(),
+        })
     }
 
     fn delete_dir_entry(
@@ -168,16 +207,54 @@ where
     }
 
     pub fn mkdir(&mut self, name: &str) -> FileSystemResult<()> {
-        let new_entry = Self::create_dir_entry(self.fs, &mut self.dir_info, Attributes::new(Attributes::DIRECTORY), name)?;
+        // Allocate a cluster for the directory entries
+        let cluster = self.fs.alloc_cluster(None)?;
 
-        // TODO: alloc a cluster
-        // TODO: create "." ".." entries in the new directory cluster
+        // FIXME: check the error here and try to free the cluster if something happens?
+        self.fs.clean_cluster_data(cluster)?;
 
+        let new_entry_res = Self::create_dir_entry(
+            self.fs,
+            &mut self.dir_info,
+            Attributes::new(Attributes::DIRECTORY),
+            name,
+            cluster,
+        );
+
+        // Cannot create directory?
+        if let Err(err) = new_entry_res {
+            self.fs.free_cluster(cluster, None)?;
+            return Err(err);
+        }
+
+        let entry = new_entry_res?;
+
+        // FIXME: check the error here and try to free the cluster if something happens?
+        Self::create_dir_entry(
+            self.fs,
+            &entry,
+            Attributes::new(Attributes::DIRECTORY),
+            ".",
+            entry.start_cluster,
+        )?;
+        Self::create_dir_entry(
+            self.fs,
+            &entry,
+            Attributes::new(Attributes::DIRECTORY),
+            "..",
+            entry.raw_info.unwrap().parent_cluster,
+        )?;
         Ok(())
     }
 
     pub fn touch(&mut self, name: &str) -> FileSystemResult<()> {
-        Self::create_dir_entry(self.fs, &mut self.dir_info, Attributes::new(0), name)?;
+        Self::create_dir_entry(
+            self.fs,
+            &self.dir_info,
+            Attributes::new(0),
+            name,
+            Cluster(0),
+        )?;
 
         Ok(())
     }
