@@ -90,9 +90,12 @@ impl<B> FileSystemOperations for FatFileSystem<B>
 where
     B: BlockDevice,
 {
-    fn create_file(&self, path: &str, _size: u64) -> FileSystemResult<()> {
+    fn create_file(&self, path: &str, size: u64) -> FileSystemResult<()> {
         // TODO set_size
-        self.touch(path)
+        self.touch(path)?;
+
+        let mut file = self.open_file(path, FileModeFlags::APPENDABLE)?;
+        file.set_len(size)
     }
 
     fn create_directory(&self, path: &str) -> FileSystemResult<()> {
