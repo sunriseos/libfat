@@ -209,6 +209,7 @@ where
         parent_dir.unlink(file_name, is_dir)
     }
 
+    // TODO: clean the zone if requested (for directory for example)
     pub fn alloc_cluster(
         &self,
         last_cluster_allocated_opt: Option<Cluster>,

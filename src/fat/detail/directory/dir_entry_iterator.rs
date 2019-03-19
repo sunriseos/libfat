@@ -94,6 +94,9 @@ where
 
                     let raw_name = entry.short_name().unwrap().chars();
                     for c in raw_name.iter().take(8) {
+                        if *c == ' ' {
+                            break;
+                        }
                         file_name.push(*c);
                     }
 
@@ -101,6 +104,9 @@ where
                     if raw_name[8] != ' ' {
                         file_name.push('.');
                         for c in raw_name.iter().skip(8) {
+                            if *c == ' ' {
+                                break;
+                            }
                             file_name.push(*c);
                         }
                     }

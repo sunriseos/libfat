@@ -1,5 +1,4 @@
 use byteorder::{ByteOrder, LittleEndian};
-use core::cmp;
 use core::num;
 
 pub struct ShortFileName {
@@ -30,23 +29,7 @@ pub struct ShortFileNameContext {
 }
 
 impl ShortFileNameGenerator {
-    fn get_index_len(index: usize) -> usize {
-        let mut tmp = index;
-        let mut len = 0;
-
-        while tmp != 0 {
-            tmp /= 10;
-            len += 1;
-        }
-
-        if len == 0 {
-            1
-        } else {
-            len
-        }
-    }
-
-    pub fn copy_format_sfn_part(dst: &mut [u8], src: &str) -> (usize, bool, bool) {
+    pub fn copy_format_sfn_part(dst: &mut [u8], src: &str, is_base_name: bool) -> (usize, bool, bool) {
         let mut dst_pos = 0;
         let mut lossy_convertion = false;
         for c in src.chars() {
@@ -67,6 +50,15 @@ impl ShortFileNameGenerator {
                 '!' | '#' | '$' | '%' | '&' | '\'' | '(' | ')' | '-' | '@' | '^' | '_' | '`'
                 | '{' | '}' | '~' => c,
 
+                // conflict with delete marker, remap to 0x5.
+                'Õ' => {
+                    if dst_pos == 0 && is_base_name {
+                        '\x05'
+                    } else {
+                        'Õ'
+                    }
+                },
+
                 // disallowed remap
                 _ => '_',
             };
@@ -86,14 +78,13 @@ impl ShortFileNameGenerator {
         if context.short_name_base_len == 0 {
             let dot_position = lfn.rfind(".").unwrap_or(lfn.len());
 
-            let (basename_len, _basename_fits, basename_lossy) = Self::copy_format_sfn_part(&mut context.short_name_base, &lfn[..dot_position]);
+            let (basename_len, _basename_fits, basename_lossy) = Self::copy_format_sfn_part(&mut context.short_name_base, &lfn[..dot_position], true);
             is_lossy = is_lossy || basename_lossy;
             context.short_name_base_len = basename_len;
 
             context.short_name_ext_len = 0;
             if dot_position < lfn.len() {
-                // '.'
-                context.short_name_ext[0] = 0x2e;
+                context.short_name_ext[0] = b'.';
                 context.short_name_ext_len = 1;
 
                 let mut copy_size = lfn.len() - dot_position;
@@ -101,13 +92,12 @@ impl ShortFileNameGenerator {
                     copy_size = 3;
                 }
 
-                let (ext_len, _ext_fits, ext_lossy) = Self::copy_format_sfn_part(&mut context.short_name_ext[1..1 + copy_size], &lfn[dot_position + 1..]);
+                let (ext_len, _ext_fits, ext_lossy) = Self::copy_format_sfn_part(&mut context.short_name_ext[1..1 + copy_size], &lfn[dot_position + 1..], false);
                 context.short_name_ext_len += ext_len;
 
                 is_lossy = is_lossy || ext_lossy;
                 if ext_lossy {
-                    // '~'
-                    context.short_name_ext[context.short_name_ext_len - 1] = 0x7e;
+                    context.short_name_ext[context.short_name_ext_len - 1] = b'~';
                 }
             }
 
@@ -117,9 +107,9 @@ impl ShortFileNameGenerator {
 
                 for index in 0..4 {
                     let number = if checksum % 16 > 9 {
-                        (checksum % 16) as u8 + 0x41 - 0xA
+                        (checksum % 16) as u8 + b'A' - 0xA
                     } else {
-                        (checksum % 16) as u8 + 0x30
+                        (checksum % 16) as u8 + b'0'
                     };
 
                     context.short_name_base[context.short_name_base_len + index] = number;
@@ -139,9 +129,9 @@ impl ShortFileNameGenerator {
 
             for index in 2..6 {
                 let number = if checksum % 16 > 9 {
-                    (checksum % 16) as u8 + 0x41 - 0xA
+                    (checksum % 16) as u8 + b'A' - 0xA
                 } else {
-                    (checksum % 16) as u8 + 0x30
+                    (checksum % 16) as u8 + b'0'
                 };
 
                 context.short_name_base[index] = number;
@@ -163,12 +153,11 @@ impl ShortFileNameGenerator {
                 break;
             }
 
-            index_buffer[8 - i] = 0x30 + (index % 10) as u8;
+            index_buffer[8 - i] = b'0' + (index % 10) as u8;
             index /= 10;
         }
 
-        // '~'
-        index_buffer[8 - index_buffer_len] = 0x7e;
+        index_buffer[8 - index_buffer_len] = b'~';
 
         let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
         let mut short_name_len = 0;
@@ -178,7 +167,7 @@ impl ShortFileNameGenerator {
         }
 
         if is_lossy || context.last_index_value > 1 {
-            let slice = if short_name_len == 8 {
+            let slice = if short_name_len == ShortFileName::BASE_FILE_NAME_LEN {
                 (&mut short_name[short_name_len - index_buffer_len..short_name_len])
             } else {
                 (&mut short_name[short_name_len..short_name_len + index_buffer_len])
@@ -186,12 +175,12 @@ impl ShortFileNameGenerator {
 
             slice.copy_from_slice(&index_buffer[8 - index_buffer_len..]);
         }
-        //short_name_len += index_buffer_len;
-        short_name_len = 8;
+
+        short_name_len = ShortFileName::BASE_FILE_NAME_LEN;
 
         if context.short_name_ext_len > 1 {
             (&mut short_name[short_name_len..short_name_len + context.short_name_ext_len - 1]).copy_from_slice(&context.short_name_ext[1..context.short_name_ext_len]);
-            short_name_len = 11;
+            short_name_len = ShortFileName::MAX_LEN;
         }
 
         ShortFileName::from_data(&short_name)
@@ -213,20 +202,18 @@ impl ShortFileName {
     }
 
     pub fn from_unformated_str(context: &mut ShortFileNameContext, name: &str) -> Self {
-        //let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
         ShortFileNameGenerator::create(context, name)
-
-        // TODO: REMOVE THIS WHEN THE ABOVE IS FIXED
-        //(&mut short_name[0..8]).copy_from_slice(&context.short_name_base);
-        //(&mut short_name[8..11]).copy_from_slice(&context.short_name_ext);
-
-        //Self::from_data(&short_name)
     }
 
     pub fn chars(&self) -> [char; ShortFileName::MAX_LEN] {
         let mut res: [char; ShortFileName::MAX_LEN] = [' '; ShortFileName::MAX_LEN];
         for (index, dst) in res.iter_mut().enumerate().take(self.contents.len()) {
-            *dst = self.contents[index] as char;
+            // Remap 0x5 => 0xE5 as it's not a delete marker
+            if index == 0 && self.contents[index] == 0x5 {
+                *dst = 'Õ';
+            } else {
+                *dst = self.contents[index] as char;
+            }
         }
         res
     }

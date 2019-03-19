@@ -110,6 +110,8 @@ where
             }
         }
 
+        // TODO: if the directory is full, try to allocate a cluster.
+
         return Err(FileSystemError::NoSpaceLeft);
     }
 
@@ -168,6 +170,7 @@ where
     pub fn mkdir(&mut self, name: &str) -> FileSystemResult<()> {
         let new_entry = Self::create_dir_entry(self.fs, &mut self.dir_info, Attributes::new(Attributes::DIRECTORY), name)?;
 
+        // TODO: alloc a cluster
         // TODO: create "." ".." entries in the new directory cluster
 
         Ok(())
