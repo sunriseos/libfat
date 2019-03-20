@@ -68,7 +68,6 @@ impl FatDirEntry {
     {
         let mut blocks = [Block::new()];
 
-        // FIXME: Custom Iterator to catches those errors
         fs.block_device
             .read(
                 &mut blocks,

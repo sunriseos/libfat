@@ -118,8 +118,13 @@ where
         let last_cluster = table::get_last_cluster(fs, entry.start_cluster)?;
         let new_cluster = fs.alloc_cluster(Some(last_cluster))?;
 
-        // FIXME: check the error here and try to free the cluster if something happens?
-        fs.clean_cluster_data(new_cluster)?;
+        let clear_res = fs.clean_cluster_data(new_cluster);
+
+        if let Err(error) = clear_res {
+            // If it fail here, this can be catastrophic but at least we tried our best.
+            fs.free_cluster(new_cluster, Some(last_cluster))?;
+            return Err(error);
+        }
 
         Ok(FatDirEntryIterator::new(fs, new_cluster, BlockIndex(0), 0))
     }
@@ -210,8 +215,13 @@ where
         // Allocate a cluster for the directory entries
         let cluster = self.fs.alloc_cluster(None)?;
 
-        // FIXME: check the error here and try to free the cluster if something happens?
-        self.fs.clean_cluster_data(cluster)?;
+        let clear_res = self.fs.clean_cluster_data(cluster);
+
+        if let Err(error) = clear_res {
+            // If it fail here, this can be catastrophic but at least we tried our best.
+            self.fs.free_cluster(cluster, None)?;
+            return Err(error);
+        }
 
         let new_entry_res = Self::create_dir_entry(
             self.fs,
