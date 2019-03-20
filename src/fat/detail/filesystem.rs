@@ -174,7 +174,6 @@ where
 
         // precheck that it doesn't exist already
         if let Ok(_) = parent_dir.clone().find_entry(file_name) {
-            // FIXME: better error here
             return Err(FileSystemError::FileExists);
         }
 
@@ -191,7 +190,6 @@ where
 
         // precheck that it doesn't exist already
         if let Ok(_) = parent_dir.clone().find_entry(file_name) {
-            // FIXME: better error here
             return Err(FileSystemError::FileExists);
         }
 

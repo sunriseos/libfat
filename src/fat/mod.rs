@@ -246,7 +246,6 @@ impl<'a, T> FileOperations for FileInterface<'a, T>
 where
     T: BlockDevice,
 {
-    // FIXME: SEEMS REALLY WRONG?? (AS cluster_offset IS NEVER UPDATED)
     fn read(&mut self, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> {
         if offset >= 0xFFFF_FFFF {
             return Ok(0);
@@ -259,7 +258,7 @@ where
         let device: &T = &self.fs.block_device;
 
         let mut raw_tmp_offset = offset as u32;
-        let cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+        let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
         let mut cluster_block_iterator =
             BlockIndexClusterIter::new(self.fs, self.file_info.start_cluster, Some(cluster_offset));
         let blocks_per_cluster = u32::from(self.fs.boot_record.blocks_per_cluster());
@@ -274,6 +273,8 @@ where
             if cluster_opt.is_none() {
                 break;
             }
+
+            cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
 
             let cluster = cluster_opt.unwrap();
             let block_start_index = cluster.to_data_block_index(self.fs);
@@ -311,7 +312,6 @@ where
         Ok(read_size)
     }
 
-    // FIXME: SEEMS REALLY WRONG?? (AS cluster_offset IS NEVER UPDATED)
     fn write(&mut self, offset: u64, buf: &[u8]) -> FileSystemResult<()> {
         if offset >= 0xFFFF_FFFF {
             return Err(FileSystemError::AccessDenied);
@@ -325,7 +325,7 @@ where
         let device: &T = &self.fs.block_device;
 
         let mut raw_tmp_offset = offset as u32;
-        let cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+        let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
         let mut cluster_block_iterator =
             BlockIndexClusterIter::new(self.fs, self.file_info.start_cluster, Some(cluster_offset));
         let blocks_per_cluster = u32::from(self.fs.boot_record.blocks_per_cluster());
@@ -339,6 +339,9 @@ where
             let cluster = cluster_block_iterator
                 .next()
                 .ok_or(FileSystemError::WriteFailed)?;
+
+            cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+
             let block_start_index = cluster.to_data_block_index(self.fs);
             let tmp_index = cluster_offset.0 % blocks_per_cluster;
             let tmp_offset = raw_tmp_offset % Block::LEN_U32;
