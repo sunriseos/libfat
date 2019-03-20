@@ -413,10 +413,9 @@ where
                 if self.file_info.start_cluster.0 == 0 || self.file_info.file_size == 0 {
                     None
                 } else {
-                    Some(self.file_info.start_cluster)
+                    Some(detail::table::get_last_cluster(self.fs, self.file_info.start_cluster)?)
                 };
 
-            // FIXME: seems wrong???
             let mut last_cluster = start_cluster;
             let need_update_cluster = start_cluster.is_none();
 
