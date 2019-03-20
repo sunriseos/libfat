@@ -142,7 +142,7 @@ where
         let short_file_name;
 
         let is_special_entry = name == "." || name == "..";
-        
+
         if !is_special_entry {
             // TODO: create_lfn
             let mut context: ShortFileNameContext = Default::default();
@@ -250,11 +250,12 @@ where
 
         let raw_info = entry.raw_info.unwrap();
 
-        let parent_cluster = if raw_info.parent_cluster == self.fs.get_root_directory().dir_info.start_cluster {
-            Cluster(0)
-        } else {
-            raw_info.parent_cluster
-        };
+        let parent_cluster =
+            if raw_info.parent_cluster == self.fs.get_root_directory().dir_info.start_cluster {
+                Cluster(0)
+            } else {
+                raw_info.parent_cluster
+            };
 
         Self::create_dir_entry(
             self.fs,

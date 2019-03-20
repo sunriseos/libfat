@@ -416,7 +416,10 @@ where
                 if self.file_info.start_cluster.0 == 0 || self.file_info.file_size == 0 {
                     None
                 } else {
-                    Some(detail::table::get_last_cluster(self.fs, self.file_info.start_cluster)?)
+                    Some(detail::table::get_last_cluster(
+                        self.fs,
+                        self.file_info.start_cluster,
+                    )?)
                 };
 
             let mut last_cluster = start_cluster;

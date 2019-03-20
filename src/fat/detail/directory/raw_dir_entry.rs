@@ -114,7 +114,6 @@ impl FatDirEntry {
     }
 
     pub fn is_valid(&self) -> bool {
-        // TODO: do we need more?
         !self.is_free() && !self.is_deleted()
     }
 
@@ -207,8 +206,7 @@ impl<'a> core::fmt::Debug for FatDirEntry {
         write!(f, "FatDirEntry {{ ")?;
         write!(f, "{:?} ", self.attribute())?;
         if self.is_long_file_name() {
-            let long_file_name_raw = self.long_file_name_raw();
-            if let Some(long_file_name) = long_file_name_raw {
+            if let Some(long_file_name) = self.long_file_name_raw() {
                 if let Some(data) = long_file_name.chars() {
                     write!(f, "LongFileName {{{:?}}}", data)?;
                 } else {
@@ -218,12 +216,11 @@ impl<'a> core::fmt::Debug for FatDirEntry {
                 write!(f, "LongFileName {{ \"not a long file name?????\" }}")?;
             }
         } else {
-            // FIXME: SHOULDN'T UNWRAP
-            write!(
-                f,
-                "ShortFileName {{{:?}}}",
-                self.short_name().unwrap().chars()
-            )?;
+            if let Some(short_file_name) = self.short_name() {
+                write!(f, "ShortFileName {{{:?}}}", short_file_name.chars())?;
+            } else {
+                write!(f, "ShortFileName {{ \"not a short file name?????\" }}")?;
+            }
         }
         write!(f, " }}")
     }
