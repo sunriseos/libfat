@@ -153,10 +153,11 @@ where
             let sfn_checksum = ShortFileName::checksum_lfn(&short_file_name.as_bytes());
 
             for index in 0..lfn_count {
-                let lfn_index = if index == lfn_count - 1 {
-                    0x40u8 + index as u8 + 1
+                let target_index = lfn_count - index;
+                let lfn_index = if target_index == lfn_count{
+                    0x40u8 + target_index as u8
                 } else {
-                    index as u8 + 1
+                    target_index as u8
                 };
 
                 let mut lfn_entry = free_entries_iter.next().unwrap()?;
@@ -169,7 +170,7 @@ where
                 lfn_entry.set_lfn_index(lfn_index);
                 // TODO: properly handle this
                 lfn_entry
-                    .set_lfn_entry(&name[index as usize * 13..])
+                    .set_lfn_entry(&name[(target_index - 1) as usize * 13..])
                     .unwrap();
                 lfn_entry.set_lfn_checksum(sfn_checksum as u8);
                 lfn_entry.flush(fs)?;
