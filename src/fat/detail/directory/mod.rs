@@ -136,17 +136,45 @@ where
         name: &str,
         cluster: Cluster,
     ) -> FileSystemResult<DirectoryEntry> {
-        let count = 1;
+        let is_special_entry = name == "." || name == "..";
+        // FIXME: check name len > 255
+        let mut count: u32 = 1;
 
         let mut free_entries_iter = Self::allocate_entries(parent_entry, fs, count)?;
+
+        let mut first_raw_dir_entry = None;
+
         let short_file_name;
-
-        let is_special_entry = name == "." || name == "..";
-
         if !is_special_entry {
-            // TODO: create_lfn
             let mut context: ShortFileNameContext = Default::default();
             short_file_name = ShortFileName::from_unformated_str(&mut context, name);
+
+            let lfn_count = (name.len() as u32 + 12) / 13;
+            let sfn_checksum = ShortFileName::checksum(&short_file_name.as_bytes());
+
+            for index in 0..lfn_count {
+                
+                let lfn_index = if index == lfn_count - 1 {
+                    0x40u8
+                } else {
+                    index as u8
+                };
+
+                let mut lfn_entry = free_entries_iter.next().unwrap()?;
+                if first_raw_dir_entry.is_none() {
+                    first_raw_dir_entry = Some(lfn_entry);
+                }
+
+                lfn_entry.clear();
+                lfn_entry.set_attribute(Attributes::new(Attributes::LFN));
+                lfn_entry.set_lfn_index(lfn_index);
+                // TODO: properly handle this
+                lfn_entry.set_lfn_entry(&name[index as usize * 13..]).unwrap();
+                lfn_entry.set_lfn_checksum(sfn_checksum);
+                lfn_entry.flush(fs)?;
+            }
+
+            count += lfn_count;
         } else {
             short_file_name = ShortFileName::from_data(&name.as_bytes());
         }
@@ -160,9 +188,13 @@ where
         sfn_entry.set_short_name(&short_file_name);
         sfn_entry.flush(fs)?;
 
-        // TODO: change this when lfn is done.
-        let first_raw_dir_entry = sfn_entry;
         let file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
+
+        if first_raw_dir_entry.is_none() {
+            first_raw_dir_entry = Some(sfn_entry);
+        }
+
+        let first_raw_dir_entry = first_raw_dir_entry.unwrap();
 
         // TODO: Move this
         Ok(DirectoryEntry {

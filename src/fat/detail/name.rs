@@ -5,6 +5,7 @@ pub struct ShortFileName {
     contents: [u8; ShortFileName::MAX_LEN],
 }
 
+#[derive(Clone)]
 pub struct LongFileName {
     contents: [u16; LongFileName::MAX_LEN],
 }
@@ -266,6 +267,19 @@ impl LongFileName {
         }
     }
 
+    pub fn from_utf8(data: &str) -> Option<Self> {
+        let mut long_name = [0x0u16; LongFileName::MAX_LEN];
+
+        for (i, c) in data.chars().enumerate().take(LongFileName::MAX_LEN) {
+            info!("{} {}", i, c);
+            c.encode_utf16(&mut long_name[i..]);
+        }
+
+        Some(LongFileName {
+            contents: long_name,
+        })
+    }
+
     pub fn chars(&self) -> Option<[char; Self::MAX_LEN]> {
         let val = &self.contents;
 
@@ -280,5 +294,9 @@ impl LongFileName {
         }
 
         Some(res)
+    }
+
+    pub fn as_contents(self) -> [u16; LongFileName::MAX_LEN]{
+        self.contents
     }
 }
