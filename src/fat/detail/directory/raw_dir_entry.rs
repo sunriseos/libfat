@@ -137,7 +137,9 @@ impl FatDirEntry {
         let lfn = LongFileName::from_utf8(lfn);
 
         if let None = lfn {
-            return Err(FileSystemError::Custom { name: "UTF-8 to UTF-16 conversion failed" });
+            return Err(FileSystemError::Custom {
+                name: "UTF-8 to UTF-16 conversion failed",
+            });
         }
 
         let lfn = lfn.unwrap().as_contents();

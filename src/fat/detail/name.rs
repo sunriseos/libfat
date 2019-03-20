@@ -239,6 +239,16 @@ impl ShortFileName {
         }
         checksum.0
     }
+
+    pub fn checksum_lfn(short_name: &[u8]) -> u8 {
+        let mut sum = num::Wrapping(0u8);
+        for b in short_name {
+            sum = num::Wrapping((sum.0 & 1) << 7)
+                + num::Wrapping((sum.0 & 0xfe) >> 1)
+                + num::Wrapping(*b);
+        }
+        sum.0
+    }
 }
 
 impl LongFileName {
@@ -295,7 +305,7 @@ impl LongFileName {
         Some(res)
     }
 
-    pub fn as_contents(self) -> [u16; LongFileName::MAX_LEN]{
+    pub fn as_contents(self) -> [u16; LongFileName::MAX_LEN] {
         self.contents
     }
 }

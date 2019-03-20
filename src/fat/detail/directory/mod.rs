@@ -150,14 +150,13 @@ where
             short_file_name = ShortFileName::from_unformated_str(&mut context, name);
 
             let lfn_count = (name.len() as u32 + 12) / 13;
-            let sfn_checksum = ShortFileName::checksum(&short_file_name.as_bytes());
+            let sfn_checksum = ShortFileName::checksum_lfn(&short_file_name.as_bytes());
 
             for index in 0..lfn_count {
-                
                 let lfn_index = if index == lfn_count - 1 {
-                    0x40u8
+                    0x40u8 + index as u8 + 1
                 } else {
-                    index as u8
+                    index as u8 + 1
                 };
 
                 let mut lfn_entry = free_entries_iter.next().unwrap()?;
@@ -169,7 +168,9 @@ where
                 lfn_entry.set_attribute(Attributes::new(Attributes::LFN));
                 lfn_entry.set_lfn_index(lfn_index);
                 // TODO: properly handle this
-                lfn_entry.set_lfn_entry(&name[index as usize * 13..]).unwrap();
+                lfn_entry
+                    .set_lfn_entry(&name[index as usize * 13..])
+                    .unwrap();
                 lfn_entry.set_lfn_checksum(sfn_checksum as u8);
                 lfn_entry.flush(fs)?;
             }
