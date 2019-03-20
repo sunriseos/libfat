@@ -140,35 +140,30 @@ impl FatDirEntry {
             return Err(FileSystemError::Custom { name: "UTF-8 to UTF-16 conversion failed" });
         }
 
-        info!("{:?}", lfn.clone().unwrap().chars());
-
         let lfn = lfn.unwrap().as_contents();
 
         for i in 0..5 {
             let index = 1 + i * 2;
-            info!("{} {} {}", i, index, lfn[i] as u8 as char);
             LittleEndian::write_u16(&mut self.data[index..index + 2], lfn[i]);
         }
         for i in 0..6 {
             let index = 0xE + i * 2;
             let i = i + 5;
 
-            info!("{} {} {}", i, index, lfn[i] as u8 as char);
             LittleEndian::write_u16(&mut self.data[index..index + 2], lfn[i]);
         }
 
         for i in 0..2 {
             let index = 0x1C + i * 2;
             let i = i + 11;
-            info!("{} {} {}", i, index, lfn[i] as u8 as char);
             LittleEndian::write_u16(&mut self.data[index..index + 2], lfn[i]);
         }
 
         Ok(())
     }
 
-    pub fn set_lfn_checksum(&mut self, checksum: u16) {
-        LittleEndian::write_u16(&mut self.data[13..15], checksum);
+    pub fn set_lfn_checksum(&mut self, checksum: u8) {
+        self.data[13] = checksum;
     }
 
     pub fn get_cluster(&self) -> Cluster {

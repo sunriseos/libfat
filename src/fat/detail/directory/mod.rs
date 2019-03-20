@@ -170,7 +170,7 @@ where
                 lfn_entry.set_lfn_index(lfn_index);
                 // TODO: properly handle this
                 lfn_entry.set_lfn_entry(&name[index as usize * 13..]).unwrap();
-                lfn_entry.set_lfn_checksum(sfn_checksum);
+                lfn_entry.set_lfn_checksum(sfn_checksum as u8);
                 lfn_entry.flush(fs)?;
             }
 

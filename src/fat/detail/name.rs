@@ -271,7 +271,6 @@ impl LongFileName {
         let mut long_name = [0x0u16; LongFileName::MAX_LEN];
 
         for (i, c) in data.chars().enumerate().take(LongFileName::MAX_LEN) {
-            info!("{} {}", i, c);
             c.encode_utf16(&mut long_name[i..]);
         }
 
