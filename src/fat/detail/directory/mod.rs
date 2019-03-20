@@ -237,12 +237,21 @@ where
             ".",
             entry.start_cluster,
         )?;
+
+        let raw_info = entry.raw_info.unwrap();
+
+        let parent_cluster = if raw_info.parent_cluster == self.fs.get_root_directory().dir_info.start_cluster {
+            Cluster(0)
+        } else {
+            raw_info.parent_cluster
+        };
+
         Self::create_dir_entry(
             self.fs,
             &entry,
             Attributes::new(Attributes::DIRECTORY),
             "..",
-            entry.raw_info.unwrap().parent_cluster,
+            parent_cluster,
         )?;
         Ok(())
     }
