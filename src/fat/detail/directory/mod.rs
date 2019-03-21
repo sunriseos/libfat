@@ -274,13 +274,20 @@ where
         let entry = new_entry_res?;
 
         // FIXME: check the error here and try to free the cluster if something happens?
-        Self::create_dir_entry(
+        let res = Self::create_dir_entry(
             self.fs,
             &entry,
             Attributes::new(Attributes::DIRECTORY),
             ".",
             entry.start_cluster,
-        )?;
+        );
+
+        if let Err(err) = res {
+            // If it fail here, this can be catastrophic but at least we tried our best.
+            Self::delete_dir_entry(self.fs, &entry)?;
+            self.fs.free_cluster(cluster, None)?;
+            return Err(err);
+        }
 
         let raw_info = entry.raw_info.unwrap();
 
@@ -291,13 +298,21 @@ where
                 raw_info.parent_cluster
             };
 
-        Self::create_dir_entry(
+        let res = Self::create_dir_entry(
             self.fs,
             &entry,
             Attributes::new(Attributes::DIRECTORY),
             "..",
             parent_cluster,
-        )?;
+        );
+
+        if let Err(err) = res {
+            // If it fail here, this can be catastrophic but at least we tried our best.
+            Self::delete_dir_entry(self.fs, &entry)?;
+            self.fs.free_cluster(cluster, None)?;
+            return Err(err);
+        }
+
         Ok(())
     }
 
