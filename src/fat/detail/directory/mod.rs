@@ -100,7 +100,7 @@ where
         count: u32,
     ) -> FileSystemResult<FatDirEntryIterator<'a, T>> {
         let mut i = 0;
-        for raw_dir_entry in Directory::from_entry(fs, entry.clone()).fat_dir_entry_iter() {
+        for raw_dir_entry in Directory::from_entry(fs, *entry).fat_dir_entry_iter() {
             let raw_dir_entry = raw_dir_entry?;
             if raw_dir_entry.is_free() || raw_dir_entry.is_deleted() {
                 i += 1;
@@ -260,7 +260,7 @@ where
 
         let new_entry_res = Self::create_dir_entry(
             self.fs,
-            &mut self.dir_info,
+            &self.dir_info,
             Attributes::new(Attributes::DIRECTORY),
             name,
             cluster,

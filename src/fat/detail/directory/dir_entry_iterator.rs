@@ -74,7 +74,7 @@ where
 
                 // We do some kind of push_front by hand
                 // FIXME: this is dirty
-                let tmp = file_name.clone();
+                let tmp = file_name;
                 file_name.clear();
                 file_name.push_str(part.as_str());
                 file_name.push_str(tmp.as_str());

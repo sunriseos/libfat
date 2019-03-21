@@ -247,12 +247,10 @@ impl<'a> core::fmt::Debug for FatDirEntry {
             } else {
                 write!(f, "LongFileName {{ \"not a long file name?????\" }}")?;
             }
+        } else if let Some(short_file_name) = self.short_name() {
+            write!(f, "ShortFileName {{{:?}}}", short_file_name.chars())?;
         } else {
-            if let Some(short_file_name) = self.short_name() {
-                write!(f, "ShortFileName {{{:?}}}", short_file_name.chars())?;
-            } else {
-                write!(f, "ShortFileName {{ \"not a short file name?????\" }}")?;
-            }
+            write!(f, "ShortFileName {{ \"not a short file name?????\" }}")?;
         }
         write!(f, " }}")
     }

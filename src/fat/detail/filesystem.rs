@@ -174,7 +174,7 @@ where
         };
 
         // precheck that it doesn't exist already
-        if let Ok(_) = parent_dir.clone().find_entry(file_name) {
+        if parent_dir.clone().find_entry(file_name).is_ok() {
             return Err(FileSystemError::FileExists);
         }
 
@@ -190,7 +190,7 @@ where
         };
 
         // precheck that it doesn't exist already
-        if let Ok(_) = parent_dir.clone().find_entry(file_name) {
+        if parent_dir.clone().find_entry(file_name).is_ok() {
             return Err(FileSystemError::FileExists);
         }
 

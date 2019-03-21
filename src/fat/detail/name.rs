@@ -75,7 +75,7 @@ impl ShortFileNameGenerator {
     pub fn create(context: &mut ShortFileNameContext, lfn: &str) -> ShortFileName {
         let mut is_lossy = false;
         if context.short_name_base_len == 0 {
-            let dot_position = lfn.rfind(".").unwrap_or(lfn.len());
+            let dot_position = lfn.rfind('.').unwrap_or_else(|| lfn.len());
 
             let (basename_len, _basename_fits, basename_lossy) = Self::copy_format_sfn_part(
                 &mut context.short_name_base,
@@ -96,7 +96,7 @@ impl ShortFileNameGenerator {
                 }
 
                 let (ext_len, _ext_fits, ext_lossy) = Self::copy_format_sfn_part(
-                    &mut context.short_name_ext[1..1 + copy_size],
+                    &mut context.short_name_ext[1..=copy_size],
                     &lfn[dot_position + 1..],
                     false,
                 );
@@ -155,7 +155,7 @@ impl ShortFileNameGenerator {
         let mut index = context.last_index_value;
         let mut index_buffer_len = ShortFileName::BASE_FILE_NAME_LEN;
         for i in 1..8 {
-            if index <= 0 {
+            if index == 0 {
                 index_buffer_len = i;
                 break;
             }
@@ -189,7 +189,6 @@ impl ShortFileNameGenerator {
         if context.short_name_ext_len > 1 {
             (&mut short_name[short_name_len..short_name_len + context.short_name_ext_len - 1])
                 .copy_from_slice(&context.short_name_ext[1..context.short_name_ext_len]);
-            short_name_len = ShortFileName::MAX_LEN;
         }
 
         ShortFileName::from_data(&short_name)
@@ -306,7 +305,7 @@ impl LongFileName {
         Some(res)
     }
 
-    pub fn as_contents(self) -> [u16; LongFileName::MAX_LEN] {
+    pub fn as_contents(&self) -> [u16; LongFileName::MAX_LEN] {
         self.contents
     }
 }
