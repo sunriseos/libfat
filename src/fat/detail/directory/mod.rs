@@ -137,7 +137,6 @@ where
         cluster: Cluster,
     ) -> FileSystemResult<DirectoryEntry> {
         let is_special_entry = name == "." || name == "..";
-        // FIXME: check name len > 255
         let mut count: u32 = 1;
 
         let mut free_entries_iter = Self::allocate_entries(parent_entry, fs, count)?;
@@ -154,7 +153,7 @@ where
 
             for index in 0..lfn_count {
                 let target_index = lfn_count - index;
-                let lfn_index = if target_index == lfn_count{
+                let lfn_index = if target_index == lfn_count {
                     0x40u8 + target_index as u8
                 } else {
                     target_index as u8
@@ -168,10 +167,7 @@ where
                 lfn_entry.clear();
                 lfn_entry.set_attribute(Attributes::new(Attributes::LFN));
                 lfn_entry.set_lfn_index(lfn_index);
-                // TODO: properly handle this
-                lfn_entry
-                    .set_lfn_entry(&name[(target_index - 1) as usize * 13..])
-                    .unwrap();
+                lfn_entry.set_lfn_entry(&name[(target_index - 1) as usize * 13..]);
                 lfn_entry.set_lfn_checksum(sfn_checksum as u8);
                 lfn_entry.flush(fs)?;
             }
@@ -190,7 +186,7 @@ where
         sfn_entry.set_short_name(&short_file_name);
         sfn_entry.flush(fs)?;
 
-        let file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
+        let file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>::new();
 
         if first_raw_dir_entry.is_none() {
             first_raw_dir_entry = Some(sfn_entry);
@@ -246,6 +242,10 @@ where
     }
 
     pub fn mkdir(&mut self, name: &str) -> FileSystemResult<()> {
+        if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
+            return Err(FileSystemError::PathTooLong);
+        }
+
         // Allocate a cluster for the directory entries
         let cluster = self.fs.alloc_cluster(None)?;
 
@@ -302,6 +302,10 @@ where
     }
 
     pub fn touch(&mut self, name: &str) -> FileSystemResult<()> {
+        if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
+            return Err(FileSystemError::PathTooLong);
+        }
+
         Self::create_dir_entry(
             self.fs,
             &self.dir_info,

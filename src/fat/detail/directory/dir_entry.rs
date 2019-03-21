@@ -26,7 +26,7 @@ pub struct DirectoryEntry {
     pub last_access_timestamp: u64,
     pub last_modification_timestamp: u64,
     pub file_size: u32,
-    pub file_name: ArrayString<[u8; Self::MAX_FILE_NAME_LEN]>,
+    pub file_name: ArrayString<[u8; Self::MAX_FILE_NAME_LEN_UNICODE]>,
     pub attribute: Attributes,
 }
 
@@ -64,6 +64,8 @@ impl DirectoryEntryRawInfo {
 }
 
 impl DirectoryEntry {
-    // entry can at best have 255 chars in UTF-16
-    pub const MAX_FILE_NAME_LEN: usize = 256 * 4;
+    pub const MAX_FILE_NAME_LEN: usize = 255;
+
+    // we actually use 256 unicode char because arrayvec doesn't define an implementation for Array<[u8; 1020]>
+    pub const MAX_FILE_NAME_LEN_UNICODE: usize = 1024;
 }

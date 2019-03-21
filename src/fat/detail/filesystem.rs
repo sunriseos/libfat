@@ -157,7 +157,7 @@ where
             creation_timestamp: 0,
             last_access_timestamp: 0,
             last_modification_timestamp: 0,
-            file_name: ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new(),
+            file_name: ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>::new(),
             attribute: Attributes::new(Attributes::DIRECTORY),
         };
 
@@ -225,7 +225,6 @@ where
         Ok(())
     }
 
-    // TODO: clean the zone if requested (for directory for example)
     pub fn alloc_cluster(
         &self,
         last_cluster_allocated_opt: Option<Cluster>,

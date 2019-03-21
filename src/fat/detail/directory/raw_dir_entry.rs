@@ -133,16 +133,10 @@ impl FatDirEntry {
         (&mut self.data[0..11]).copy_from_slice(&short_name.as_bytes());
     }
 
-    pub fn set_lfn_entry(&mut self, lfn: &str) -> FileSystemResult<()> {
+    pub fn set_lfn_entry(&mut self, lfn: &str) {
         let lfn = LongFileName::from_utf8(lfn);
 
-        if let None = lfn {
-            return Err(FileSystemError::Custom {
-                name: "UTF-8 to UTF-16 conversion failed",
-            });
-        }
-
-        let lfn = lfn.unwrap().as_contents();
+        let lfn = lfn.as_contents();
 
         for i in 0..5 {
             let index = 1 + i * 2;
@@ -160,8 +154,6 @@ impl FatDirEntry {
             let i = i + 11;
             LittleEndian::write_u16(&mut self.data[index..index + 2], lfn[i]);
         }
-
-        Ok(())
     }
 
     pub fn set_lfn_checksum(&mut self, checksum: u8) {

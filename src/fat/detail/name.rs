@@ -253,6 +253,7 @@ impl ShortFileName {
 
 impl LongFileName {
     pub const MAX_LEN: usize = 13;
+    pub const MAX_LEN_UNICODE: usize = Self::MAX_LEN * 4;
 
     pub fn from_data(data: &[u8]) -> Self {
         let mut long_name = [0x0; LongFileName::MAX_LEN];
@@ -277,16 +278,16 @@ impl LongFileName {
         }
     }
 
-    pub fn from_utf8(data: &str) -> Option<Self> {
+    pub fn from_utf8(data: &str) -> Self {
         let mut long_name = [0x0u16; LongFileName::MAX_LEN];
 
         for (i, c) in data.chars().enumerate().take(LongFileName::MAX_LEN) {
             c.encode_utf16(&mut long_name[i..]);
         }
 
-        Some(LongFileName {
+        LongFileName {
             contents: long_name,
-        })
+        }
     }
 
     pub fn chars(&self) -> Option<[char; Self::MAX_LEN]> {

@@ -26,7 +26,7 @@ where
         let mut first_raw_dir_entry: Option<FatDirEntry> = None;
         let mut entry_count = 0;
         let mut lfn_index: i32 = 0;
-        let mut file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
+        let mut file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>::new();
 
         while let Some(entry) = self.raw_iter.next() {
             if let Err(error) = entry {
@@ -62,7 +62,7 @@ where
                     lfn_index = i32::from(first_byte ^ 0x40);
                 }
 
-                let mut part = ArrayString::<[_; LongFileName::MAX_LEN * 4]>::new();
+                let mut part = ArrayString::<[_; LongFileName::MAX_LEN_UNICODE]>::new();
                 // FIXME: Custom Iterator to catches those errors
                 let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
                 for c in raw_name.iter() {
@@ -70,7 +70,7 @@ where
                 }
 
                 // FIXME: this is dirty
-                let mut tmp = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::new();
+                let mut tmp = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>::new();
                 tmp.push_str(file_name.as_str());
                 file_name.clear();
                 file_name.push_str(part.as_str());
@@ -112,10 +112,11 @@ where
                     }
 
                     // unwrap will never fail here
-                    file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN]>::from(
-                        file_name.trim_end(),
-                    )
-                    .unwrap();
+                    file_name =
+                        ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>::from(
+                            file_name.trim_end(),
+                        )
+                        .unwrap();
                 }
                 if let Some(end_char_index) = file_name.find('\0') {
                     file_name.truncate(end_char_index);
