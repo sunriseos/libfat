@@ -11,6 +11,7 @@ extern crate bitflags;
 #[macro_use]
 extern crate log;
 
+pub mod block;
 pub mod fat;
 
 use alloc::boxed::Box;

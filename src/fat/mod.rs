@@ -2,12 +2,13 @@ pub mod detail;
 
 use alloc::boxed::Box;
 use core::iter::Iterator;
-use detail::block::Block;
-use detail::block::BlockDevice;
-use detail::block::BlockIndex;
-use detail::block::BlockIndexClusterIter;
+use detail::block_iter::BlockIndexClusterIter;
 use detail::filesystem::FatFileSystem;
 use detail::utils::align_up;
+
+use crate::block::Block;
+use crate::block::BlockDevice;
+use crate::block::BlockIndex;
 
 use crate::Result as FileSystemResult;
 use crate::{

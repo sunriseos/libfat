@@ -1,6 +1,8 @@
-use crate::fat::detail::block::{Block, BlockDevice, BlockIndex, BlockIndexClusterIter};
+use crate::fat::detail::block_iter::BlockIndexClusterIter;
 use crate::fat::detail::cluster::Cluster;
 use crate::fat::detail::filesystem::FatFileSystem;
+
+use crate::block::{Block, BlockDevice, BlockIndex};
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 

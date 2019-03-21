@@ -2,7 +2,7 @@ use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
 use super::attribute::Attributes;
-use super::block::{Block, BlockCount, BlockDevice, BlockIndex, BlockIndexClusterIter};
+use super::block_iter::BlockIndexClusterIter;
 use super::directory::{dir_entry::DirectoryEntry, Directory};
 use super::FatVolumeBootRecord;
 
@@ -11,6 +11,7 @@ use super::table;
 use super::table::FatValue;
 use super::utils;
 use super::FatFsType;
+use crate::block::{Block, BlockCount, BlockDevice, BlockIndex};
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 

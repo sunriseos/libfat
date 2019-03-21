@@ -1,5 +1,5 @@
 pub mod attribute;
-pub mod block;
+pub mod block_iter;
 pub mod cluster;
 pub mod datetime;
 pub mod directory;
@@ -8,7 +8,7 @@ pub mod name;
 pub mod table;
 pub(crate) mod utils;
 
-use block::{Block, BlockCount, BlockDevice, BlockIndex};
+use crate::block::{Block, BlockCount, BlockDevice, BlockIndex};
 use byteorder::{ByteOrder, LittleEndian};
 
 use cluster::Cluster;

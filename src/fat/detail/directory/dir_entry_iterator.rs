@@ -1,9 +1,9 @@
 use arrayvec::ArrayString;
 
-use crate::fat::detail::block::{BlockDevice, BlockIndex};
 use crate::fat::detail::cluster::Cluster;
 use crate::fat::detail::name::LongFileName;
 
+use crate::block::{BlockDevice, BlockIndex};
 use crate::Result as FileSystemResult;
 
 use super::dir_entry::DirectoryEntry;
@@ -71,7 +71,7 @@ where
                     }
                     part.push(*c);
                 }
-                
+
                 // We do some kind of push_front by hand
                 // FIXME: this is dirty
                 let tmp = file_name.clone();

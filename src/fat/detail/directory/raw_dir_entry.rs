@@ -1,11 +1,12 @@
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::fat::detail::attribute::Attributes;
-use crate::fat::detail::block::{Block, BlockDevice, BlockIndex};
 use crate::fat::detail::cluster::Cluster;
 use crate::fat::detail::datetime::FatDateTime;
 use crate::fat::detail::filesystem::FatFileSystem;
 use crate::fat::detail::name::{LongFileName, ShortFileName};
+
+use crate::block::{Block, BlockDevice, BlockIndex};
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 

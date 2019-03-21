@@ -1,10 +1,11 @@
 use arrayvec::ArrayString;
 
+use crate::block::{BlockDevice, BlockIndex};
 use crate::FileSystemError;
 use crate::Result as FileSystemResult;
 
 use super::attribute::Attributes;
-use super::block::{BlockDevice, BlockIndex, BlockIndexClusterIter};
+use super::block_iter::BlockIndexClusterIter;
 use super::cluster::Cluster;
 use super::name::ShortFileName;
 use super::name::ShortFileNameContext;
@@ -273,7 +274,6 @@ where
 
         let entry = new_entry_res?;
 
-        // FIXME: check the error here and try to free the cluster if something happens?
         let res = Self::create_dir_entry(
             self.fs,
             &entry,
