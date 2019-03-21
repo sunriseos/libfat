@@ -55,7 +55,7 @@ where
             }
 
             // LFN
-            if entry.is_long_file_name() {
+            if let Some(lfn_entry) = entry.long_file_name_raw() {
                 let first_byte = entry.get_first_byte();
 
                 if (first_byte & 0x40) != 0 {
@@ -64,14 +64,17 @@ where
 
                 let mut part = ArrayString::<[_; LongFileName::MAX_LEN_UNICODE]>::new();
                 // FIXME: Custom Iterator to catches those errors
-                let raw_name = entry.long_file_name_raw().unwrap().chars().unwrap();
+                let raw_name = lfn_entry.chars().unwrap();
                 for c in raw_name.iter() {
+                    if *c == '\x00' {
+                        break;
+                    }
                     part.push(*c);
                 }
-
+                
+                // We do some kind of push_front by hand
                 // FIXME: this is dirty
-                let mut tmp = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>::new();
-                tmp.push_str(file_name.as_str());
+                let tmp = file_name.clone();
                 file_name.clear();
                 file_name.push_str(part.as_str());
                 file_name.push_str(tmp.as_str());
