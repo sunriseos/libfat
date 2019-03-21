@@ -1,4 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian};
+use structview::{u16_le, u32_le, View};
 
 use crate::fat::detail::attribute::Attributes;
 use crate::fat::detail::cluster::Cluster;
@@ -13,6 +14,36 @@ use crate::Result as FileSystemResult;
 pub enum FatDirEntryType {
     ShortFileName,
     LongFileName,
+}
+
+#[derive(Clone, Copy, View)]
+#[repr(C)]
+pub struct LongFileNameDirEntry {
+    pub order_entry: u8,
+    pub char_part_0: [u16_le; 5],
+    pub attribute: u8,
+    pub lfn_entry_type: u8,
+    pub lfn_checksum: u8,
+    pub char_part_1: [u16_le; 6],
+    pub reserved: u16_le,
+    pub char_part_2: [u16_le; 2],
+}
+
+#[derive(Clone, Copy, View)]
+#[repr(C)]
+pub struct ShortFileNameDirEntry {
+    pub name: [u8; ShortFileName::MAX_LEN],
+    pub attribute: u8,
+    pub reserved: u8,
+    pub creation_tenths: u8,
+    pub creation_time: u16_le,
+    pub creation_date: u16_le,
+    pub last_access_date: u16_le,
+    pub high_cluster: u16_le,
+    pub modification_time: u16_le,
+    pub modification_date: u16_le,
+    pub low_cluster: u16_le,
+    pub file_size: u32_le,
 }
 
 #[derive(Clone, Copy)]
@@ -108,7 +139,7 @@ impl FatDirEntry {
 
     pub fn long_file_name_raw(&self) -> Option<LongFileName> {
         if self.is_long_file_name() {
-            Some(LongFileName::from_data(&self.data))
+            Some(LongFileName::from_lfn_dir_entry(self.as_lfn_entry()))
         } else {
             None
         }
@@ -120,7 +151,7 @@ impl FatDirEntry {
 
     pub fn short_name(&self) -> Option<ShortFileName> {
         if !self.is_long_file_name() {
-            Some(ShortFileName::from_data(&self.data[0..11]))
+            Some(ShortFileName::from_data(&self.as_sfn_entry().name))
         } else {
             None
         }
@@ -157,13 +188,22 @@ impl FatDirEntry {
         }
     }
 
+    pub fn as_lfn_entry(&self) -> &LongFileNameDirEntry {
+        LongFileNameDirEntry::view(&self.data).unwrap()
+    }
+
+    pub fn as_sfn_entry(&self) -> &ShortFileNameDirEntry {
+        ShortFileNameDirEntry::view(&self.data).unwrap()
+    }
+
     pub fn set_lfn_checksum(&mut self, checksum: u8) {
         self.data[13] = checksum;
     }
 
     pub fn get_cluster(&self) -> Cluster {
-        let high_cluster = u32::from(LittleEndian::read_u16(&self.data[20..22]));
-        let low_cluster = u32::from(LittleEndian::read_u16(&self.data[26..28]));
+        let entry = self.as_sfn_entry();
+        let high_cluster = u32::from(entry.high_cluster.to_int());
+        let low_cluster = u32::from(entry.low_cluster.to_int());
 
         Cluster(low_cluster | (high_cluster << 16))
     }
@@ -178,7 +218,7 @@ impl FatDirEntry {
     }
 
     pub fn get_file_size(&self) -> u32 {
-        LittleEndian::read_u32(&self.data[28..32])
+        self.as_sfn_entry().file_size.to_int()
     }
 
     pub fn set_file_size(&mut self, new_size: u32) {
@@ -191,12 +231,13 @@ impl FatDirEntry {
     }
 
     pub fn get_creation_datetime(&self) -> FatDateTime {
-        let raw_time = LittleEndian::read_u16(&self.data[14..16]);
+        let entry = self.as_sfn_entry();
+        let raw_time = entry.creation_time.to_int();
         let seconds = ((raw_time & 0x1f) << 1) as u8;
         let minutes = ((raw_time >> 5) & 0x3f) as u8;
         let hour = ((raw_time >> 11) & 0x1f) as u8;
 
-        let raw_date = LittleEndian::read_u16(&self.data[16..18]);
+        let raw_date = entry.creation_date.to_int();
         let day = (raw_date & 0x1f) as u8;
         let month = ((raw_date >> 5) & 0xf) as u8;
         let year = (raw_date >> 9) & 0x7f;
@@ -212,7 +253,9 @@ impl FatDirEntry {
     }
 
     pub fn get_last_access_date(&self) -> FatDateTime {
-        let raw_date = LittleEndian::read_u16(&self.data[18..20]);
+        let entry = self.as_sfn_entry();
+
+        let raw_date = entry.last_access_date.to_int();
         let day = (raw_date & 0x1f) as u8;
         let month = ((raw_date >> 5) & 0xf) as u8;
         let year = (raw_date >> 9) & 0x7f;
@@ -220,12 +263,14 @@ impl FatDirEntry {
     }
 
     pub fn get_modification_datetime(&self) -> FatDateTime {
-        let raw_time = LittleEndian::read_u16(&self.data[22..24]);
+        let entry = self.as_sfn_entry();
+
+        let raw_time = entry.modification_time.to_int();
         let seconds = ((raw_time & 0x1f) << 1) as u8;
         let minutes = ((raw_time >> 5) & 0x3f) as u8;
         let hour = ((raw_time >> 11) & 0x1f) as u8;
 
-        let raw_date = LittleEndian::read_u16(&self.data[24..26]);
+        let raw_date = entry.modification_date.to_int();
         let day = (raw_date & 0x1f) as u8;
         let month = ((raw_date >> 5) & 0xf) as u8;
         let year = (raw_date >> 9) & 0x7f;

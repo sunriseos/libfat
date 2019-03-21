@@ -56,10 +56,10 @@ where
 
             // LFN
             if let Some(lfn_entry) = entry.long_file_name_raw() {
-                let first_byte = entry.get_first_byte();
+                let lfn = entry.as_lfn_entry();
 
-                if (first_byte & 0x40) != 0 {
-                    lfn_index = i32::from(first_byte ^ 0x40);
+                if (lfn.order_entry & 0x40) != 0 {
+                    lfn_index = i32::from(lfn.order_entry ^ 0x40);
                 }
 
                 let mut part = ArrayString::<[_; LongFileName::MAX_LEN_UNICODE]>::new();

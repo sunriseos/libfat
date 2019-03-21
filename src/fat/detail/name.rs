@@ -1,6 +1,8 @@
 use byteorder::{ByteOrder, LittleEndian};
 use core::num;
 
+use super::directory::raw_dir_entry::LongFileNameDirEntry;
+
 pub struct ShortFileName {
     contents: [u8; ShortFileName::MAX_LEN],
 }
@@ -198,7 +200,7 @@ impl ShortFileNameGenerator {
 impl ShortFileName {
     const BASE_FILE_NAME_LEN: usize = 8;
     const EXT_LEN: usize = 3;
-    const MAX_LEN: usize = ShortFileName::BASE_FILE_NAME_LEN + ShortFileName::EXT_LEN;
+    pub const MAX_LEN: usize = ShortFileName::BASE_FILE_NAME_LEN + ShortFileName::EXT_LEN;
 
     pub fn from_data(data: &[u8]) -> Self {
         let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
@@ -254,24 +256,25 @@ impl LongFileName {
     pub const MAX_LEN: usize = 13;
     pub const MAX_LEN_UNICODE: usize = Self::MAX_LEN * 4;
 
-    pub fn from_data(data: &[u8]) -> Self {
+    pub fn from_lfn_dir_entry(entry: &LongFileNameDirEntry) -> Self {
         let mut long_name = [0x0; LongFileName::MAX_LEN];
 
-        for (i, entry) in long_name.iter_mut().enumerate().take(5) {
-            let index = 1 + i * 2;
-            *entry = LittleEndian::read_u16(&data[index..index + 2]);
-        }
-        for i in 0..6 {
-            let index = 0xE + i * 2;
-            let i = i + 5;
-            long_name[i] = LittleEndian::read_u16(&data[index..index + 2]);
+        let mut index = 0;
+        for c in entry.char_part_0.iter() {
+            long_name[index] = c.to_int();
+            index += 1;
         }
 
-        for i in 0..2 {
-            let index = 0x1C + i * 2;
-            let i = i + 11;
-            long_name[i] = LittleEndian::read_u16(&data[index..index + 2]);
+        for c in entry.char_part_1.iter() {
+            long_name[index] = c.to_int();
+            index += 1;
         }
+
+        for c in entry.char_part_2.iter() {
+            long_name[index] = c.to_int();
+            index += 1;
+        }
+
         LongFileName {
             contents: long_name,
         }
