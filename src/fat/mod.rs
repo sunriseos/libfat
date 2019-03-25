@@ -29,6 +29,7 @@ struct DirectoryReader<'a, T> {
 struct FileInterface<'a, T> {
     fs: &'a FatFileSystem<T>,
     file_info: FatDirectoryEntry,
+    mode: FileModeFlags,
 }
 
 struct DirectoryFilterPredicate;
@@ -123,16 +124,14 @@ where
         path: &str,
         mode: FileModeFlags,
     ) -> FileSystemResult<Box<dyn FileOperations + 'a>> {
-        // TODO: separate type file operation type
-        if (mode & FileModeFlags::APPENDABLE) == FileModeFlags::APPENDABLE {
-            // TODO: do something about that
-        }
+        // TODO: separate type file operation type with diferent implementation
 
         let file_entry = self.get_root_directory().open_file(path)?;
 
         let res = Box::new(FileInterface {
             fs: self,
             file_info: file_entry,
+            mode,
         });
 
         Ok(res as Box<dyn FileOperations + 'a>)
@@ -244,6 +243,10 @@ where
     T: BlockDevice,
 {
     fn read(&mut self, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> {
+        if (self.mode & FileModeFlags::READABLE) != FileModeFlags::READABLE {
+            return Err(FileSystemError::AccessDenied);
+        }
+
         if offset >= 0xFFFF_FFFF {
             return Ok(0);
         }
@@ -310,6 +313,10 @@ where
     }
 
     fn write(&mut self, offset: u64, buf: &[u8]) -> FileSystemResult<()> {
+        if (self.mode & FileModeFlags::WRITABLE) != FileModeFlags::WRITABLE {
+            return Err(FileSystemError::AccessDenied);
+        }
+
         if offset >= 0xFFFF_FFFF {
             return Err(FileSystemError::AccessDenied);
         }
@@ -385,6 +392,10 @@ where
     }
 
     fn set_len(&mut self, size: u64) -> FileSystemResult<()> {
+        if (self.mode & FileModeFlags::APPENDABLE) != FileModeFlags::APPENDABLE {
+            return Err(FileSystemError::AccessDenied);
+        }
+
         let current_len = self.get_len()?;
         if size == current_len {
             return Ok(());
