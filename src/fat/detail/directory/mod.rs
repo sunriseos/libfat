@@ -136,6 +136,7 @@ where
         attribute: Attributes,
         name: &str,
         cluster: Cluster,
+        file_size: u32,
     ) -> FileSystemResult<DirectoryEntry> {
         let is_special_entry = name == "." || name == "..";
         let mut count: u32 = 1;
@@ -180,7 +181,7 @@ where
 
         let mut sfn_entry = free_entries_iter.next().unwrap()?;
         sfn_entry.clear();
-        sfn_entry.set_file_size(0);
+        sfn_entry.set_file_size(file_size);
         sfn_entry.set_cluster(cluster);
         sfn_entry.set_attribute(attribute);
 
@@ -264,6 +265,7 @@ where
             Attributes::new(Attributes::DIRECTORY),
             name,
             cluster,
+            0,
         );
 
         // Cannot create directory?
@@ -280,6 +282,7 @@ where
             Attributes::new(Attributes::DIRECTORY),
             ".",
             entry.start_cluster,
+            0,
         );
 
         if let Err(err) = res {
@@ -304,6 +307,7 @@ where
             Attributes::new(Attributes::DIRECTORY),
             "..",
             parent_cluster,
+            0,
         );
 
         if let Err(err) = res {
@@ -327,6 +331,7 @@ where
             Attributes::new(0),
             name,
             Cluster(0),
+            0,
         )?;
 
         Ok(())
@@ -358,6 +363,72 @@ where
             fs.free_cluster(dir_entry.start_cluster, None)?;
         }
 
+        Ok(())
+    }
+
+    // FIXME: better error managment
+    pub fn rename(
+        self,
+        dir_entry: DirectoryEntry,
+        new_name: &str,
+        is_dir: bool,
+    ) -> FileSystemResult<()> {
+        if new_name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
+            return Err(FileSystemError::PathTooLong);
+        }
+
+        let new_entry = Self::create_dir_entry(
+            self.fs,
+            &self.dir_info,
+            dir_entry.attribute,
+            new_name,
+            dir_entry.start_cluster,
+            dir_entry.file_size,
+        )?;
+
+        if is_dir {
+            let mut iter =
+                FatDirEntryIterator::new(self.fs, new_entry.start_cluster, BlockIndex(0), 0);
+
+            // FIXME: this is dirty but work for now
+            // TODO: Update only ".."
+            let mut first_entry = iter.next().unwrap()?;
+            let mut second_entry = iter.next().unwrap()?;
+
+            first_entry.clear();
+            second_entry.clear();
+            first_entry.flush(self.fs)?;
+            second_entry.flush(self.fs)?;
+
+            Self::create_dir_entry(
+                self.fs,
+                &new_entry,
+                Attributes::new(Attributes::DIRECTORY),
+                ".",
+                new_entry.start_cluster,
+                0,
+            )?;
+
+            let raw_info = new_entry.raw_info.unwrap();
+
+            let parent_cluster =
+                if raw_info.parent_cluster == self.fs.get_root_directory().dir_info.start_cluster {
+                    Cluster(0)
+                } else {
+                    raw_info.parent_cluster
+                };
+
+            Self::create_dir_entry(
+                self.fs,
+                &new_entry,
+                Attributes::new(Attributes::DIRECTORY),
+                "..",
+                parent_cluster,
+                0,
+            )?;
+        }
+
+        Self::delete_dir_entry(self.fs, &dir_entry)?;
         Ok(())
     }
 }

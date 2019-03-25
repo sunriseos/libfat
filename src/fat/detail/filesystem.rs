@@ -208,6 +208,30 @@ where
         parent_dir.unlink(file_name, is_dir)
     }
 
+    pub fn rename(&self, old_path: &str, new_path: &str, is_dir: bool) -> FileSystemResult<()> {
+        let (parent_name, file_name) = utils::get_parent(old_path);
+        let parent_old_dir = if parent_name == "" {
+            self.get_root_directory()
+        } else {
+            self.get_root_directory().open_dir(parent_name)?
+        };
+
+        let old_entry = parent_old_dir.find_entry(file_name)?;
+
+        let (parent_name, file_name) = utils::get_parent(new_path);
+        let parent_new_dir = if parent_name == "" {
+            self.get_root_directory()
+        } else {
+            self.get_root_directory().open_dir(parent_name)?
+        };
+
+        if parent_new_dir.clone().find_entry(file_name).is_ok() {
+            return Err(FileSystemError::FileExists);
+        }
+
+        parent_new_dir.rename(old_entry, file_name, is_dir)
+    }
+
     pub fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
         let blocks = [Block::new()];
         let mut block_index = 0;

@@ -102,16 +102,12 @@ where
         self.mkdir(path)
     }
 
-    fn rename_file(&self, _old_path: &str, _new_path: &str) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn rename_file(&self, old_path: &str, new_path: &str) -> FileSystemResult<()> {
+        self.rename(old_path, new_path, false)
     }
 
-    fn rename_directory(&self, _old_path: &str, _new_path: &str) -> FileSystemResult<()> {
-        Err(FileSystemError::Custom {
-            name: "not implemented",
-        })
+    fn rename_directory(&self, old_path: &str, new_path: &str) -> FileSystemResult<()> {
+        self.rename(old_path, new_path, true)
     }
 
     fn delete_file(&self, path: &str) -> FileSystemResult<()> {

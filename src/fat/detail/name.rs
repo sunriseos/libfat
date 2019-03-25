@@ -1,4 +1,3 @@
-use byteorder::{ByteOrder, LittleEndian};
 use core::num;
 
 use super::directory::raw_dir_entry::LongFileNameDirEntry;
