@@ -11,9 +11,9 @@ use super::table;
 use super::table::FatValue;
 use super::utils;
 use super::FatFsType;
-use crate::block::{Block, BlockCount, BlockDevice, BlockIndex};
-use crate::FileSystemError;
-use crate::Result as FileSystemResult;
+use libfs::block::{Block, BlockCount, BlockDevice, BlockIndex};
+use libfs::FileSystemError;
+use libfs::FileSystemResult;
 
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;

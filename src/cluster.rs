@@ -1,5 +1,5 @@
 use super::FatFileSystem;
-use crate::block::{Block, BlockDevice, BlockIndex};
+use libfs::block::{Block, BlockDevice, BlockIndex};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Cluster(pub u32);

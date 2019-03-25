@@ -1,10 +1,10 @@
-use crate::fat::detail::block_iter::BlockIndexClusterIter;
-use crate::fat::detail::cluster::Cluster;
-use crate::fat::detail::filesystem::FatFileSystem;
+use crate::block_iter::BlockIndexClusterIter;
+use crate::cluster::Cluster;
+use crate::filesystem::FatFileSystem;
 
-use crate::block::{Block, BlockDevice, BlockIndex};
-use crate::FileSystemError;
-use crate::Result as FileSystemResult;
+use libfs::block::{Block, BlockDevice, BlockIndex};
+use libfs::FileSystemError;
+use libfs::FileSystemResult;
 
 use super::raw_dir_entry::FatDirEntry;
 

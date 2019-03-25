@@ -1,7 +1,7 @@
 use super::filesystem::FatFileSystem;
 use super::Cluster;
-use super::{Block, BlockDevice, BlockIndex};
 use byteorder::{ByteOrder, LittleEndian};
+use libfs::block::{Block, BlockDevice, BlockIndex};
 
 use crate::FileSystemError;
 

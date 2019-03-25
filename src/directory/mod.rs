@@ -1,8 +1,8 @@
 use arrayvec::ArrayString;
 
-use crate::block::{BlockDevice, BlockIndex};
-use crate::FileSystemError;
-use crate::Result as FileSystemResult;
+use libfs::block::{BlockDevice, BlockIndex};
+use libfs::FileSystemError;
+use libfs::FileSystemResult;
 
 use super::attribute::Attributes;
 use super::block_iter::BlockIndexClusterIter;

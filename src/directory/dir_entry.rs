@@ -1,17 +1,17 @@
 use arrayvec::ArrayString;
 
-use crate::fat::detail::attribute::Attributes;
-use crate::fat::detail::cluster::Cluster;
-use crate::fat::detail::filesystem::FatFileSystem;
+use crate::attribute::Attributes;
+use crate::cluster::Cluster;
+use crate::filesystem::FatFileSystem;
 
-use crate::block::{BlockDevice, BlockIndex};
-use crate::FileSystemError;
-use crate::Result as FileSystemResult;
+use libfs::block::{BlockDevice, BlockIndex};
+use libfs::FileSystemError;
+use libfs::FileSystemResult;
 
 use super::raw_dir_entry::FatDirEntry;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DirectoryEntryRawInfo {
+pub struct DirectoryEntryRawInfo {
     pub parent_cluster: Cluster,
     pub first_entry_block_index: BlockIndex,
     pub first_entry_offset: u32,
@@ -21,7 +21,7 @@ pub(crate) struct DirectoryEntryRawInfo {
 #[derive(Debug, Clone, Copy)]
 pub struct DirectoryEntry {
     pub start_cluster: Cluster,
-    pub(crate) raw_info: Option<DirectoryEntryRawInfo>,
+    pub raw_info: Option<DirectoryEntryRawInfo>,
     pub creation_timestamp: u64,
     pub last_access_timestamp: u64,
     pub last_modification_timestamp: u64,

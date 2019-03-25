@@ -1,15 +1,15 @@
 use byteorder::{ByteOrder, LittleEndian};
 use structview::{u16_le, u32_le, View};
 
-use crate::fat::detail::attribute::Attributes;
-use crate::fat::detail::cluster::Cluster;
-use crate::fat::detail::datetime::FatDateTime;
-use crate::fat::detail::filesystem::FatFileSystem;
-use crate::fat::detail::name::{LongFileName, ShortFileName};
+use crate::attribute::Attributes;
+use crate::cluster::Cluster;
+use crate::datetime::FatDateTime;
+use crate::filesystem::FatFileSystem;
+use crate::name::{LongFileName, ShortFileName};
 
-use crate::block::{Block, BlockDevice, BlockIndex};
-use crate::FileSystemError;
-use crate::Result as FileSystemResult;
+use libfs::block::{Block, BlockDevice, BlockIndex};
+use libfs::FileSystemError;
+use libfs::FileSystemResult;
 
 pub enum FatDirEntryType {
     ShortFileName,

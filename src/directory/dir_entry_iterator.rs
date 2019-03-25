@@ -1,10 +1,10 @@
 use arrayvec::ArrayString;
 
-use crate::fat::detail::cluster::Cluster;
-use crate::fat::detail::name::LongFileName;
+use crate::cluster::Cluster;
+use crate::name::LongFileName;
 
-use crate::block::{BlockDevice, BlockIndex};
-use crate::Result as FileSystemResult;
+use libfs::block::{BlockDevice, BlockIndex};
+use libfs::FileSystemResult;
 
 use super::dir_entry::DirectoryEntry;
 use super::dir_entry::DirectoryEntryRawInfo;
