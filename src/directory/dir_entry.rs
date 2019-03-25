@@ -58,8 +58,6 @@ impl DirectoryEntry {
         let mut read_size = 0u64;
         let mut blocks = [Block::new()];
 
-        raw_tmp_offset %= Block::LEN_U32;
-
         while read_size < buf.len() as u64 {
             let cluster_opt = cluster_block_iterator.next();
             if cluster_opt.is_none() {
@@ -129,8 +127,6 @@ impl DirectoryEntry {
 
         let mut write_size = 0u64;
         let mut blocks = [Block::new()];
-
-        raw_tmp_offset %= Block::LEN_U32;
 
         while write_size < buf.len() as u64 {
             let cluster = cluster_block_iterator
