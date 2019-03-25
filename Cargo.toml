@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 byteorder = "1.0"
-bitflags = "1.0"
 log = "0.4.6"
 structview = { version = "0.3", default-features = false }
 libfs = { path = "../libfs" }

@@ -1,5 +1,4 @@
 #![feature(alloc)]
-#![feature(integer_atomics)]
 #![no_std]
 
 pub mod attribute;
