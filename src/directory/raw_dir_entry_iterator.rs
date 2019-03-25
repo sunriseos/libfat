@@ -9,7 +9,7 @@ use libfs::FileSystemResult;
 use super::raw_dir_entry::FatDirEntry;
 
 pub struct FatDirEntryIterator<'a, T> {
-    pub cluster_iter: BlockIndexClusterIter<'a, T>,
+    pub(crate) cluster_iter: BlockIndexClusterIter<'a, T>,
     pub last_cluster: Option<Cluster>,
     pub block_index: u32,
     pub counter: u8,

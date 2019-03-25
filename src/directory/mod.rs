@@ -17,8 +17,8 @@ use super::FatFileSystem;
 
 pub mod dir_entry;
 pub mod dir_entry_iterator;
-pub mod raw_dir_entry;
-pub mod raw_dir_entry_iterator;
+pub(crate) mod raw_dir_entry;
+pub(crate) mod raw_dir_entry_iterator;
 
 use dir_entry::{DirectoryEntry, DirectoryEntryRawInfo};
 
@@ -27,8 +27,8 @@ use raw_dir_entry_iterator::FatDirEntryIterator;
 
 #[derive(Copy)]
 pub struct Directory<'a, T> {
-    pub dir_info: DirectoryEntry,
-    pub fs: &'a FatFileSystem<T>,
+    dir_info: DirectoryEntry,
+    fs: &'a FatFileSystem<T>,
 }
 
 impl<'a, T> Clone for Directory<'a, T> {
@@ -470,7 +470,7 @@ impl<'a, T> Directory<'a, T>
 where
     T: BlockDevice,
 {
-    pub fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, T> {
+    pub(crate) fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, T> {
         FatDirEntryIterator::from_directory(self)
     }
 

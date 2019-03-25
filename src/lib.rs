@@ -2,14 +2,14 @@
 #![no_std]
 
 pub mod attribute;
-pub mod block_iter;
-pub mod cluster;
+pub(crate) mod block_iter;
+pub(crate) mod cluster;
 pub mod datetime;
 pub mod directory;
 pub mod filesystem;
 pub mod name;
-pub mod table;
-pub mod utils;
+pub(crate) mod table;
+mod utils;
 
 use byteorder::{ByteOrder, LittleEndian};
 use libfs::block::{Block, BlockCount, BlockDevice, BlockIndex};
@@ -28,10 +28,10 @@ pub enum FatFsType {
     ExFat,
 }
 
-pub struct FatVolumeBootRecord {
-    pub data: Block,
-    pub fat_type: FatFsType,
-    pub cluster_count: u32,
+struct FatVolumeBootRecord {
+    data: Block,
+    fat_type: FatFsType,
+    cluster_count: u32,
 }
 
 impl FatVolumeBootRecord {

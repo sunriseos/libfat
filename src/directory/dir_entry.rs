@@ -15,7 +15,7 @@ use libfs::FileSystemResult;
 use super::raw_dir_entry::FatDirEntry;
 
 #[derive(Debug, Clone, Copy)]
-pub struct DirectoryEntryRawInfo {
+pub(crate) struct DirectoryEntryRawInfo {
     pub parent_cluster: Cluster,
     pub first_entry_block_index: BlockIndex,
     pub first_entry_offset: u32,
@@ -24,8 +24,8 @@ pub struct DirectoryEntryRawInfo {
 
 #[derive(Debug, Clone, Copy)]
 pub struct DirectoryEntry {
-    pub start_cluster: Cluster,
-    pub raw_info: Option<DirectoryEntryRawInfo>,
+    pub(crate) start_cluster: Cluster,
+    pub(crate) raw_info: Option<DirectoryEntryRawInfo>,
     pub creation_timestamp: u64,
     pub last_access_timestamp: u64,
     pub last_modification_timestamp: u64,

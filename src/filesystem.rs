@@ -18,7 +18,7 @@ use libfs::FileSystemResult;
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 
-pub struct FatFileSystemInfo {
+struct FatFileSystemInfo {
     // TODO: select Ordering wisely on operations
     last_cluster: AtomicU32,
     free_cluster: AtomicU32,
@@ -66,7 +66,7 @@ impl FatFileSystemInfo {
         })
     }
 
-    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
+    fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
     where
         T: BlockDevice,
     {
@@ -103,19 +103,19 @@ impl FatFileSystemInfo {
 
 // TODO: reduce field accesibility
 pub struct FatFileSystem<T> {
-    pub block_device: T,
-    pub partition_start: BlockIndex,
-    pub first_data_offset: BlockIndex,
-    pub partition_block_count: BlockCount,
-    pub boot_record: FatVolumeBootRecord,
-    pub fat_info: FatFileSystemInfo,
+    pub(crate) block_device: T,
+    pub(crate) partition_start: BlockIndex,
+    pub(crate) first_data_offset: BlockIndex,
+    pub(crate) partition_block_count: BlockCount,
+    pub(crate) boot_record: FatVolumeBootRecord,
+    fat_info: FatFileSystemInfo,
 }
 
 impl<T> FatFileSystem<T>
 where
     T: BlockDevice,
 {
-    pub fn new(
+    pub(crate) fn new(
         block_device: T,
         partition_start: BlockIndex,
         first_data_offset: BlockIndex,
@@ -135,7 +135,7 @@ where
         }
     }
 
-    pub fn init(&mut self) -> FileSystemResult<()> {
+    pub(crate) fn init(&mut self) -> FileSystemResult<()> {
         // read FAT infos
         if self.boot_record.fat_type == FatFsType::Fat32 {
             self.fat_info = FatFileSystemInfo::from_fs(self)?;
@@ -240,7 +240,7 @@ where
         parent_new_dir.rename(old_entry, file_name, is_dir)
     }
 
-    pub fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
+    pub(crate) fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
         let blocks = [Block::new()];
         let mut block_index = 0;
 
@@ -258,7 +258,7 @@ where
         Ok(())
     }
 
-    pub fn alloc_cluster(
+    pub(crate) fn alloc_cluster(
         &self,
         last_cluster_allocated_opt: Option<Cluster>,
     ) -> FileSystemResult<Cluster> {
@@ -358,7 +358,7 @@ where
         Ok(allocated_cluster)
     }
 
-    pub fn free_cluster(
+    pub(crate) fn free_cluster(
         &self,
         to_remove: Cluster,
         previous_cluster: Option<Cluster>,

@@ -7,9 +7,9 @@ use super::{BlockDevice, BlockIndex};
 // Util iterator used to simplify iteration over cluster
 pub struct BlockIndexClusterIter<'a, T> {
     pub cluster_iter: FatClusterIter<'a, T>,
-    pub last_cluster: Option<Cluster>,
-    pub block_index: Option<BlockIndex>,
-    pub counter: usize,
+    last_cluster: Option<Cluster>,
+    block_index: Option<BlockIndex>,
+    counter: usize,
 }
 
 impl<'a, T> BlockIndexClusterIter<'a, T>

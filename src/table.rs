@@ -14,7 +14,7 @@ pub enum FatValue {
 }
 
 pub struct FatClusterIter<'a, T> {
-    pub fs: &'a FatFileSystem<T>,
+    pub(crate) fs: &'a FatFileSystem<T>,
     current_cluster: Option<Cluster>,
     last_fat: Option<FatValue>,
 }

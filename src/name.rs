@@ -25,7 +25,7 @@ pub struct ShortFileNameContext {
 }
 
 impl ShortFileNameGenerator {
-    pub fn copy_format_sfn_part(
+    fn copy_format_sfn_part(
         dst: &mut [u8],
         src: &str,
         is_base_name: bool,
