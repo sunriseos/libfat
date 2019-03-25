@@ -376,6 +376,50 @@ where
         if new_name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
             return Err(FileSystemError::PathTooLong);
         }
+        let old_raw_info = dir_entry.raw_info.unwrap();
+
+        let new_entry_count = ((new_name.len() as u32 + 12) / 13) + 1;
+
+        // can we update in place?
+        if old_raw_info.entry_count == new_entry_count
+            && old_raw_info.parent_cluster == self.dir_info.start_cluster
+        {
+            let mut entries_iter = FatDirEntryIterator::new(
+                self.fs,
+                old_raw_info.parent_cluster,
+                old_raw_info.first_entry_block_index,
+                old_raw_info.first_entry_offset,
+            );
+
+            let mut context: ShortFileNameContext = Default::default();
+            let short_file_name = ShortFileName::from_unformated_str(&mut context, new_name);
+
+            let lfn_count = (new_name.len() as u32 + 12) / 13;
+            let sfn_checksum = ShortFileName::checksum_lfn(&short_file_name.as_bytes());
+
+            for index in 0..lfn_count {
+                let target_index = lfn_count - index;
+                let lfn_index = if target_index == lfn_count {
+                    0x40u8 + target_index as u8
+                } else {
+                    target_index as u8
+                };
+
+                let mut lfn_entry = entries_iter.next().unwrap()?;
+
+                lfn_entry.clear();
+                lfn_entry.set_attribute(Attributes::new(Attributes::LFN));
+                lfn_entry.set_lfn_index(lfn_index);
+                lfn_entry.set_lfn_entry(&new_name[(target_index - 1) as usize * 13..]);
+                lfn_entry.set_lfn_checksum(sfn_checksum as u8);
+                lfn_entry.flush(self.fs)?;
+            }
+
+            let mut sfn_entry = entries_iter.next().unwrap()?;
+            sfn_entry.set_short_name(&short_file_name);
+            sfn_entry.flush(self.fs)?;
+            return Ok(());
+        }
 
         let new_entry = Self::create_dir_entry(
             self.fs,
@@ -387,7 +431,6 @@ where
         )?;
 
         if is_dir {
-            let old_raw_info = dir_entry.raw_info.unwrap();
             let new_raw_info = new_entry.raw_info.unwrap();
 
             let old_parent_cluster = if old_raw_info.parent_cluster
