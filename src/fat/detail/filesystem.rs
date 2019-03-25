@@ -218,6 +218,14 @@ where
 
         let old_entry = parent_old_dir.find_entry(file_name)?;
 
+        if old_entry.attribute.is_directory() != is_dir {
+            if is_dir {
+                return Err(FileSystemError::NotADirectory);
+            } else {
+                return Err(FileSystemError::NotAFile);
+            }
+        }
+
         let (parent_name, file_name) = utils::get_parent(new_path);
         let parent_new_dir = if parent_name == "" {
             self.get_root_directory()
