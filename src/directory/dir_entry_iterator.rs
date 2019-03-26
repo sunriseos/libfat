@@ -12,7 +12,6 @@ use super::raw_dir_entry::FatDirEntry;
 use super::raw_dir_entry_iterator::FatDirEntryIterator;
 
 pub struct DirectoryEntryIterator<'a, T> {
-    pub(crate) directory_cluster: Cluster,
     pub(crate) raw_iter: FatDirEntryIterator<'a, T>,
 }
 

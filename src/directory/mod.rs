@@ -519,7 +519,6 @@ where
 {
     pub fn new(root: Directory<'a, T>) -> Self {
         DirectoryEntryIterator {
-            directory_cluster: root.dir_info.start_cluster,
             raw_iter: FatDirEntryIterator::from_directory(root),
         }
     }
