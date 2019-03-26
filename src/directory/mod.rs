@@ -49,9 +49,25 @@ where
     }
 
     pub fn find_entry(self, name: &str) -> FileSystemResult<DirectoryEntry> {
+        if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE {
+            return Err(FileSystemError::PathTooLong);
+        }
+
+        let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> = ArrayString::new();
+        for c in name.chars() {
+            lowercase_name.push(c.to_lowercase().next().unwrap());
+        }
+
         for entry in self.iter() {
             let entry = entry?;
-            if entry.file_name.as_str() == name {
+
+            let mut file_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> = ArrayString::new();
+
+            for c in entry.file_name.as_str().chars() {
+                file_name.push(c.to_lowercase().next().unwrap());
+            }
+
+            if file_name.as_str() == lowercase_name.as_str() {
                 return Ok(entry);
             }
         }
