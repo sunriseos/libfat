@@ -101,11 +101,11 @@ impl FatFileSystemInfo {
     }
 }
 
-// TODO: reduce field accesibility
 pub struct FatFileSystem<T> {
     pub(crate) block_device: T,
     pub(crate) partition_start: BlockIndex,
     pub(crate) first_data_offset: BlockIndex,
+    // TODO: check we don't go out of the partition
     pub(crate) partition_block_count: BlockCount,
     pub(crate) boot_record: FatVolumeBootRecord,
     fat_info: FatFileSystemInfo,

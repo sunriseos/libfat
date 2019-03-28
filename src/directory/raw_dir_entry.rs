@@ -11,11 +11,6 @@ use libfs::block::{Block, BlockDevice, BlockIndex};
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
-pub enum FatDirEntryType {
-    ShortFileName,
-    LongFileName,
-}
-
 #[derive(Clone, Copy, View)]
 #[repr(C)]
 pub struct LongFileNameDirEntry {
@@ -145,10 +140,6 @@ impl FatDirEntry {
         }
     }
 
-    pub fn is_valid(&self) -> bool {
-        !self.is_free() && !self.is_deleted()
-    }
-
     pub fn short_name(&self) -> Option<ShortFileName> {
         if !self.is_long_file_name() {
             Some(ShortFileName::from_data(&self.as_sfn_entry().name))
@@ -170,10 +161,11 @@ impl FatDirEntry {
 
         let lfn = lfn.as_contents();
 
-        for i in 0..5 {
+        for (i, entry) in lfn.iter().enumerate().take(5) {
             let index = 1 + i * 2;
-            LittleEndian::write_u16(&mut self.data[index..index + 2], lfn[i]);
+            LittleEndian::write_u16(&mut self.data[index..index + 2], *entry);
         }
+    
         for i in 0..6 {
             let index = 0xE + i * 2;
             let i = i + 5;

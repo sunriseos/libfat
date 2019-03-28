@@ -35,10 +35,13 @@ pub struct DirectoryEntry {
 }
 
 impl DirectoryEntry {
+    pub const MAX_FILE_NAME_LEN: usize = 255;
+
+    // we actually use 256 unicode char because arrayvec doesn't define an implementation for Array<[u8; 1020]>
+    pub const MAX_FILE_NAME_LEN_UNICODE: usize = 1024;
 
     pub fn read<'a, T>(&mut self, fs: &'a FatFileSystem<T>, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> where
     T: BlockDevice {
-
         if offset >= 0xFFFF_FFFF {
             return Ok(0);
         }
@@ -285,11 +288,4 @@ impl DirectoryEntryRawInfo {
             Err(FileSystemError::NotFound)
         }
     }
-}
-
-impl DirectoryEntry {
-    pub const MAX_FILE_NAME_LEN: usize = 255;
-
-    // we actually use 256 unicode char because arrayvec doesn't define an implementation for Array<[u8; 1020]>
-    pub const MAX_FILE_NAME_LEN_UNICODE: usize = 1024;
 }

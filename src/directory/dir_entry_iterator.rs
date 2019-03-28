@@ -1,6 +1,5 @@
 use arrayvec::ArrayString;
 
-use crate::cluster::Cluster;
 use crate::name::LongFileName;
 
 use libfs::block::{BlockDevice, BlockIndex};

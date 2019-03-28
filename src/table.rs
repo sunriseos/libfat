@@ -148,21 +148,6 @@ impl FatValue {
     }
 }
 
-pub fn get_cluster_count<T>(fs: &FatFileSystem<T>, cluster: Cluster) -> Result<u32, FileSystemError>
-where
-    T: BlockDevice,
-{
-    let mut res = 1;
-    let mut current_cluster = cluster;
-
-    while let FatValue::Data(val) = FatValue::get(fs, current_cluster)? {
-        res += 1;
-        current_cluster = Cluster(val);
-    }
-
-    Ok(res)
-}
-
 pub fn get_last_cluster<T>(
     fs: &FatFileSystem<T>,
     cluster: Cluster,
