@@ -264,6 +264,6 @@ where
             BlockIndex(partition_start),
             BlockCount(partition_block_count),
         ),
-        _ => Err(FileSystemError::UnknownPartitionFormat { partition_type }),
+        _ => Err(FileSystemError::Custom { name: "Unknown Partition Type" }),
     }
 }
