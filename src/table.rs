@@ -6,16 +6,33 @@ use libfs::block::{Block, BlockDevice, BlockIndex};
 use crate::FileSystemError;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
+/// Represent a cluster chan value.
 pub enum FatValue {
+
+    /// Represent a free cluster.
     Free,
+
+    /// Represent a used cluster.
     Data(u32),
+
+    /// Represent a corrupted cluster (bad sectors)
     Bad,
+
+    /// Represent the end of a cluster chain.
     EndOfChain,
 }
 
+/// Util iterator used to simplify iteration over cluster.
 pub struct FatClusterIter<'a, T> {
+
+    /// The filesystem it belongs to.
     pub(crate) fs: &'a FatFileSystem<T>,
+
+    /// The last cluster returned.
+
     current_cluster: Option<Cluster>,
+
+    /// The last FatValue used.
     last_fat: Option<FatValue>,
 }
 
@@ -23,6 +40,7 @@ impl<'a, T> FatClusterIter<'a, T>
 where
     T: BlockDevice,
 {
+    /// Create a new Cluster iteractor starting at ``cluster``.
     pub fn new(fs: &'a FatFileSystem<T>, cluster: Cluster) -> FatClusterIter<'a, T> {
         let fat_value = FatValue::get(fs, cluster).ok();
         FatClusterIter {
@@ -54,7 +72,8 @@ where
 }
 
 impl FatValue {
-    pub fn from_u32(val: u32) -> FatValue {
+    /// Create a ``FatValue`` from a raw FAT32 value.
+    pub fn from_u32(val: u32) -> Self {
         match val {
             0 => FatValue::Free,
             0x0FFF_FFF7 => FatValue::Bad,
@@ -63,6 +82,7 @@ impl FatValue {
         }
     }
 
+    /// Convert a ```FatValue``` to a raw FAT32 value.
     pub fn to_u32(self) -> u32 {
         match self {
             FatValue::Free => 0,
@@ -72,11 +92,13 @@ impl FatValue {
         }
     }
 
-    pub fn from_block(block: &Block, cluster_offset: usize) -> FatValue {
+    /// Create a ```FatValue``` from a raw block and offset.
+    pub fn from_block(block: &Block, cluster_offset: usize) -> Self {
         let val = LittleEndian::read_u32(&block[cluster_offset..cluster_offset + 4]) & 0x0FFF_FFFF;
         FatValue::from_u32(val)
     }
 
+    /// Get the ```FatValue``` of a given cluster.
     pub fn get<T>(fs: &FatFileSystem<T>, cluster: Cluster) -> Result<FatValue, FileSystemError>
     where
         T: BlockDevice,

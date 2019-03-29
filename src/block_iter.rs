@@ -4,7 +4,7 @@ use super::table::FatClusterIter;
 
 use super::{BlockDevice, BlockIndex};
 
-// Util iterator used to simplify iteration over cluster
+/// Util iterator used to simplify iteration over block index and cluster.
 pub struct BlockIndexClusterIter<'a, T> {
     pub cluster_iter: FatClusterIter<'a, T>,
     last_cluster: Option<Cluster>,

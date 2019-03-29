@@ -1,6 +1,8 @@
 #![feature(alloc)]
 #![no_std]
 
+#![warn(clippy::cast_possible_wrap, clippy::cast_sign_loss, clippy::default_trait_access, clippy::explicit_into_iter_loop, clippy::explicit_iter_loop, clippy::missing_docs_in_private_items, clippy::mut_mut, clippy::replace_consts, clippy::used_underscore_binding, clippy::wildcard_dependencies, clippy::wrong_pub_self_convention)]
+
 pub mod attribute;
 pub(crate) mod block_iter;
 pub(crate) mod cluster;
