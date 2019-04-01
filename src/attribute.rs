@@ -1,3 +1,5 @@
+//! FAT entry attribute.
+
 #[derive(Debug, Clone, Copy)]
 /// Represent a 8.3 entry attribute.
 pub struct Attributes(u8);

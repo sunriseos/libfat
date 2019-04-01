@@ -1,3 +1,4 @@
+//! High level directory entry representation.
 use arrayvec::ArrayString;
 
 use crate::attribute::Attributes;
@@ -15,31 +16,58 @@ use libfs::FileSystemResult;
 use super::raw_dir_entry::FatDirEntry;
 
 #[derive(Debug, Clone, Copy)]
+/// Represent the information of a child entry into in it parent entry.
 pub(crate) struct DirectoryEntryRawInfo {
+    /// The first cluster of the parent entry.
     pub parent_cluster: Cluster,
+
+    /// The first raw entry block index of the child entry in the parent entry.
     pub first_entry_block_index: BlockIndex,
+
+    /// The first raw entry offset of the child entry inside the block in the parent entry.
     pub first_entry_offset: u32,
+
+    /// The count of raw entries used by the child entry.
     pub entry_count: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// A high level representation of a directory/file in the directory.
 pub struct DirectoryEntry {
+    /// The first cluster used for 
     pub(crate) start_cluster: Cluster,
+
+    /// The raw informations of the entry inside it parent.
     pub(crate) raw_info: Option<DirectoryEntryRawInfo>,
+
+    /// The creation UNIX timestamp of the entry.
     pub creation_timestamp: u64,
+
+    /// The last access UNIX timestamp of the entry.
     pub last_access_timestamp: u64,
+
+    /// The last modification UNIX timestamp of the entry.
     pub last_modification_timestamp: u64,
+
+    /// The file size of the entry.
     pub file_size: u32,
+
+    /// The file name of the entry.
     pub file_name: ArrayString<[u8; Self::MAX_FILE_NAME_LEN_UNICODE]>,
+
+    /// The attributes of the entry.
     pub attribute: Attributes,
 }
 
 impl DirectoryEntry {
+    /// The max size of a VFAT long name.
     pub const MAX_FILE_NAME_LEN: usize = 255;
 
+    /// The max size of a VFAT long name encoded as Unicode.
     // we actually use 256 unicode char because arrayvec doesn't define an implementation for Array<[u8; 1020]>
     pub const MAX_FILE_NAME_LEN_UNICODE: usize = 1024;
 
+    /// Read at a given offset of the file into a given buffer.
     pub fn read<'a, T>(&mut self, fs: &'a FatFileSystem<T>, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> where
     T: BlockDevice {
         if offset >= 0xFFFF_FFFF {
@@ -105,6 +133,7 @@ impl DirectoryEntry {
         Ok(read_size)
     }
 
+    /// Write the given buffer at a given offset of the file.
     pub fn write<'a, T>(&mut self, fs: &'a FatFileSystem<T>, offset: u64, buf: &[u8], appendable: bool) -> FileSystemResult<()> where
     T: BlockDevice {
         if offset >= 0xFFFF_FFFF {
@@ -178,6 +207,7 @@ impl DirectoryEntry {
         Ok(())
     }
 
+    /// Set the file length
     pub fn set_len<'a, T>(&mut self, fs: &'a FatFileSystem<T>, size: u64) -> FileSystemResult<()> where
     T: BlockDevice {
         let current_len = u64::from(self.file_size);
@@ -258,6 +288,7 @@ impl DirectoryEntry {
 }
 
 impl DirectoryEntryRawInfo {
+    /// Contrust a directory entry from raw data
     pub fn get_dir_entry<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<FatDirEntry>
     where
         T: BlockDevice,

@@ -1,3 +1,4 @@
+//! Low level directory entry representation.
 use byteorder::{ByteOrder, LittleEndian};
 use structview::{u16_le, u32_le, View};
 

@@ -1,14 +1,23 @@
+//! Block iterator.
+
 use super::cluster::Cluster;
 use super::filesystem::FatFileSystem;
 use super::table::FatClusterIter;
 
 use super::{BlockDevice, BlockIndex};
 
-/// Util iterator used to simplify iteration over block index and cluster.
+/// Util Iterator used to simplify iteration over block index and cluster.
 pub struct BlockIndexClusterIter<'a, T> {
+    /// The cluster iterator.
     pub cluster_iter: FatClusterIter<'a, T>,
+
+    /// The last cluster used.
     last_cluster: Option<Cluster>,
+
+    /// The start block in the cluster to use.
     block_index: Option<BlockIndex>,
+
+    /// The current iteration point in the cluster.
     counter: usize,
 }
 
@@ -16,6 +25,7 @@ impl<'a, T> BlockIndexClusterIter<'a, T>
 where
     T: BlockDevice,
 {
+    /// Create a new iterator from a cluster and a block index.
     pub fn new(
         fs: &'a FatFileSystem<T>,
         cluster: Cluster,

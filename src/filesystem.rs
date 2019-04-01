@@ -1,3 +1,5 @@
+//! FAT Filesystem.
+
 use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
@@ -18,13 +20,19 @@ use libfs::FileSystemResult;
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 
+/// Reprsent the FS Info structure of FAT32.
 struct FatFileSystemInfo {
-    // TODO: select Ordering wisely on operations
+    // TODO: select Ordering wisely on operations.
+
+    /// The last allocated cluster on the filesystem.
     last_cluster: AtomicU32,
+
+    /// The free cluster count on the filesystem.
     free_cluster: AtomicU32,
 }
 
 impl FatFileSystemInfo {
+    /// Import FS Info from a FAT32 filesystem.
     fn from_fs<T>(fs: &FatFileSystem<T>) -> FileSystemResult<Self>
     where
         T: BlockDevice,
@@ -66,6 +74,7 @@ impl FatFileSystemInfo {
         })
     }
 
+    /// Flush the FS Info to the disk on FAT32 filesystems.
     fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
     where
         T: BlockDevice,
@@ -101,13 +110,25 @@ impl FatFileSystemInfo {
     }
 }
 
+/// Represent a FAT filesystem.
 pub struct FatFileSystem<T> {
+    /// The block device of the filesystem.
     pub(crate) block_device: T,
+
+    /// The block index of the start of the partition of this filesystem.
     pub(crate) partition_start: BlockIndex,
+
+    /// Block index of the first block availaible for data.
     pub(crate) first_data_offset: BlockIndex,
+
     // TODO: check we don't go out of the partition
+    /// The count of blocks that this partition contains.
     pub(crate) partition_block_count: BlockCount,
+
+    /// The volume information of the filesystem.
     pub(crate) boot_record: FatVolumeBootRecord,
+
+    /// The extra infos of the filesystem.
     fat_info: FatFileSystemInfo,
 }
 
@@ -115,6 +136,8 @@ impl<T> FatFileSystem<T>
 where
     T: BlockDevice,
 {
+    /// Create a new instance of FatFileSystem 
+    /// TODO: ``init`` needs to be called after this
     pub(crate) fn new(
         block_device: T,
         partition_start: BlockIndex,
@@ -135,6 +158,7 @@ where
         }
     }
 
+    /// Initialize the filesystem.
     pub(crate) fn init(&mut self) -> FileSystemResult<()> {
         // read FAT infos
         if self.boot_record.fat_type == FatFsType::Fat32 {
@@ -150,6 +174,7 @@ where
         Ok(())
     }
 
+    /// Get the root directory of the filesystem.
     pub fn get_root_directory(&self) -> Directory<'_, T> {
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
@@ -165,6 +190,7 @@ where
         Directory::from_entry(self, dir_info)
     }
 
+    /// Create a new directory at the given path.
     pub fn mkdir(&self, path: &str) -> FileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
         let mut parent_dir = if parent_name == "" {
@@ -181,6 +207,7 @@ where
         parent_dir.mkdir(file_name)
     }
 
+    /// Create a new file at the given path.
     pub fn touch(&self, path: &str) -> FileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
         let mut parent_dir = if parent_name == "" {
@@ -197,6 +224,7 @@ where
         parent_dir.touch(file_name)
     }
 
+    /// Delete a directory or a file at the given path.
     pub fn unlink(&self, path: &str, is_dir: bool) -> FileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
         let parent_dir = if parent_name == "" {
@@ -208,6 +236,7 @@ where
         parent_dir.unlink(file_name, is_dir)
     }
 
+    /// Rename a directory or a file at the given path to a new path.
     pub fn rename(&self, old_path: &str, new_path: &str, is_dir: bool) -> FileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(old_path);
         let parent_old_dir = if parent_name == "" {
@@ -240,6 +269,8 @@ where
         parent_new_dir.rename(old_entry, file_name, is_dir)
     }
 
+    /// Clean cluster chain data.
+    /// Used when creating a new directory.
     pub(crate) fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
         let blocks = [Block::new()];
         let mut block_index = 0;
@@ -258,6 +289,7 @@ where
         Ok(())
     }
 
+    /// Allocate a cluster and if specified add it to a cluster chain.
     pub(crate) fn alloc_cluster(
         &self,
         last_cluster_allocated_opt: Option<Cluster>,
@@ -358,6 +390,7 @@ where
         Ok(allocated_cluster)
     }
 
+    /// Free a cluster and if specified remove of a cluster chain.
     pub(crate) fn free_cluster(
         &self,
         to_remove: Cluster,

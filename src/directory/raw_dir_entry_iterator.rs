@@ -1,3 +1,4 @@
+//! Low level directory entry iterator.
 use crate::block_iter::BlockIndexClusterIter;
 use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
@@ -8,11 +9,21 @@ use libfs::FileSystemResult;
 
 use super::raw_dir_entry::FatDirEntry;
 
+/// Represent a raw FAT directory entries iterator.
 pub struct FatDirEntryIterator<'a, T> {
+    /// The cluster iterator.
     pub(crate) cluster_iter: BlockIndexClusterIter<'a, T>,
+
+    /// The last cluster used.
     pub last_cluster: Option<Cluster>,
+
+    /// The first block to use in the first cluster.
     pub block_index: u32,
+
+    /// The current iteration point in the block.
     pub counter: u8,
+
+    /// Used at the first iteration to init the counter.
     pub is_first: bool,
 }
 
@@ -20,6 +31,7 @@ impl<'a, T> FatDirEntryIterator<'a, T>
 where
     T: BlockDevice,
 {
+    /// Create a new iterator from a cluster, a block index and an offset (representing the starting point of the iterator).  
     pub fn new(
         fs: &'a FatFileSystem<T>,
         start_cluster: Cluster,

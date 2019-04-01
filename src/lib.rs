@@ -1,3 +1,6 @@
+// TODO: Write a proper crate doc.
+//! The FAT library
+
 #![feature(alloc)]
 #![no_std]
 
@@ -22,21 +25,36 @@ use filesystem::FatFileSystem;
 
 use libfs::FileSystemError;
 
+/// Represent FAT filesystem types.
 #[derive(PartialEq)]
 pub enum FatFsType {
+    /// FAT12 volume.
     Fat12,
+
+    /// FAT16 volume.
     Fat16,
+
+    /// FAT32 volume.
     Fat32,
+
+    /// EXFAT volume.
     ExFat,
 }
 
+/// Represent the FAT Volume BootRecord.
 struct FatVolumeBootRecord {
+    /// The actual data of the boot record.
     data: Block,
+
+    /// The type of FAT filesystem.
     fat_type: FatFsType,
+
+    /// The count of cluster availaible in the filesystem.
     cluster_count: u32,
 }
 
 impl FatVolumeBootRecord {
+    /// Create a new FAT volume boot record from raw data.
     pub fn new(data: Block) -> FatVolumeBootRecord {
         let mut res = FatVolumeBootRecord {
             data,
@@ -64,9 +82,15 @@ impl FatVolumeBootRecord {
         res
     }
 
+    /// Checks the validity of the boot record.
     pub fn is_valid(&self) -> bool {
+        /// Offset of the boot signature.
         const BOOTABLE_SIGNATURE: usize = 510;
+    
+        /// Offset of the FAT system identifier.
         const SYSTEM_IDENTIFIER_FAT: usize = 36;
+
+        /// Offset of the FAT32 system identifier.
         const SYSTEM_IDENTIFIER_FAT32: usize = 82;
 
         // check boot signature
@@ -96,66 +120,82 @@ impl FatVolumeBootRecord {
         true
     }
 
+    /// The amount of bytes per block.
     pub fn bytes_per_block(&self) -> u16 {
         LittleEndian::read_u16(&self.data[11..13])
     }
 
+    /// The amount of blocks per cluster.
     pub fn blocks_per_cluster(&self) -> u8 {
         self.data[13]
     }
 
+    /// The count of reserved block.
     pub fn reserved_block_count(&self) -> u16 {
         LittleEndian::read_u16(&self.data[14..16])
     }
 
+    /// The number of FAT present in the filesystem.
     pub fn fats_count(&self) -> u8 {
         self.data[16]
     }
 
+    /// The number of childs in the root directory for FAT12/FAT16 filesystem.
     pub fn root_dir_childs_count(&self) -> u16 {
         LittleEndian::read_u16(&self.data[17..19])
     }
 
+    /// The total of blocks of the filesystem. If zero, uses ``total_blocks32``.
     pub fn total_blocks16(&self) -> u16 {
         LittleEndian::read_u16(&self.data[19..21])
     }
 
+    /// Return the media type of the FAT filesystem.
     pub fn media_type(&self) -> u8 {
         self.data[21]
     }
 
+    /// Return the size in cluster of the FAT for FAT12/FAT16 filesystems.
     pub fn fat_size16(&self) -> u16 {
         LittleEndian::read_u16(&self.data[22..24])
     }
 
+    /// Physical blocks per track (INT 13h CHS geometry). Zero if unusued.
     pub fn blocks_per_track(&self) -> u16 {
         LittleEndian::read_u16(&self.data[24..26])
     }
 
+    /// Number of heads (INT 13h CHS geometry). Zero if unused.
     pub fn num_heads(&self) -> u16 {
         LittleEndian::read_u16(&self.data[26..28])
     }
 
+    /// The number of hidden blocks on the FAT filesystem.
     pub fn hidden_blocks(&self) -> u32 {
         LittleEndian::read_u32(&self.data[28..32])
     }
 
+    /// The total block count on a FAT32 filesystem.
     pub fn total_blocks32(&self) -> u32 {
         LittleEndian::read_u32(&self.data[32..36])
     }
 
+    /// Return the size in cluster of the FAT for FAT32 filesystems.
     pub fn fat_size32(&self) -> u32 {
         LittleEndian::read_u32(&self.data[36..40])
     }
 
+    /// The block index of the FAT32's filesystem informations.
     pub fn fs_info_block(&self) -> u16 {
         LittleEndian::read_u16(&self.data[48..50])
     }
 
+    /// The root directory cluster for FAT12/FAT16 filesystems.
     pub fn root_dir_childs_cluster(&self) -> Cluster {
         Cluster(LittleEndian::read_u32(&self.data[44..48]))
     }
 
+    /// Return the size in cluster of the FAT.
     pub fn fat_size(&self) -> u32 {
         let result = u32::from(self.fat_size16());
         if result != 0 {
@@ -165,6 +205,7 @@ impl FatVolumeBootRecord {
         }
     }
 
+    /// The total block count on a FAT filesystem.
     pub fn total_blocks(&self) -> u32 {
         let result = u32::from(self.total_blocks16());
         if result != 0 {
@@ -175,6 +216,7 @@ impl FatVolumeBootRecord {
     }
 }
 
+/// Parse a FAT boot record and return a FatFileSystem instance.
 fn parse_fat_boot_record<T>(
     block_device: T,
     partition_start: BlockIndex,
@@ -215,6 +257,7 @@ where
     }
 }
 
+/// Treat the block device directly as a filesystem.
 pub fn get_raw_partition<T>(block_device: T) -> Result<FatFileSystem<T>, FileSystemError>
 where
     T: BlockDevice,
@@ -222,6 +265,7 @@ where
     parse_fat_boot_record(block_device, BlockIndex(0), BlockCount(0))
 }
 
+/// Parse the MBR and return an instance to a filesystem at the given partition index.
 pub fn get_partition<T>(
     block_device: T,
     index: BlockIndex,
@@ -231,8 +275,13 @@ where
 {
     let mut blocks = [Block::new()];
 
+    /// The Partition Table offset.
     const PARITION_TABLE_OFFSET: usize = 446;
+
+    /// The MBR signature offset.
     const MBR_SIGNATURE: usize = 510;
+
+    /// The size of a partition table entry.
     const PARITION_TABLE_ENTRY_SIZE: usize = 16;
 
     block_device

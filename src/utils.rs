@@ -1,3 +1,5 @@
+//! Utils used in the crate.
+
 use core::ops::{BitAnd, Not};
 use num_traits::Num;
 

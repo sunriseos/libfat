@@ -1,3 +1,5 @@
+//! FATs managment.
+
 use super::filesystem::FatFileSystem;
 use super::Cluster;
 use byteorder::{ByteOrder, LittleEndian};

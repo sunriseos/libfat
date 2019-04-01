@@ -1,3 +1,4 @@
+//! FAT filename representation.
 use core::num;
 
 use super::directory::raw_dir_entry::LongFileNameDirEntry;
@@ -284,6 +285,8 @@ impl ShortFileName {
 impl LongFileName {
     /// The max length of a single LFN entry name.
     pub const MAX_LEN: usize = 13;
+
+    /// The max length of a single LFN entry name when represented as Unicode.
     pub const MAX_LEN_UNICODE: usize = Self::MAX_LEN * 4;
 
     /// Import a VFAT long name from a raw FAT directory entry.
@@ -291,17 +294,17 @@ impl LongFileName {
         let mut long_name = [0x0; LongFileName::MAX_LEN];
 
         let mut index = 0;
-        for c in entry.char_part_0.iter() {
+        for c in &entry.char_part_0 {
             long_name[index] = c.to_int();
             index += 1;
         }
 
-        for c in entry.char_part_1.iter() {
+        for c in &entry.char_part_1 {
             long_name[index] = c.to_int();
             index += 1;
         }
 
-        for c in entry.char_part_2.iter() {
+        for c in &entry.char_part_2 {
             long_name[index] = c.to_int();
             index += 1;
         }

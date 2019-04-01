@@ -1,3 +1,4 @@
+//! High level directory entry iterator.
 use arrayvec::ArrayString;
 
 use crate::name::LongFileName;
@@ -10,7 +11,9 @@ use super::dir_entry::DirectoryEntryRawInfo;
 use super::raw_dir_entry::FatDirEntry;
 use super::raw_dir_entry_iterator::FatDirEntryIterator;
 
+/// Represent a directory entries iterator.
 pub struct DirectoryEntryIterator<'a, T> {
+    /// The raw directory entries (8.3/VFAT entries) iterator.
     pub(crate) raw_iter: FatDirEntryIterator<'a, T>,
 }
 
@@ -63,7 +66,7 @@ where
                 let mut part = ArrayString::<[_; LongFileName::MAX_LEN_UNICODE]>::new();
                 // FIXME: Custom Iterator to catches those errors
                 let raw_name = lfn_entry.chars().unwrap();
-                for c in raw_name.iter() {
+                for c in &raw_name {
                     if *c == '\x00' {
                         break;
                     }

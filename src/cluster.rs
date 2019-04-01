@@ -1,3 +1,5 @@
+//! FAT cluster.
+
 use super::FatFileSystem;
 use libfs::block::{Block, BlockDevice, BlockIndex};
 
