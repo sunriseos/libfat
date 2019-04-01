@@ -2,29 +2,48 @@ use core::num;
 
 use super::directory::raw_dir_entry::LongFileNameDirEntry;
 
+/// Represent a 8.3 name.
 pub struct ShortFileName {
+    /// The buffer containing the 8.3 name.
     contents: [u8; ShortFileName::MAX_LEN],
 }
 
+/// Represent a VFAT long name.
 #[derive(Clone)]
 pub struct LongFileName {
+    /// The buffer containing the VFAT long name.
     contents: [u16; LongFileName::MAX_LEN],
 }
 
+/// An utilitary to generate 8.3 name out of VFAT long name.
 pub struct ShortFileNameGenerator;
 
 #[derive(Default, Debug)]
+/// Represent the context used when generating a 8.3 name.
 pub struct ShortFileNameContext {
+    /// Set to true if the checksum needs to be inserted.
     pub checksum_inserted: bool,
+
+    /// Cached checksum.
     pub checksum: u16,
+
+    /// The file name on 8 bytes.
     pub short_name_base: [u8; ShortFileName::BASE_FILE_NAME_LEN],
+    /// The file name size.
     pub short_name_base_len: usize,
+
+    /// The file extension on 3 bytes.
     pub short_name_ext: [u8; ShortFileName::EXT_LEN + 1],
+
+    /// The file extension size.
     pub short_name_ext_len: usize,
+
+    /// The count of name conflicting with this name.
     pub last_index_value: usize,
 }
 
 impl ShortFileNameGenerator {
+    /// Permite to extract partial part of the VFAT name and format it to 8.3 name.
     fn copy_format_sfn_part(
         dst: &mut [u8],
         src: &str,
@@ -73,6 +92,7 @@ impl ShortFileNameGenerator {
         (dst_pos, true, lossy_convertion)
     }
 
+    /// Permite to create a 8.3 name out of a context and a VFAT long file name.
     pub fn create(context: &mut ShortFileNameContext, lfn: &str) -> ShortFileName {
         let mut is_lossy = false;
         if context.short_name_base_len == 0 {
@@ -197,10 +217,16 @@ impl ShortFileNameGenerator {
 }
 
 impl ShortFileName {
+    /// The base file name max length.
     const BASE_FILE_NAME_LEN: usize = 8;
+
+    /// The extension name max length.
     const EXT_LEN: usize = 3;
+
+    /// The max length of a 8.3 name.
     pub const MAX_LEN: usize = ShortFileName::BASE_FILE_NAME_LEN + ShortFileName::EXT_LEN;
 
+    /// Import a 8.3 name from raw data.
     pub fn from_data(data: &[u8]) -> Self {
         let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
 
@@ -210,10 +236,12 @@ impl ShortFileName {
         }
     }
 
+    /// Import a 8.3 name from a VFAT long name.
     pub fn from_unformated_str(context: &mut ShortFileNameContext, name: &str) -> Self {
         ShortFileNameGenerator::create(context, name)
     }
 
+    /// Convert a 8.3 name to a Rust char representation.
     pub fn chars(&self) -> [char; ShortFileName::MAX_LEN] {
         let mut res: [char; ShortFileName::MAX_LEN] = [' '; ShortFileName::MAX_LEN];
         for (index, dst) in res.iter_mut().enumerate().take(self.contents.len()) {
@@ -227,11 +255,12 @@ impl ShortFileName {
         res
     }
 
+    /// Get the raw content of a 8.3 name.
     pub fn as_bytes(&self) -> [u8; ShortFileName::MAX_LEN] {
         self.contents
     }
 
-    // TODO: rewrite this
+    /// Compute checksum of short file name
     pub fn checksum(short_name: &[u8]) -> u16 {
         let mut checksum = num::Wrapping(0u16);
         for b in short_name {
@@ -240,6 +269,7 @@ impl ShortFileName {
         checksum.0
     }
 
+    /// COmpute checksum of short file name
     pub fn checksum_lfn(short_name: &[u8]) -> u8 {
         let mut sum = num::Wrapping(0u8);
         for b in short_name {
@@ -252,9 +282,11 @@ impl ShortFileName {
 }
 
 impl LongFileName {
+    /// The max length of a single LFN entry name.
     pub const MAX_LEN: usize = 13;
     pub const MAX_LEN_UNICODE: usize = Self::MAX_LEN * 4;
 
+    /// Import a VFAT long name from a raw FAT directory entry.
     pub fn from_lfn_dir_entry(entry: &LongFileNameDirEntry) -> Self {
         let mut long_name = [0x0; LongFileName::MAX_LEN];
 
@@ -279,6 +311,7 @@ impl LongFileName {
         }
     }
 
+    /// Import a VFAT long name from a Unicode str.
     pub fn from_utf8(data: &str) -> Self {
         let mut long_name = [0x0u16; LongFileName::MAX_LEN];
 
@@ -291,6 +324,7 @@ impl LongFileName {
         }
     }
 
+    /// Convert a VFAT long name to a Rust char representation.
     pub fn chars(&self) -> Option<[char; Self::MAX_LEN]> {
         let val = &self.contents;
 
@@ -307,6 +341,7 @@ impl LongFileName {
         Some(res)
     }
 
+    /// Return the raw content of a VFAT long name.
     pub fn as_contents(&self) -> [u16; LongFileName::MAX_LEN] {
         self.contents
     }

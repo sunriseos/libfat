@@ -118,6 +118,7 @@ impl FatValue {
         Ok(res)
     }
 
+    /// Write the given ``FatValue``at a given ``Cluster`` in one FAT.
     fn raw_put<T>(
         fs: &FatFileSystem<T>,
         cluster: Cluster,
@@ -155,6 +156,7 @@ impl FatValue {
         Ok(())
     }
 
+    /// Write the given ``FatValue``at a given ``Cluster`` in all FATs.
     pub fn put<T>(
         fs: &FatFileSystem<T>,
         cluster: Cluster,
@@ -170,6 +172,7 @@ impl FatValue {
     }
 }
 
+/// Get the last cluster of a cluster chain.
 pub fn get_last_cluster<T>(
     fs: &FatFileSystem<T>,
     cluster: Cluster,
@@ -180,6 +183,7 @@ where
     Ok(get_last_and_previous_cluster(fs, cluster)?.0)
 }
 
+/// Get the last cluster and prevous cluster of a cluster chain.
 pub fn get_last_and_previous_cluster<T>(
     fs: &FatFileSystem<T>,
     cluster: Cluster,
@@ -198,6 +202,7 @@ where
     Ok((current_cluster, previous_cluster))
 }
 
+/// Compute the whole cluster count of a given FileSystem.
 pub fn get_free_cluster_count<T>(fs: &FatFileSystem<T>) -> Result<u32, FileSystemError>
 where
     T: BlockDevice,
