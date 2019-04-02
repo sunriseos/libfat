@@ -9,14 +9,14 @@ impl Attributes {
     // TODO: Follow this behaviour.
     pub const READ_ONLY: u8 = 0x01;
 
-    /// Hides files or directories from normal directory views. 
+    /// Hides files or directories from normal directory views.
     pub const HIDDEN: u8 = 0x02;
 
     /// Indicates that the file belongs to the system and must not be physically moved (e.g., during defragmentation), because there may be references into the file using absolute addressing bypassing the file system (boot loaders, kernel images, swap files, extended attributes, etc.).
     // TODO: Follow this behaviour.
     pub const SYSTEM: u8 = 0x04;
 
-    /// Indicates an optional directory volume label, normally only residing in a volume's root directory. 
+    /// Indicates an optional directory volume label, normally only residing in a volume's root directory.
     pub const VOLUME: u8 = 0x08;
 
     /// Indicates that the cluster-chain associated with this entry gets interpreted as subdirectory instead of as a file. Subdirectories have a filesize entry of zero.

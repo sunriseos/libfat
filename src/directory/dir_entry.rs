@@ -12,7 +12,6 @@ use libfs::block::{Block, BlockDevice, BlockIndex};
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
-
 use super::raw_dir_entry::FatDirEntry;
 
 #[derive(Debug, Clone, Copy)]
@@ -34,7 +33,7 @@ pub(crate) struct DirectoryEntryRawInfo {
 #[derive(Debug, Clone, Copy)]
 /// A high level representation of a directory/file in the directory.
 pub struct DirectoryEntry {
-    /// The first cluster used for 
+    /// The first cluster used for
     pub(crate) start_cluster: Cluster,
 
     /// The raw informations of the entry inside it parent.
@@ -68,8 +67,15 @@ impl DirectoryEntry {
     pub const MAX_FILE_NAME_LEN_UNICODE: usize = 1024;
 
     /// Read at a given offset of the file into a given buffer.
-    pub fn read<'a, T>(&mut self, fs: &'a FatFileSystem<T>, offset: u64, buf: &mut [u8]) -> FileSystemResult<u64> where
-    T: BlockDevice {
+    pub fn read<'a, T>(
+        &mut self,
+        fs: &'a FatFileSystem<T>,
+        offset: u64,
+        buf: &mut [u8],
+    ) -> FileSystemResult<u64>
+    where
+        T: BlockDevice,
+    {
         if offset >= 0xFFFF_FFFF {
             return Ok(0);
         }
@@ -134,8 +140,16 @@ impl DirectoryEntry {
     }
 
     /// Write the given buffer at a given offset of the file.
-    pub fn write<'a, T>(&mut self, fs: &'a FatFileSystem<T>, offset: u64, buf: &[u8], appendable: bool) -> FileSystemResult<()> where
-    T: BlockDevice {
+    pub fn write<'a, T>(
+        &mut self,
+        fs: &'a FatFileSystem<T>,
+        offset: u64,
+        buf: &[u8],
+        appendable: bool,
+    ) -> FileSystemResult<()>
+    where
+        T: BlockDevice,
+    {
         if offset >= 0xFFFF_FFFF {
             return Err(FileSystemError::AccessDenied);
         }
@@ -208,8 +222,10 @@ impl DirectoryEntry {
     }
 
     /// Set the file length
-    pub fn set_len<'a, T>(&mut self, fs: &'a FatFileSystem<T>, size: u64) -> FileSystemResult<()> where
-    T: BlockDevice {
+    pub fn set_len<'a, T>(&mut self, fs: &'a FatFileSystem<T>, size: u64) -> FileSystemResult<()>
+    where
+        T: BlockDevice,
+    {
         let current_len = u64::from(self.file_size);
         if size == current_len {
             return Ok(());
@@ -223,8 +239,7 @@ impl DirectoryEntry {
         let mut raw_dir_entry = raw_file_info.get_dir_entry(fs)?;
 
         let cluster_size = u64::from(
-            u16::from(fs.boot_record.blocks_per_cluster())
-                * fs.boot_record.bytes_per_block(),
+            u16::from(fs.boot_record.blocks_per_cluster()) * fs.boot_record.bytes_per_block(),
         );
         let aligned_size = utils::align_up(size, cluster_size);
         let aligned_current_len = utils::align_up(current_len, cluster_size);
@@ -234,15 +249,11 @@ impl DirectoryEntry {
         if size > current_len {
             let diff_size = size - current_len;
             let mut cluster_to_add_count = (aligned_size - aligned_current_len) / cluster_size;
-            let mut start_cluster =
-                if self.start_cluster.0 == 0 || self.file_size == 0 {
-                    None
-                } else {
-                    Some(table::get_last_cluster(
-                        fs,
-                        self.start_cluster,
-                    )?)
-                };
+            let mut start_cluster = if self.start_cluster.0 == 0 || self.file_size == 0 {
+                None
+            } else {
+                Some(table::get_last_cluster(fs, self.start_cluster)?)
+            };
 
             let mut last_cluster = start_cluster;
             let need_update_cluster = start_cluster.is_none();
@@ -265,10 +276,7 @@ impl DirectoryEntry {
 
             while cluster_to_remove_count != 0 {
                 let (last_cluster, previous_cluster) =
-                    table::get_last_and_previous_cluster(
-                        fs,
-                        self.start_cluster,
-                    )?;
+                    table::get_last_and_previous_cluster(fs, self.start_cluster)?;
                 fs.free_cluster(last_cluster, previous_cluster)?;
                 cluster_to_remove_count -= 1;
             }
@@ -284,7 +292,6 @@ impl DirectoryEntry {
 
         Ok(())
     }
-
 }
 
 impl DirectoryEntryRawInfo {

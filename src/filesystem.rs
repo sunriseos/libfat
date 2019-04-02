@@ -23,7 +23,6 @@ use core::sync::atomic::Ordering;
 /// Reprsent the FS Info structure of FAT32.
 struct FatFileSystemInfo {
     // TODO: select Ordering wisely on operations.
-
     /// The last allocated cluster on the filesystem.
     last_cluster: AtomicU32,
 
@@ -137,7 +136,7 @@ impl<T> FatFileSystem<T>
 where
     T: BlockDevice,
 {
-    /// Create a new instance of FatFileSystem 
+    /// Create a new instance of FatFileSystem
     /// TODO: ``init`` needs to be called after this
     pub(crate) fn new(
         block_device: T,

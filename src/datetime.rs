@@ -26,7 +26,6 @@ pub struct FatDateTime {
 }
 
 impl FatDateTime {
-
     /// The amount of days in every leap year indexed per months.
     const DAYS: [[u16; 12]; 4] = [
         [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335],

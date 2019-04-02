@@ -61,7 +61,8 @@ where
             return Err(FileSystemError::PathTooLong);
         }
 
-        let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> = ArrayString::new();
+        let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
+            ArrayString::new();
         for c in name.chars() {
             lowercase_name.push(c.to_lowercase().next().unwrap());
         }
@@ -69,7 +70,8 @@ where
         for entry in self.iter() {
             let entry = entry?;
 
-            let mut file_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> = ArrayString::new();
+            let mut file_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
+                ArrayString::new();
 
             for c in entry.file_name.as_str().chars() {
                 file_name.push(c.to_lowercase().next().unwrap());

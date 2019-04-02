@@ -61,7 +61,7 @@ pub struct ShortFileNameDirEntry {
     /// NOTE: The seconds is recorded only to a 2 second resolution.
     pub creation_time: u16_le,
 
-    /// The date on which the file was created. 
+    /// The date on which the file was created.
     pub creation_date: u16_le,
 
     /// The date on which the file was last accessed.
@@ -232,7 +232,7 @@ impl FatDirEntry {
             let index = 1 + i * 2;
             LittleEndian::write_u16(&mut self.data[index..index + 2], *entry);
         }
-    
+
         for i in 0..6 {
             let index = 0xE + i * 2;
             let i = i + 5;

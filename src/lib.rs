@@ -3,8 +3,19 @@
 
 #![feature(alloc)]
 #![no_std]
-
-#![warn(clippy::cast_possible_wrap, clippy::cast_sign_loss, clippy::default_trait_access, clippy::explicit_into_iter_loop, clippy::explicit_iter_loop, clippy::missing_docs_in_private_items, clippy::mut_mut, clippy::replace_consts, clippy::used_underscore_binding, clippy::wildcard_dependencies, clippy::wrong_pub_self_convention)]
+#![warn(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::default_trait_access,
+    clippy::explicit_into_iter_loop,
+    clippy::explicit_iter_loop,
+    clippy::missing_docs_in_private_items,
+    clippy::mut_mut,
+    clippy::replace_consts,
+    clippy::used_underscore_binding,
+    clippy::wildcard_dependencies,
+    clippy::wrong_pub_self_convention
+)]
 
 pub mod attribute;
 pub(crate) mod block_iter;
@@ -87,7 +98,7 @@ impl FatVolumeBootRecord {
     pub fn is_valid(&self) -> bool {
         /// Offset of the boot signature.
         const BOOTABLE_SIGNATURE: usize = 510;
-    
+
         /// Offset of the FAT system identifier.
         const SYSTEM_IDENTIFIER_FAT: usize = 36;
 
@@ -316,6 +327,8 @@ where
             BlockIndex(partition_start),
             BlockCount(partition_block_count),
         ),
-        _ => Err(FileSystemError::Custom { name: "Unknown Partition Type" }),
+        _ => Err(FileSystemError::Custom {
+            name: "Unknown Partition Type",
+        }),
     }
 }

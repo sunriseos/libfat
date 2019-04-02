@@ -10,7 +10,6 @@ use crate::FileSystemError;
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// Represent a cluster chan value.
 pub enum FatValue {
-
     /// Represent a free cluster.
     Free,
 
@@ -26,12 +25,10 @@ pub enum FatValue {
 
 /// Util iterator used to simplify iteration over cluster.
 pub struct FatClusterIter<'a, T> {
-
     /// The filesystem it belongs to.
     pub(crate) fs: &'a FatFileSystem<T>,
 
     /// The last cluster returned.
-
     current_cluster: Option<Cluster>,
 
     /// The last FatValue used.
