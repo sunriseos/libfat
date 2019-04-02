@@ -53,6 +53,7 @@ struct FatVolumeBootRecord {
     cluster_count: u32,
 }
 
+#[allow(dead_code)]
 impl FatVolumeBootRecord {
     /// Create a new FAT volume boot record from raw data.
     pub fn new(data: Block) -> FatVolumeBootRecord {

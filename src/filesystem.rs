@@ -111,6 +111,7 @@ impl FatFileSystemInfo {
 }
 
 /// Represent a FAT filesystem.
+#[allow(dead_code)]
 pub struct FatFileSystem<T> {
     /// The block device of the filesystem.
     pub(crate) block_device: T,
