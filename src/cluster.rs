@@ -1,7 +1,8 @@
 //! FAT cluster.
 
 use super::FatFileSystem;
-use libfs::block::{Block, BlockDevice, BlockIndex};
+use super::FatFsType;
+use libfs::block::{BlockDevice, BlockIndex};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// Represent a FAT Cluster position.
@@ -18,8 +19,13 @@ impl Cluster {
     }
 
     /// Compute the offset in the cluster map of the cluster chain.
-    pub fn to_fat_offset(self) -> u32 {
-        self.0 * 4
+    pub fn to_fat_offset(self, fat_type: FatFsType) -> u32 {
+        match fat_type {
+            FatFsType::Fat12 => self.0 + (self.0 / 2),
+            FatFsType::Fat16 => self.0 * 2,
+            FatFsType::Fat32 => self.0 * 4,
+            _ => unimplemented!()
+        }
     }
 
     /// Compute the block index of a cluster in the cluster map.
@@ -27,10 +33,10 @@ impl Cluster {
     where
         T: BlockDevice,
     {
-        let fat_offset = self.to_fat_offset();
+        let fat_offset = self.to_fat_offset(fs.boot_record.fat_type);
 
         let fat_block_index =
-            u32::from(fs.boot_record.reserved_block_count()) + (fat_offset / Block::LEN_U32);
+            u32::from(fs.boot_record.reserved_block_count()) + (fat_offset / u32::from(fs.boot_record.bytes_per_block()));
         BlockIndex(fat_block_index)
     }
 }

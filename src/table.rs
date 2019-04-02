@@ -1,6 +1,7 @@
 //! FATs managment.
 
 use super::filesystem::FatFileSystem;
+use super::FatFsType;
 use super::Cluster;
 use byteorder::{ByteOrder, LittleEndian};
 use libfs::block::{Block, BlockDevice, BlockIndex};
@@ -72,7 +73,7 @@ where
 
 impl FatValue {
     /// Create a ``FatValue`` from a raw FAT32 value.
-    pub fn from_u32(val: u32) -> Self {
+    fn from_fat32_value(val: u32) -> Self {
         match val {
             0 => FatValue::Free,
             0x0FFF_FFF7 => FatValue::Bad,
@@ -82,7 +83,7 @@ impl FatValue {
     }
 
     /// Convert a ```FatValue``` to a raw FAT32 value.
-    pub fn to_u32(self) -> u32 {
+    fn to_fat32_value(self) -> u32 {
         match self {
             FatValue::Free => 0,
             FatValue::Bad => 0x0FFF_FFF7,
@@ -91,10 +92,66 @@ impl FatValue {
         }
     }
 
+    /// Create a ``FatValue`` from a raw FAT16 value.
+    fn from_fat16_value(val: u16) -> Self {
+        match val {
+            0 => FatValue::Free,
+            0xFFF7 => FatValue::Bad,
+            0xFFF8..=0xFFFF => FatValue::EndOfChain,
+            n => FatValue::Data(u32::from(n)),
+        }
+    }
+
+    /// Convert a ```FatValue``` to a raw FAT16 value.
+    fn to_fat16_value(self) -> u16 {
+        match self {
+            FatValue::Free => 0,
+            FatValue::Bad => 0xFFF7,
+            FatValue::EndOfChain => 0xFFFF,
+            FatValue::Data(n) => n as u16,
+        }
+    }
+
+    /// Create a ``FatValue`` from a raw FAT12 value.
+    fn from_fat12_value(val: u16) -> Self {
+        match val {
+            0 => FatValue::Free,
+            0xFF7 => FatValue::Bad,
+            0xFF8..=0xFFF => FatValue::EndOfChain,
+            n => FatValue::Data(u32::from(n)),
+        }
+    }
+
+    /// Convert a ```FatValue``` to a raw FAT12 value.
+    #[allow(dead_code)]
+    fn to_fat12_value(self) -> u16 {
+        match self {
+            FatValue::Free => 0,
+            FatValue::Bad => 0xFF7,
+            FatValue::EndOfChain => 0xFFF,
+            FatValue::Data(n) => n as u16,
+        }
+    }
+
     /// Create a ```FatValue``` from a raw block and offset.
-    pub fn from_block(block: &Block, cluster_offset: usize) -> Self {
-        let val = LittleEndian::read_u32(&block[cluster_offset..cluster_offset + 4]) & 0x0FFF_FFFF;
-        FatValue::from_u32(val)
+    pub fn from_block(fat_type: FatFsType, block: &Block, cluster_offset: usize, cluster: Cluster) -> Self {
+        match fat_type {
+            FatFsType::Fat32 =>
+                Self::from_fat32_value(LittleEndian::read_u32(&block[cluster_offset..cluster_offset + 4]) & 0x0FFF_FFFF),
+            FatFsType::Fat16 =>
+                Self::from_fat16_value(LittleEndian::read_u16(&block[cluster_offset..cluster_offset + 2])),
+            FatFsType::Fat12 => {
+                let mut value = LittleEndian::read_u16(&block[cluster_offset..cluster_offset + 2]);
+                value = if (cluster.0 & 1) == 1 {
+                    value >> 4
+                } else {
+                    value & 0x0FFF
+                };
+
+                Self::from_fat12_value(value)
+            },
+            _ => unimplemented!()
+        }
     }
 
     /// Get the ```FatValue``` of a given cluster.
@@ -104,15 +161,15 @@ impl FatValue {
     {
         let mut blocks = [Block::new()];
 
-        let fat_offset = cluster.to_fat_offset();
+        let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
         let cluster_block_index = cluster.to_fat_block_index(fs);
-        let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
+        let cluster_offset = (fat_offset % u32::from(fs.boot_record.bytes_per_block())) as usize;
 
         fs.block_device
             .read(&mut blocks, fs.partition_start, cluster_block_index)
             .or(Err(FileSystemError::ReadFailed))?;
 
-        let res = FatValue::from_block(&blocks[0], cluster_offset);
+        let res = FatValue::from_block(fs.boot_record.fat_type, &blocks[0], cluster_offset, cluster);
 
         Ok(res)
     }
@@ -129,24 +186,29 @@ impl FatValue {
     {
         let mut blocks = [Block::new()];
 
-        let fat_offset = cluster.to_fat_offset();
+        let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
         let cluster_block_index =
             BlockIndex(cluster.to_fat_block_index(fs).0 + (fat_index * fs.boot_record.fat_size()));
-        let cluster_offset = (fat_offset % Block::LEN_U32) as usize;
+        let cluster_offset = (fat_offset % u32::from(fs.boot_record.bytes_per_block())) as usize;
 
         fs.block_device
             .read(&mut blocks, fs.partition_start, cluster_block_index)
             .or(Err(FileSystemError::ReadFailed))?;
 
-        let res = FatValue::from_block(&blocks[0], cluster_offset);
+        let res = FatValue::from_block(fs.boot_record.fat_type, &blocks[0], cluster_offset, cluster);
 
         // no write needed
         if res == value {
             return Ok(());
         }
 
-        let value = value.to_u32() & 0x0FFF_FFFF;
-        LittleEndian::write_u32(&mut blocks[0][cluster_offset..cluster_offset + 4], value);
+        match fs.boot_record.fat_type {
+            FatFsType::Fat32 =>
+                LittleEndian::write_u32(&mut blocks[0][cluster_offset..cluster_offset + 4], value.to_fat32_value() & 0x0FFF_FFFF),
+            FatFsType::Fat16 =>
+                LittleEndian::write_u16(&mut blocks[0][cluster_offset..cluster_offset + 2], value.to_fat16_value()),
+            _ => unimplemented!()
+        }
 
         fs.block_device
             .write(&blocks, fs.partition_start, cluster_block_index)

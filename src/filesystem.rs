@@ -178,6 +178,10 @@ where
 
     /// Get the root directory of the filesystem.
     pub fn get_root_directory(&self) -> Directory<'_, T> {
+        if self.boot_record.fat_type != FatFsType::Fat32 {
+            unimplemented!()
+        }
+
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
             raw_info: None,

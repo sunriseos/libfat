@@ -37,7 +37,7 @@ use filesystem::FatFileSystem;
 use libfs::FileSystemError;
 
 /// Represent FAT filesystem types.
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum FatFsType {
     /// FAT12 volume.
     Fat12,
@@ -100,7 +100,7 @@ impl FatVolumeBootRecord {
         const BOOTABLE_SIGNATURE: usize = 510;
 
         /// Offset of the FAT system identifier.
-        const SYSTEM_IDENTIFIER_FAT: usize = 36;
+        const SYSTEM_IDENTIFIER_FAT: usize = 54;
 
         /// Offset of the FAT32 system identifier.
         const SYSTEM_IDENTIFIER_FAT32: usize = 82;
@@ -202,7 +202,7 @@ impl FatVolumeBootRecord {
         LittleEndian::read_u16(&self.data[48..50])
     }
 
-    /// The root directory cluster for FAT12/FAT16 filesystems.
+    /// The root directory cluster for FAT32 filesystems.
     pub fn root_dir_childs_cluster(&self) -> Cluster {
         Cluster(LittleEndian::read_u32(&self.data[44..48]))
     }
@@ -252,11 +252,18 @@ where
     }
 
     match boot_record.fat_type {
-        FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::ExFat => unimplemented!(),
-        FatFsType::Fat32 => {
+        FatFsType::Fat12 | FatFsType::ExFat => unimplemented!(),
+        FatFsType::Fat16 | FatFsType::Fat32 => {
+            // Zero on FAT32
+            let root_dir_blocks = ((u32::from(boot_record.root_dir_childs_count()) * 32)
+                + (u32::from(boot_record.bytes_per_block()) - 1))
+                / u32::from(boot_record.bytes_per_block());
+
             let first_data_offset = u32::from(boot_record.reserved_block_count())
-                + (u32::from(boot_record.fats_count()) * boot_record.fat_size());
-            let mut file_system = FatFileSystem::new(
+                + (u32::from(boot_record.fats_count()) * boot_record.fat_size())
+                + root_dir_blocks;
+
+            let file_system = FatFileSystem::new(
                 block_device,
                 partition_start,
                 BlockIndex(first_data_offset),
