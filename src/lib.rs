@@ -262,8 +262,7 @@ where
                 BlockIndex(first_data_offset),
                 partition_block_count,
                 boot_record,
-            );
-            file_system.init()?;
+            )?;
             Ok(file_system)
         }
     }

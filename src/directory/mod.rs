@@ -226,22 +226,16 @@ where
 
         let first_raw_dir_entry = first_raw_dir_entry.unwrap();
 
-        // TODO: Move this
-        Ok(DirectoryEntry {
-            start_cluster: sfn_entry.get_cluster(),
-            raw_info: Some(DirectoryEntryRawInfo {
-                parent_cluster: first_raw_dir_entry.entry_cluster,
-                first_entry_block_index: BlockIndex(first_raw_dir_entry.entry_index),
-                first_entry_offset: first_raw_dir_entry.entry_offset,
-                entry_count: count,
-            }),
-            creation_timestamp: sfn_entry.get_creation_datetime().to_unix_time(),
-            last_access_timestamp: sfn_entry.get_last_access_date().to_unix_time(),
-            last_modification_timestamp: sfn_entry.get_modification_datetime().to_unix_time(),
-            file_size: sfn_entry.get_file_size(),
+        Ok(DirectoryEntry::from_sfn(
+            sfn_entry,
+            Some(DirectoryEntryRawInfo::new(
+                first_raw_dir_entry.entry_cluster,
+                BlockIndex(first_raw_dir_entry.entry_index),
+                first_raw_dir_entry.entry_offset,
+                count,
+            )),
             file_name,
-            attribute: sfn_entry.attribute(),
-        })
+        ))
     }
 
     /// Delete a directory entry in a given parent directory.

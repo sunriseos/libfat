@@ -137,15 +137,14 @@ where
     T: BlockDevice,
 {
     /// Create a new instance of FatFileSystem
-    /// TODO: ``init`` needs to be called after this
     pub(crate) fn new(
         block_device: T,
         partition_start: BlockIndex,
         first_data_offset: BlockIndex,
         partition_block_count: BlockCount,
         boot_record: FatVolumeBootRecord,
-    ) -> FatFileSystem<T> {
-        FatFileSystem {
+    ) -> FileSystemResult<FatFileSystem<T>> {
+        let mut fs = FatFileSystem {
             block_device,
             partition_start,
             first_data_offset,
@@ -155,11 +154,14 @@ where
                 last_cluster: AtomicU32::new(0xFFFF_FFFF),
                 free_cluster: AtomicU32::new(0xFFFF_FFFF),
             },
-        }
+        };
+        fs.init()?;
+
+        Ok(fs)
     }
 
     /// Initialize the filesystem.
-    pub(crate) fn init(&mut self) -> FileSystemResult<()> {
+    fn init(&mut self) -> FileSystemResult<()> {
         // read FAT infos
         if self.boot_record.fat_type == FatFsType::Fat32 {
             self.fat_info = FatFileSystemInfo::from_fs(self)?;

@@ -30,6 +30,23 @@ pub(crate) struct DirectoryEntryRawInfo {
     pub entry_count: u32,
 }
 
+impl DirectoryEntryRawInfo {
+    /// Create a new directory entry raw info.
+    pub fn new(
+        parent_cluster: Cluster,
+        first_entry_block_index: BlockIndex,
+        first_entry_offset: u32,
+        entry_count: u32,
+    ) -> Self {
+        DirectoryEntryRawInfo {
+            parent_cluster,
+            first_entry_block_index,
+            first_entry_offset,
+            entry_count,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 /// A high level representation of a directory/file in the directory.
 pub struct DirectoryEntry {
@@ -65,6 +82,24 @@ impl DirectoryEntry {
     /// The max size of a VFAT long name encoded as Unicode.
     // we actually use 256 unicode char because arrayvec doesn't define an implementation for Array<[u8; 1020]>
     pub const MAX_FILE_NAME_LEN_UNICODE: usize = 1024;
+
+    /// Create a directory entry from SFN data.
+    pub(crate) fn from_sfn(
+        sfn_entry: FatDirEntry,
+        raw_info: Option<DirectoryEntryRawInfo>,
+        file_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>,
+    ) -> Self {
+        DirectoryEntry {
+            start_cluster: sfn_entry.get_cluster(),
+            raw_info,
+            creation_timestamp: sfn_entry.get_creation_datetime().to_unix_time(),
+            last_access_timestamp: sfn_entry.get_last_access_date().to_unix_time(),
+            last_modification_timestamp: sfn_entry.get_modification_datetime().to_unix_time(),
+            file_size: sfn_entry.get_file_size(),
+            file_name,
+            attribute: sfn_entry.attribute(),
+        }
+    }
 
     /// Read at a given offset of the file into a given buffer.
     pub fn read<'a, T>(
