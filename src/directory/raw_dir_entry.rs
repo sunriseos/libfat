@@ -12,47 +12,99 @@ use libfs::block::{Block, BlockDevice, BlockIndex};
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
+/// Represent a VFAT long name entry.
 #[derive(Clone, Copy, View)]
 #[repr(C)]
 pub struct LongFileNameDirEntry {
+    /// The sequence number.
     pub order_entry: u8,
+
+    /// Name characters. (five UCS-2 characters)
     pub char_part_0: [u16_le; 5],
+
+    /// Attributes (always 0x0F).
     pub attribute: u8,
+
+    /// Type (always 0x00 for VFAT LFN)
     pub lfn_entry_type: u8,
+
+    /// Checksum of DOS file name.
     pub lfn_checksum: u8,
+
+    /// Name characters. (six UCS-2 characters)
     pub char_part_1: [u16_le; 6],
+
+    /// Reserved/First cluster (always 0x0000)
     pub reserved: u16_le,
+
+    /// Name characters. (two UCS-2 characters)
     pub char_part_2: [u16_le; 2],
 }
 
+/// Represent a 8.3 entry.
 #[derive(Clone, Copy, View)]
 #[repr(C)]
 pub struct ShortFileNameDirEntry {
+    /// Short file name and extension. (padded with spaces)
     pub name: [u8; ShortFileName::MAX_LEN],
+
+    /// File Attributes.
     pub attribute: u8,
+
+    /// Reserved. (Actually used on some old DOS for "permissions")
     pub reserved: u8,
+
+    /// Create time fine resolution (10 ms units, values from 0 to 199).
     pub creation_tenths: u8,
+
+    /// The time that the file was created.
+    /// NOTE: The seconds is recorded only to a 2 second resolution.
     pub creation_time: u16_le,
+
+    /// The date on which the file was created. 
     pub creation_date: u16_le,
+
+    /// The date on which the file was last accessed.
     pub last_access_date: u16_le,
+
+    /// The high 16 bits of this entry's first cluster number.
+    /// NOTE: For FAT 12 and FAT 16 this is always zero.
     pub high_cluster: u16_le,
+
+    /// The time that the file was last modified.
     pub modification_time: u16_le,
+
+    /// The date on which the file was last modified.
     pub modification_date: u16_le,
+
+    /// The low 16 bits of this entry's first cluster number.
     pub low_cluster: u16_le,
+
+    /// The size of the file in bytes. (Always 0 for directories)
     pub file_size: u32_le,
 }
 
 #[derive(Clone, Copy)]
+/// Represent a FAT directory entry (8.3 entry/VFAT long entry)
 pub struct FatDirEntry {
+    /// The cluster where this entry is.
     pub entry_cluster: Cluster,
+
+    /// The block index of this entry.
     pub entry_index: u32,
+
+    /// The offset of the entry in the block.
     pub entry_offset: u32,
+
+    /// The raw data of the entry.
     pub data: [u8; Self::LEN],
 }
 
 impl FatDirEntry {
+    /// The length of a FAT directory entry.
     pub const LEN: usize = 32;
 
+    /// Create a new FAT directory entry representation from raw data.
     pub fn from_raw(
         data: &[u8],
         entry_cluster: Cluster,
@@ -70,26 +122,32 @@ impl FatDirEntry {
         }
     }
 
+    /// Get the first byte of the raw data.
     pub fn get_first_byte(&self) -> u8 {
         self.data[0]
     }
 
+    /// Check if the first byte is zero.
     pub fn is_free(&self) -> bool {
         self.get_first_byte() == 0
     }
 
+    /// Check if the first byte is the delete marker.
     pub fn is_deleted(&self) -> bool {
         self.get_first_byte() == 0xE5
     }
 
+    /// Set the deleted marker on the entry.
     pub fn set_deleted(&mut self) {
         self.data[0] = 0xE5;
     }
 
+    /// Reint the raw data buffer to a free state.
     pub fn clear(&mut self) {
         self.data = [0x0u8; Self::LEN];
     }
 
+    /// Write the raw data buffer to disk.
     pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
     where
         T: BlockDevice,
@@ -121,18 +179,22 @@ impl FatDirEntry {
             .or(Err(FileSystemError::WriteFailed))
     }
 
+    /// Return the entry attributes.
     pub fn attribute(&self) -> Attributes {
         Attributes::new(self.data[11])
     }
 
+    /// Set the entry attributes.
     pub fn set_attribute(&mut self, attribute: Attributes) {
         self.data[11] = attribute.get_value();
     }
 
+    /// Check if this entry is a VFAT long entry.
     pub fn is_long_file_name(&self) -> bool {
         self.attribute().is_lfn()
     }
 
+    /// Read the part of the LFN from this entry or return None if not a LFN.
     pub fn long_file_name_raw(&self) -> Option<LongFileName> {
         if self.is_long_file_name() {
             Some(LongFileName::from_lfn_dir_entry(self.as_lfn_entry()))
@@ -141,6 +203,7 @@ impl FatDirEntry {
         }
     }
 
+    /// Read the SFN of this entry or return None if not a SFN.
     pub fn short_name(&self) -> Option<ShortFileName> {
         if !self.is_long_file_name() {
             Some(ShortFileName::from_data(&self.as_sfn_entry().name))
@@ -149,14 +212,17 @@ impl FatDirEntry {
         }
     }
 
+    /// Set the LFN order index.
     pub fn set_lfn_index(&mut self, index: u8) {
         self.data[0] = index;
     }
 
+    /// Set the SFN in the 8.3 entry.
     pub fn set_short_name(&mut self, short_name: &ShortFileName) {
         (&mut self.data[0..11]).copy_from_slice(&short_name.as_bytes());
     }
 
+    /// Set the LFN in the VFAT long entry.
     pub fn set_lfn_entry(&mut self, lfn: &str) {
         let lfn = LongFileName::from_utf8(lfn);
 
@@ -181,18 +247,22 @@ impl FatDirEntry {
         }
     }
 
+    /// Read the raw data as a VFAT long entry.
     pub fn as_lfn_entry(&self) -> &LongFileNameDirEntry {
         LongFileNameDirEntry::view(&self.data).unwrap()
     }
 
+    /// Read the raw data as a 8.3 entry.
     pub fn as_sfn_entry(&self) -> &ShortFileNameDirEntry {
         ShortFileNameDirEntry::view(&self.data).unwrap()
     }
 
+    /// Set the LFN checksum of the DOS name.
     pub fn set_lfn_checksum(&mut self, checksum: u8) {
         self.data[13] = checksum;
     }
 
+    /// Get the child cluster used by this entry.
     pub fn get_cluster(&self) -> Cluster {
         let entry = self.as_sfn_entry();
         let high_cluster = u32::from(entry.high_cluster.to_int());
@@ -201,6 +271,7 @@ impl FatDirEntry {
         Cluster(low_cluster | (high_cluster << 16))
     }
 
+    /// Set the child cluster of this entry.
     pub fn set_cluster(&mut self, cluster: Cluster) {
         let value = cluster.0;
         let high_cluster = ((value >> 16) & 0xFFFF) as u16;
@@ -210,10 +281,13 @@ impl FatDirEntry {
         LittleEndian::write_u16(&mut self.data[26..28], low_cluster);
     }
 
+    /// Return the file size of this entry. Always zero if a directory.
     pub fn get_file_size(&self) -> u32 {
         self.as_sfn_entry().file_size.to_int()
     }
 
+    /// Set the file size of the entry.
+    /// NOTE: If set to 0, set_cluster is also called to reset the cluster. If any operations need to be done on the cluster, always ensure that you retrieve it first before calling this.
     pub fn set_file_size(&mut self, new_size: u32) {
         LittleEndian::write_u32(&mut self.data[28..32], new_size);
 
@@ -223,6 +297,7 @@ impl FatDirEntry {
         }
     }
 
+    /// Retrieve the creation datetime of this 8.3 entry.
     pub fn get_creation_datetime(&self) -> FatDateTime {
         let entry = self.as_sfn_entry();
         let raw_time = entry.creation_time.to_int();
@@ -245,6 +320,7 @@ impl FatDirEntry {
         )
     }
 
+    /// Retrieve the last access datetime of this 8.3 entry.
     pub fn get_last_access_date(&self) -> FatDateTime {
         let entry = self.as_sfn_entry();
 
@@ -255,6 +331,7 @@ impl FatDirEntry {
         FatDateTime::new(1980 + year, month, day, 0, 0, 0, 0)
     }
 
+    /// Retrieve the last modification datetime of this 8.3 entry.
     pub fn get_modification_datetime(&self) -> FatDateTime {
         let entry = self.as_sfn_entry();
 
