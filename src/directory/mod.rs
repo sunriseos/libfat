@@ -232,6 +232,11 @@ where
 
         let first_raw_dir_entry = first_raw_dir_entry.unwrap();
 
+        let is_in_old_root_directory = match fs.boot_record.fat_type {
+            FatFsType::Fat12 | FatFsType::Fat16 => cluster.0 == 0,
+            _ => false,
+        };
+
         Ok(DirectoryEntry::from_sfn(
             sfn_entry,
             Some(DirectoryEntryRawInfo::new(
@@ -239,6 +244,7 @@ where
                 BlockIndex(first_raw_dir_entry.entry_index),
                 first_raw_dir_entry.entry_offset,
                 count,
+                is_in_old_root_directory,
             )),
             file_name,
         ))

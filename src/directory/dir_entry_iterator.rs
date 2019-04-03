@@ -131,13 +131,13 @@ where
                 // only a SFN entry
                 return Some(Ok(DirectoryEntry {
                     start_cluster: entry.get_cluster(),
-                    // TODO: propagate root directory info for FAT12/FAT16.
-                    raw_info: Some(DirectoryEntryRawInfo {
-                        parent_cluster: first_raw_dir_entry.entry_cluster,
-                        first_entry_block_index: BlockIndex(first_raw_dir_entry.entry_index),
-                        first_entry_offset: first_raw_dir_entry.entry_offset,
+                    raw_info: Some(DirectoryEntryRawInfo::new(
+                        first_raw_dir_entry.entry_cluster,
+                        BlockIndex(first_raw_dir_entry.entry_index),
+                        first_raw_dir_entry.entry_offset,
                         entry_count,
-                    }),
+                        self.raw_iter.cluster_iter.is_none(),
+                    )),
                     creation_timestamp: entry.get_creation_datetime().to_unix_time(),
                     last_access_timestamp: entry.get_last_access_date().to_unix_time(),
                     last_modification_timestamp: entry.get_modification_datetime().to_unix_time(),

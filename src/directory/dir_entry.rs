@@ -17,6 +17,9 @@ use super::raw_dir_entry::FatDirEntry;
 #[derive(Debug, Clone, Copy)]
 /// Represent the information of a child entry into in it parent entry.
 pub(crate) struct DirectoryEntryRawInfo {
+    /// Marker on entries present in the FAT12/FAT16 root directory.
+    pub in_old_fat_root_directory: bool,
+
     /// The first cluster of the parent entry.
     pub parent_cluster: Cluster,
 
@@ -37,12 +40,14 @@ impl DirectoryEntryRawInfo {
         first_entry_block_index: BlockIndex,
         first_entry_offset: u32,
         entry_count: u32,
+        in_old_fat_root_directory: bool,
     ) -> Self {
         DirectoryEntryRawInfo {
             parent_cluster,
             first_entry_block_index,
             first_entry_offset,
             entry_count,
+            in_old_fat_root_directory,
         }
     }
 }
