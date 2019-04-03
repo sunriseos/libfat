@@ -24,7 +24,7 @@ impl Cluster {
             FatFsType::Fat12 => self.0 + (self.0 / 2),
             FatFsType::Fat16 => self.0 * 2,
             FatFsType::Fat32 => self.0 * 4,
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 
@@ -35,8 +35,8 @@ impl Cluster {
     {
         let fat_offset = self.to_fat_offset(fs.boot_record.fat_type);
 
-        let fat_block_index =
-            u32::from(fs.boot_record.reserved_block_count()) + (fat_offset / u32::from(fs.boot_record.bytes_per_block()));
+        let fat_block_index = u32::from(fs.boot_record.reserved_block_count())
+            + (fat_offset / u32::from(fs.boot_record.bytes_per_block()));
         BlockIndex(fat_block_index)
     }
 }

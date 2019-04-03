@@ -16,6 +16,7 @@ use super::utils;
 use super::table;
 
 use super::FatFileSystem;
+use super::FatFsType;
 
 pub mod dir_entry;
 pub mod dir_entry_iterator;
@@ -50,6 +51,11 @@ impl<'a, T> Directory<'a, T>
 where
     T: BlockDevice,
 {
+    /// Helper to determine if the directory is the root directory.
+    fn is_root_directory(&self) -> bool {
+        self.dir_info.raw_info.is_none()
+    }
+
     /// Create a directory from a filesystem reference and a directory entry.
     pub fn from_entry(fs: &'a FatFileSystem<T>, dir_info: DirectoryEntry) -> Self {
         Directory { dir_info, fs }
@@ -518,11 +524,22 @@ where
         let cluster = root.dir_info.start_cluster;
         let fs = &root.fs;
 
+        let cluster_iter = if root.is_root_directory() {
+            match fs.boot_record.fat_type {
+                FatFsType::Fat12 | FatFsType::Fat16 => None,
+                FatFsType::Fat32 => Some(BlockIndexClusterIter::new(fs, cluster, None)),
+                _ => unimplemented!(),
+            }
+        } else {
+            Some(BlockIndexClusterIter::new(fs, cluster, None))
+        };
+
         FatDirEntryIterator {
             counter: 0,
             block_index: 0,
             is_first: true,
-            cluster_iter: BlockIndexClusterIter::new(fs, cluster, None),
+            fs,
+            cluster_iter,
             last_cluster: None,
         }
     }

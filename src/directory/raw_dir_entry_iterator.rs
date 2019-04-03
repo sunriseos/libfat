@@ -12,7 +12,10 @@ use super::raw_dir_entry::FatDirEntry;
 /// Represent a raw FAT directory entries iterator.
 pub struct FatDirEntryIterator<'a, T> {
     /// The cluster iterator.
-    pub(crate) cluster_iter: BlockIndexClusterIter<'a, T>,
+    pub(crate) cluster_iter: Option<BlockIndexClusterIter<'a, T>>,
+
+    /// Filesystem reference.
+    pub(crate) fs: &'a FatFileSystem<T>,
 
     /// The last cluster used.
     pub last_cluster: Option<Cluster>,
@@ -42,7 +45,12 @@ where
             counter: (offset / FatDirEntry::LEN as u32) as u8,
             block_index: block_index.0,
             is_first: true,
-            cluster_iter: BlockIndexClusterIter::new(fs, start_cluster, Some(block_index)),
+            fs,
+            cluster_iter: Some(BlockIndexClusterIter::new(
+                fs,
+                start_cluster,
+                Some(block_index),
+            )),
             last_cluster: None,
         }
     }
@@ -55,7 +63,7 @@ where
     type Item = FileSystemResult<FatDirEntry>;
     fn next(&mut self) -> Option<FileSystemResult<FatDirEntry>> {
         let entry_per_block_count = (Block::LEN / FatDirEntry::LEN) as u8;
-        let fs = self.cluster_iter.cluster_iter.fs;
+        let fs = self.fs;
 
         let cluster_opt = if self.counter == entry_per_block_count || self.is_first {
             if !self.is_first {
@@ -64,7 +72,11 @@ where
             }
             self.block_index %= u32::from(fs.boot_record.blocks_per_cluster());
             self.is_first = false;
-            self.last_cluster = self.cluster_iter.next();
+            if let Some(cluster_iter) = &mut self.cluster_iter {
+                self.last_cluster = cluster_iter.next();
+            } else {
+                panic!("FAT12/FAT16 root directory iteration not implemented yet");
+            }
             self.last_cluster
         } else {
             self.last_cluster
