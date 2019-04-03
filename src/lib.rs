@@ -36,6 +36,9 @@ use filesystem::FatFileSystem;
 
 use libfs::FileSystemError;
 
+#[macro_use]
+extern crate log;
+
 /// Represent FAT filesystem types.
 #[derive(Clone, Copy, PartialEq)]
 pub enum FatFsType {
@@ -252,8 +255,8 @@ where
     }
 
     match boot_record.fat_type {
-        FatFsType::Fat12 | FatFsType::ExFat => unimplemented!(),
-        FatFsType::Fat16 | FatFsType::Fat32 => {
+        FatFsType::ExFat => unimplemented!(),
+        FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::Fat32 => {
             // Zero on FAT32
             let root_dir_blocks = ((u32::from(boot_record.root_dir_childs_count()) * 32)
                 + (u32::from(boot_record.bytes_per_block()) - 1))

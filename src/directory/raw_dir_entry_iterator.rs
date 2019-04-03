@@ -70,12 +70,13 @@ where
                 self.counter = 0;
                 self.block_index += 1;
             }
-            self.block_index %= u32::from(fs.boot_record.blocks_per_cluster());
+
             self.is_first = false;
             if let Some(cluster_iter) = &mut self.cluster_iter {
+                self.block_index %= u32::from(fs.boot_record.blocks_per_cluster());
                 self.last_cluster = cluster_iter.next();
             } else {
-                panic!("FAT12/FAT16 root directory iteration not implemented yet");
+                self.last_cluster = Some(Cluster(0));
             }
             self.last_cluster
         } else {
@@ -88,13 +89,27 @@ where
 
         let entry_index = (self.counter % entry_per_block_count) as usize;
 
+        let entry_block_index = if self.cluster_iter.is_none() {
+            let root_dir_blocks = ((u32::from(fs.boot_record.root_dir_childs_count()) * 32)
+                + (u32::from(fs.boot_record.bytes_per_block()) - 1))
+                / u32::from(fs.boot_record.bytes_per_block());
+
+            if self.block_index > root_dir_blocks {
+                None
+            } else {
+                Some(BlockIndex(
+                    fs.first_data_offset.0 - root_dir_blocks + self.block_index,
+                ))
+            }
+        } else {
+            Some(BlockIndex(
+                cluster.to_data_block_index(fs).0 + self.block_index,
+            ))
+        };
+
         let read_res = fs
             .block_device
-            .read(
-                &mut blocks,
-                fs.partition_start,
-                BlockIndex(cluster.to_data_block_index(fs).0 + self.block_index),
-            )
+            .read(&mut blocks, fs.partition_start, entry_block_index?)
             .or(Err(FileSystemError::ReadFailed));
 
         if let Err(error) = read_res {
