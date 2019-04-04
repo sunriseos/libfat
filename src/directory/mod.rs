@@ -52,7 +52,7 @@ where
     T: BlockDevice,
 {
     /// Helper to determine if the directory is the root directory.
-    fn is_root_directory(&self) -> bool {
+    pub fn is_root_directory(&self) -> bool {
         self.dir_info.raw_info.is_none()
     }
 
@@ -135,7 +135,9 @@ where
         count: u32,
     ) -> FileSystemResult<FatDirEntryIterator<'a, T>> {
         let mut i = 0;
-        for raw_dir_entry in Directory::from_entry(fs, *entry).fat_dir_entry_iter() {
+        let directory = Directory::from_entry(fs, *entry);
+        let is_root_directory = directory.is_root_directory();
+        for raw_dir_entry in directory.fat_dir_entry_iter() {
             let raw_dir_entry = raw_dir_entry?;
             if raw_dir_entry.is_free() || raw_dir_entry.is_deleted() {
                 i += 1;
@@ -145,8 +147,16 @@ where
                         raw_dir_entry.entry_cluster,
                         BlockIndex(raw_dir_entry.entry_index),
                         raw_dir_entry.entry_offset,
+                        is_root_directory
                     ));
                 }
+            }
+        }
+
+        if is_root_directory {
+            match fs.boot_record.fat_type {
+                FatFsType::Fat12 | FatFsType::Fat16 => return Err(FileSystemError::NoSpaceLeft),
+                _ => {}
             }
         }
 
@@ -162,7 +172,7 @@ where
             return Err(error);
         }
 
-        Ok(FatDirEntryIterator::new(fs, new_cluster, BlockIndex(0), 0))
+        Ok(FatDirEntryIterator::new(fs, new_cluster, BlockIndex(0), 0, is_root_directory))
     }
 
     /// Create a directory entry in a given parent directory.
@@ -261,6 +271,7 @@ where
                 raw_info.parent_cluster,
                 raw_info.first_entry_block_index,
                 raw_info.first_entry_offset,
+                raw_info.in_old_fat_root_directory
             );
 
             let mut i = 0;
@@ -430,6 +441,7 @@ where
                 old_raw_info.parent_cluster,
                 old_raw_info.first_entry_block_index,
                 old_raw_info.first_entry_offset,
+                old_raw_info.in_old_fat_root_directory
             );
 
             let mut context: ShortFileNameContext = ShortFileNameContext::default();
@@ -493,7 +505,7 @@ where
             // We aren't in the same dir?
             if new_parent_cluster != old_parent_cluster {
                 let mut iter =
-                    FatDirEntryIterator::new(self.fs, new_entry.start_cluster, BlockIndex(0), 0);
+                    FatDirEntryIterator::new(self.fs, new_entry.start_cluster, BlockIndex(0), 0, new_raw_info.in_old_fat_root_directory);
 
                 // FIXME: is that always the second entry?
                 let mut second_entry = iter.nth(2).unwrap()?;

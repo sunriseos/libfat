@@ -9,6 +9,8 @@ use libfs::FileSystemResult;
 
 use super::raw_dir_entry::FatDirEntry;
 
+use super::FatFsType;
+
 /// Represent a raw FAT directory entries iterator.
 pub struct FatDirEntryIterator<'a, T> {
     /// The cluster iterator.
@@ -40,17 +42,24 @@ where
         start_cluster: Cluster,
         block_index: BlockIndex,
         offset: u32,
+        in_root_directory: bool,
     ) -> Self {
+        let cluster_iter = if in_root_directory {
+            match fs.boot_record.fat_type {
+                FatFsType::Fat12 | FatFsType::Fat16 => None,
+                FatFsType::Fat32 => Some(BlockIndexClusterIter::new(fs, start_cluster, Some(block_index))),
+                _ => unimplemented!(),
+            }
+        } else {
+            Some(BlockIndexClusterIter::new(fs, start_cluster, Some(block_index)))
+        };
+
         FatDirEntryIterator {
             counter: (offset / FatDirEntry::LEN as u32) as u8,
             block_index: block_index.0,
             is_first: true,
             fs,
-            cluster_iter: Some(BlockIndexClusterIter::new(
-                fs,
-                start_cluster,
-                Some(block_index),
-            )),
+            cluster_iter,
             last_cluster: None,
         }
     }

@@ -12,6 +12,8 @@ use libfs::block::{Block, BlockDevice, BlockIndex};
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
+use crate::FatFsType;
+
 /// Represent a VFAT long name entry.
 #[derive(Clone, Copy, View)]
 #[repr(C)]
@@ -154,11 +156,34 @@ impl FatDirEntry {
     {
         let mut blocks = [Block::new()];
 
+        let is_in_old_root_directory = match fs.boot_record.fat_type {
+            FatFsType::Fat12 | FatFsType::Fat16 => self.entry_cluster.0 == 0,
+            _ => false,
+        };
+
+        let entry_block_index = if is_in_old_root_directory {
+            let root_dir_blocks = ((u32::from(fs.boot_record.root_dir_childs_count()) * 32)
+                + (u32::from(fs.boot_record.bytes_per_block()) - 1))
+                / u32::from(fs.boot_record.bytes_per_block());
+
+            if self.entry_index > root_dir_blocks {
+                Err(FileSystemError::NoSpaceLeft)
+            } else {
+                Ok(BlockIndex(
+                    fs.first_data_offset.0 - root_dir_blocks + self.entry_index,
+                ))
+            }
+        } else {
+            Ok(BlockIndex(
+                self.entry_cluster.to_data_block_index(fs).0 + self.entry_index,
+            ))
+        }?;
+
         fs.block_device
             .read(
                 &mut blocks,
                 fs.partition_start,
-                BlockIndex(self.entry_cluster.to_data_block_index(fs).0 + self.entry_index),
+                entry_block_index,
             )
             .or(Err(FileSystemError::ReadFailed))?;
 
@@ -174,7 +199,7 @@ impl FatDirEntry {
             .write(
                 &blocks,
                 fs.partition_start,
-                BlockIndex(self.entry_cluster.to_data_block_index(fs).0 + self.entry_index),
+                entry_block_index,
             )
             .or(Err(FileSystemError::WriteFailed))
     }

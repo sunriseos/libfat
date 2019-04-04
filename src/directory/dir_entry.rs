@@ -7,6 +7,7 @@ use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
 use crate::table;
 use crate::utils;
+use crate::FatFsType;
 
 use libfs::block::{Block, BlockDevice, BlockIndex};
 use libfs::FileSystemError;
@@ -106,6 +107,22 @@ impl DirectoryEntry {
         }
     }
 
+    /// Check offset range for a given fat_type.
+    fn check_range(offset: u64, fs_type: FatFsType) -> FileSystemResult<()> {
+        let max_size = match fs_type {
+            FatFsType::Fat12 => 0x01FF_FFFF,
+            FatFsType::Fat16 => 0x7FFF_FFFF,
+            FatFsType::Fat32 => 0xFFFF_FFFF,
+            _ => unimplemented!()
+        };
+
+        if offset > max_size {
+            return Err(FileSystemError::AccessDenied);
+        }
+
+        Ok(())
+    }
+
     /// Read at a given offset of the file into a given buffer.
     pub fn read<'a, T>(
         &mut self,
@@ -116,9 +133,8 @@ impl DirectoryEntry {
     where
         T: BlockDevice,
     {
-        if offset >= 0xFFFF_FFFF {
-            return Ok(0);
-        }
+        // TODO: return Ok(0) if out of range.
+        Self::check_range(offset, fs.boot_record.fat_type)?;
 
         if offset >= u64::from(self.file_size) {
             return Ok(0);
@@ -190,9 +206,7 @@ impl DirectoryEntry {
     where
         T: BlockDevice,
     {
-        if offset >= 0xFFFF_FFFF {
-            return Err(FileSystemError::AccessDenied);
-        }
+        Self::check_range(offset, fs.boot_record.fat_type)?;
 
         let min_size = offset + buf.len() as u64;
         if min_size > u64::from(self.file_size) {
@@ -345,6 +359,7 @@ impl DirectoryEntryRawInfo {
             self.parent_cluster,
             self.first_entry_block_index,
             self.first_entry_offset,
+            self.in_old_fat_root_directory
         );
 
         let mut i = 0;
