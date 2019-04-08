@@ -143,11 +143,11 @@ impl DirectoryEntry {
 
         let device: &T = &fs.block_device;
 
-        let mut raw_tmp_offset = offset as u32;
-        let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+        let mut raw_tmp_offset = offset as u64;
+        let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
         let mut cluster_block_iterator =
             BlockIndexClusterIter::new(fs, self.start_cluster, Some(cluster_offset));
-        let blocks_per_cluster = u32::from(fs.boot_record.blocks_per_cluster());
+        let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
 
         let mut read_size = 0u64;
         let mut blocks = [Block::new()];
@@ -158,12 +158,12 @@ impl DirectoryEntry {
                 break;
             }
 
-            cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+            cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
 
             let cluster = cluster_opt.unwrap();
             let block_start_index = cluster.to_data_block_index(fs);
             let tmp_index = cluster_offset.0 % blocks_per_cluster;
-            let tmp_offset = raw_tmp_offset % Block::LEN_U32;
+            let tmp_offset = raw_tmp_offset % Block::LEN_U64;
 
             device
                 .read(
@@ -189,7 +189,7 @@ impl DirectoryEntry {
                 *buf_entry = blocks[0][tmp_offset as usize + index];
             }
 
-            raw_tmp_offset += buf_limit as u32;
+            raw_tmp_offset += buf_limit as u64;
             read_size += buf_limit as u64;
         }
 
@@ -220,11 +220,11 @@ impl DirectoryEntry {
 
         let device: &T = &fs.block_device;
 
-        let mut raw_tmp_offset = offset as u32;
-        let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+        let mut raw_tmp_offset = offset as u64;
+        let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
         let mut cluster_block_iterator =
             BlockIndexClusterIter::new(fs, self.start_cluster, Some(cluster_offset));
-        let blocks_per_cluster = u32::from(fs.boot_record.blocks_per_cluster());
+        let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
 
         let mut write_size = 0u64;
         let mut blocks = [Block::new()];
@@ -234,11 +234,11 @@ impl DirectoryEntry {
                 .next()
                 .ok_or(FileSystemError::WriteFailed)?;
 
-            cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U32);
+            cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
 
             let block_start_index = cluster.to_data_block_index(fs);
             let tmp_index = cluster_offset.0 % blocks_per_cluster;
-            let tmp_offset = raw_tmp_offset % Block::LEN_U32;
+            let tmp_offset = raw_tmp_offset % Block::LEN_U64;
 
             device
                 .read(
@@ -269,7 +269,7 @@ impl DirectoryEntry {
                 )
                 .or(Err(FileSystemError::WriteFailed))?;
 
-            raw_tmp_offset += buf_limit as u32;
+            raw_tmp_offset += buf_limit as u64;
             write_size += buf_limit as u64;
         }
 

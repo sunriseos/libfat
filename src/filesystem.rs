@@ -45,7 +45,7 @@ impl FatFileSystemInfo {
             .read(
                 &mut blocks,
                 fs.partition_start,
-                BlockIndex(u32::from(fs.boot_record.fs_info_block())),
+                BlockIndex(u64::from(fs.boot_record.fs_info_block())),
             )
             .or(Err(FileSystemError::ReadFailed))?;
 
@@ -101,7 +101,7 @@ impl FatFileSystemInfo {
             .write(
                 &blocks,
                 fs.partition_start,
-                BlockIndex(u32::from(fs.boot_record.fs_info_block())),
+                BlockIndex(u64::from(fs.boot_record.fs_info_block())),
             )
             .or(Err(FileSystemError::ReadFailed))?;
 
@@ -283,7 +283,7 @@ where
                 .write(
                     &blocks,
                     self.partition_start,
-                    BlockIndex(cluster.to_data_block_index(self).0 + block_index),
+                    BlockIndex(cluster.to_data_block_index(self).0 + u64::from(block_index)),
                 )
                 .or(Err(FileSystemError::WriteFailed))?;
         }

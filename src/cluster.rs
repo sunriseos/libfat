@@ -15,7 +15,7 @@ impl Cluster {
         T: BlockDevice,
     {
         let first_block_of_cluster = (self.0 - 2) * u32::from(fs.boot_record.blocks_per_cluster());
-        BlockIndex(fs.first_data_offset.0 + first_block_of_cluster)
+        BlockIndex(fs.first_data_offset.0 + u64::from(first_block_of_cluster))
     }
 
     /// Compute the offset in the cluster map of the cluster chain.
@@ -37,6 +37,6 @@ impl Cluster {
 
         let fat_block_index = u32::from(fs.boot_record.reserved_block_count())
             + (fat_offset / u32::from(fs.boot_record.bytes_per_block()));
-        BlockIndex(fat_block_index)
+        BlockIndex(u64::from(fat_block_index))
     }
 }

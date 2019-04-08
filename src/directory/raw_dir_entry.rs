@@ -93,7 +93,7 @@ pub struct FatDirEntry {
     pub entry_cluster: Cluster,
 
     /// The block index of this entry.
-    pub entry_index: u32,
+    pub entry_index: BlockIndex,
 
     /// The offset of the entry in the block.
     pub entry_offset: u32,
@@ -110,7 +110,7 @@ impl FatDirEntry {
     pub fn from_raw(
         data: &[u8],
         entry_cluster: Cluster,
-        entry_index: u32,
+        entry_index: BlockIndex,
         entry_offset: u32,
     ) -> FatDirEntry {
         let mut data_copied = [0x0u8; Self::LEN];
@@ -166,16 +166,16 @@ impl FatDirEntry {
                 + (u32::from(fs.boot_record.bytes_per_block()) - 1))
                 / u32::from(fs.boot_record.bytes_per_block());
 
-            if self.entry_index > root_dir_blocks {
+            if self.entry_index.0 > u64::from(root_dir_blocks) {
                 Err(FileSystemError::NoSpaceLeft)
             } else {
                 Ok(BlockIndex(
-                    fs.first_data_offset.0 - root_dir_blocks + self.entry_index,
+                    fs.first_data_offset.0 - u64::from(root_dir_blocks) + self.entry_index.0,
                 ))
             }
         } else {
             Ok(BlockIndex(
-                self.entry_cluster.to_data_block_index(fs).0 + self.entry_index,
+                self.entry_cluster.to_data_block_index(fs).0 + self.entry_index.0,
             ))
         }?;
 

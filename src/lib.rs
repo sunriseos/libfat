@@ -269,7 +269,7 @@ where
             let file_system = FatFileSystem::new(
                 block_device,
                 partition_start,
-                BlockIndex(first_data_offset),
+                BlockIndex(u64::from(first_data_offset)),
                 partition_block_count,
                 boot_record,
             )?;
@@ -333,8 +333,8 @@ where
     match partition_type {
         0xC => parse_fat_boot_record(
             block_device,
-            BlockIndex(partition_start),
-            BlockCount(partition_block_count),
+            BlockIndex(u64::from(partition_start)),
+            BlockCount(u64::from(partition_block_count)),
         ),
         _ => Err(FileSystemError::Custom {
             name: "Unknown Partition Type",

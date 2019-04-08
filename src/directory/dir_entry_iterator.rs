@@ -3,7 +3,7 @@ use arrayvec::ArrayString;
 
 use crate::name::LongFileName;
 
-use libfs::block::{BlockDevice, BlockIndex};
+use libfs::block::{BlockDevice};
 use libfs::FileSystemResult;
 
 use super::dir_entry::DirectoryEntry;
@@ -133,7 +133,7 @@ where
                     start_cluster: entry.get_cluster(),
                     raw_info: Some(DirectoryEntryRawInfo::new(
                         first_raw_dir_entry.entry_cluster,
-                        BlockIndex(first_raw_dir_entry.entry_index),
+                        first_raw_dir_entry.entry_index,
                         first_raw_dir_entry.entry_offset,
                         entry_count,
                         self.raw_iter.cluster_iter.is_none(),

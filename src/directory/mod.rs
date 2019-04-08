@@ -145,7 +145,7 @@ where
                     return Ok(FatDirEntryIterator::new(
                         fs,
                         raw_dir_entry.entry_cluster,
-                        BlockIndex(raw_dir_entry.entry_index),
+                        raw_dir_entry.entry_index,
                         raw_dir_entry.entry_offset,
                         is_root_directory
                     ));
@@ -251,7 +251,7 @@ where
             sfn_entry,
             Some(DirectoryEntryRawInfo::new(
                 first_raw_dir_entry.entry_cluster,
-                BlockIndex(first_raw_dir_entry.entry_index),
+                first_raw_dir_entry.entry_index,
                 first_raw_dir_entry.entry_offset,
                 count,
                 is_in_old_root_directory,
@@ -554,7 +554,7 @@ where
 
         FatDirEntryIterator {
             counter: 0,
-            block_index: 0,
+            block_index: BlockIndex(0),
             is_first: true,
             fs,
             cluster_iter,

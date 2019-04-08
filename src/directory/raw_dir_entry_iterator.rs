@@ -23,7 +23,7 @@ pub struct FatDirEntryIterator<'a, T> {
     pub last_cluster: Option<Cluster>,
 
     /// The first block to use in the first cluster.
-    pub block_index: u32,
+    pub block_index: BlockIndex,
 
     /// The current iteration point in the block.
     pub counter: u8,
@@ -56,7 +56,7 @@ where
 
         FatDirEntryIterator {
             counter: (offset / FatDirEntry::LEN as u32) as u8,
-            block_index: block_index.0,
+            block_index,
             is_first: true,
             fs,
             cluster_iter,
@@ -77,12 +77,12 @@ where
         let cluster_opt = if self.counter == entry_per_block_count || self.is_first {
             if !self.is_first {
                 self.counter = 0;
-                self.block_index += 1;
+                self.block_index.0 += 1;
             }
 
             self.is_first = false;
             if let Some(cluster_iter) = &mut self.cluster_iter {
-                self.block_index %= u32::from(fs.boot_record.blocks_per_cluster());
+                self.block_index.0 %= u64::from(fs.boot_record.blocks_per_cluster());
                 self.last_cluster = cluster_iter.next();
             } else {
                 self.last_cluster = Some(Cluster(0));
@@ -103,16 +103,16 @@ where
                 + (u32::from(fs.boot_record.bytes_per_block()) - 1))
                 / u32::from(fs.boot_record.bytes_per_block());
 
-            if self.block_index > root_dir_blocks {
+            if self.block_index.0 > u64::from(root_dir_blocks) {
                 None
             } else {
                 Some(BlockIndex(
-                    fs.first_data_offset.0 - root_dir_blocks + self.block_index,
+                    fs.first_data_offset.0 - u64::from(root_dir_blocks) + self.block_index.0,
                 ))
             }
         } else {
             Some(BlockIndex(
-                cluster.to_data_block_index(fs).0 + self.block_index,
+                cluster.to_data_block_index(fs).0 + self.block_index.0,
             ))
         };
 
