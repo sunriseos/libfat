@@ -133,8 +133,9 @@ impl DirectoryEntry {
     where
         T: BlockDevice,
     {
-        // TODO: return Ok(0) if out of range.
-        Self::check_range(offset, fs.boot_record.fat_type)?;
+        if Self::check_range(offset, fs.boot_record.fat_type).is_err() {
+            return Ok(0);
+        }
 
         if offset >= u64::from(self.file_size) {
             return Ok(0);
