@@ -145,8 +145,9 @@ impl FatValue {
         T: BlockDevice,
     {
         let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
-        let cluster_block_index =
-            BlockIndex(cluster.to_fat_block_index(fs).0 + u64::from(fat_index * fs.boot_record.fat_size()));
+        let cluster_block_index = BlockIndex(
+            cluster.to_fat_block_index(fs).0 + u64::from(fat_index * fs.boot_record.fat_size()),
+        );
         let cluster_offset = (fat_offset % u32::from(fs.boot_record.bytes_per_block())) as usize;
 
         fs.block_device

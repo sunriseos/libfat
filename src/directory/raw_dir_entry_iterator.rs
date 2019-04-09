@@ -47,11 +47,19 @@ where
         let cluster_iter = if in_root_directory {
             match fs.boot_record.fat_type {
                 FatFsType::Fat12 | FatFsType::Fat16 => None,
-                FatFsType::Fat32 => Some(BlockIndexClusterIter::new(fs, start_cluster, Some(block_index))),
+                FatFsType::Fat32 => Some(BlockIndexClusterIter::new(
+                    fs,
+                    start_cluster,
+                    Some(block_index),
+                )),
                 _ => unimplemented!(),
             }
         } else {
-            Some(BlockIndexClusterIter::new(fs, start_cluster, Some(block_index)))
+            Some(BlockIndexClusterIter::new(
+                fs,
+                start_cluster,
+                Some(block_index),
+            ))
         };
 
         FatDirEntryIterator {

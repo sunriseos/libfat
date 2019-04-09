@@ -113,7 +113,7 @@ impl DirectoryEntry {
             FatFsType::Fat12 => 0x01FF_FFFF,
             FatFsType::Fat16 => 0x7FFF_FFFF,
             FatFsType::Fat32 => 0xFFFF_FFFF,
-            _ => unimplemented!()
+            _ => unimplemented!(),
         };
 
         if offset > max_size {
@@ -360,7 +360,7 @@ impl DirectoryEntryRawInfo {
             self.parent_cluster,
             self.first_entry_block_index,
             self.first_entry_offset,
-            self.in_old_fat_root_directory
+            self.in_old_fat_root_directory,
         );
 
         let mut i = 0;

@@ -37,7 +37,10 @@ where
         let (cluster, block_index) = if let Some(block_index) = block_index {
             let cluster_offset = block_index.0 / blocks_per_cluster;
             let block_index = BlockIndex(block_index.0 % blocks_per_cluster);
-            (Cluster(cluster.0 + cluster_offset as u32), Some(block_index))
+            (
+                Cluster(cluster.0 + cluster_offset as u32),
+                Some(block_index),
+            )
         } else {
             (cluster, block_index)
         };

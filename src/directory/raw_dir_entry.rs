@@ -180,11 +180,7 @@ impl FatDirEntry {
         }?;
 
         fs.block_device
-            .read(
-                &mut blocks,
-                fs.partition_start,
-                entry_block_index,
-            )
+            .read(&mut blocks, fs.partition_start, entry_block_index)
             .or(Err(FileSystemError::ReadFailed))?;
 
         let block = &mut blocks[0];
@@ -196,11 +192,7 @@ impl FatDirEntry {
         }
 
         fs.block_device
-            .write(
-                &blocks,
-                fs.partition_start,
-                entry_block_index,
-            )
+            .write(&blocks, fs.partition_start, entry_block_index)
             .or(Err(FileSystemError::WriteFailed))
     }
 

@@ -147,7 +147,7 @@ where
                         raw_dir_entry.entry_cluster,
                         raw_dir_entry.entry_index,
                         raw_dir_entry.entry_offset,
-                        is_root_directory
+                        is_root_directory,
                     ));
                 }
             }
@@ -172,7 +172,13 @@ where
             return Err(error);
         }
 
-        Ok(FatDirEntryIterator::new(fs, new_cluster, BlockIndex(0), 0, is_root_directory))
+        Ok(FatDirEntryIterator::new(
+            fs,
+            new_cluster,
+            BlockIndex(0),
+            0,
+            is_root_directory,
+        ))
     }
 
     /// Create a directory entry in a given parent directory.
@@ -271,7 +277,7 @@ where
                 raw_info.parent_cluster,
                 raw_info.first_entry_block_index,
                 raw_info.first_entry_offset,
-                raw_info.in_old_fat_root_directory
+                raw_info.in_old_fat_root_directory,
             );
 
             let mut i = 0;
@@ -441,7 +447,7 @@ where
                 old_raw_info.parent_cluster,
                 old_raw_info.first_entry_block_index,
                 old_raw_info.first_entry_offset,
-                old_raw_info.in_old_fat_root_directory
+                old_raw_info.in_old_fat_root_directory,
             );
 
             let mut context: ShortFileNameContext = ShortFileNameContext::default();
@@ -504,8 +510,13 @@ where
 
             // We aren't in the same dir?
             if new_parent_cluster != old_parent_cluster {
-                let mut iter =
-                    FatDirEntryIterator::new(self.fs, new_entry.start_cluster, BlockIndex(0), 0, new_raw_info.in_old_fat_root_directory);
+                let mut iter = FatDirEntryIterator::new(
+                    self.fs,
+                    new_entry.start_cluster,
+                    BlockIndex(0),
+                    0,
+                    new_raw_info.in_old_fat_root_directory,
+                );
 
                 // FIXME: is that always the second entry?
                 let mut second_entry = iter.nth(2).unwrap()?;

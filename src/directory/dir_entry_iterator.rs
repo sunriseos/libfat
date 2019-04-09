@@ -3,7 +3,7 @@ use arrayvec::ArrayString;
 
 use crate::name::LongFileName;
 
-use libfs::block::{BlockDevice};
+use libfs::block::BlockDevice;
 use libfs::FileSystemResult;
 
 use super::dir_entry::DirectoryEntry;
