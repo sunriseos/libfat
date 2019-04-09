@@ -75,9 +75,10 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S>
 {
     type Item = FileSystemResult<FatDirEntry>;
     fn next(&mut self) -> Option<FileSystemResult<FatDirEntry>> {
-        let block_size = crate::MINIMAL_CLUSTER_SIZE;
-        let entry_per_block_count = (block_size / FatDirEntry::LEN) as u8;
         let fs = self.fs;
+
+        let block_size = fs.boot_record.bytes_per_block() as usize;
+        let entry_per_block_count = (block_size / FatDirEntry::LEN) as u8;
 
         let cluster_opt = if self.counter == entry_per_block_count || self.is_first {
             if !self.is_first {
@@ -87,7 +88,7 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S>
 
             self.is_first = false;
             if let Some(cluster_iter) = &mut self.cluster_iter {
-                self.cluster_offset %= u64::from(fs.boot_record.blocks_per_cluster());
+                self.cluster_offset %= u64::from(fs.boot_record.blocks_per_cluster()) * block_size as u64;
                 self.last_cluster = cluster_iter.next();
             } else {
                 self.last_cluster = Some(Cluster(0));

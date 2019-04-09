@@ -127,7 +127,6 @@ impl<'a, S: StorageDevice> Iterator for DirectoryEntryIterator<'a, S>
                 let first_raw_dir_entry = first_raw_dir_entry.unwrap();
 
                 // only a SFN entry
-                trace!("{:?}", file_name);
                 return Some(Ok(DirectoryEntry {
                     start_cluster: entry.get_cluster(),
                     raw_info: Some(DirectoryEntryRawInfo::new(
