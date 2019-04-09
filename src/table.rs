@@ -140,7 +140,8 @@ impl FatValue {
         let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
         let cluster_storage_offset = cluster.to_fat_bytes_offset(fs) + u64::from(fat_index * fs.boot_record.fat_size()) * u64::from(fs.boot_record.bytes_per_block());
 
-        let partition_storage_offset = fs.partition_start + cluster_storage_offset;
+        let cluster_offset = (fat_offset % u32::from(fs.boot_record.bytes_per_block())) as u64;
+        let partition_storage_offset = fs.partition_start + cluster_storage_offset + cluster_offset;
 
         match fs.boot_record.fat_type {
             FatFsType::Fat32 => {
