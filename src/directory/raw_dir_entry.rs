@@ -161,7 +161,7 @@ impl FatDirEntry {
             // TODO: remove this
             unimplemented!()
         } else {
-            self.entry_cluster_offset + self.entry_offset
+            self.entry_cluster.to_data_bytes_offset(fs) +  self.entry_cluster_offset + self.entry_offset
         };
 
         fs.storage_device.write(fs.partition_start + entry_offset, &self.data).or(Err(FileSystemError::WriteFailed))

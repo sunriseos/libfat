@@ -13,7 +13,7 @@ impl Cluster {
     pub fn to_data_bytes_offset<S: StorageDevice>(self, fs: &FatFileSystem<S>) -> u64
     {
         let first_block_of_cluster = (self.0 - 2) * u32::from(fs.boot_record.blocks_per_cluster());
-        fs.first_data_offset + u64::from(first_block_of_cluster * u32::from(fs.boot_record.bytes_per_block()))
+        fs.first_data_offset + u64::from(first_block_of_cluster) * u64::from(fs.boot_record.bytes_per_block())
     }
 
     /// Compute the offset in the cluster map of the cluster chain.

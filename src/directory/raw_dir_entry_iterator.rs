@@ -129,7 +129,7 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S>
         let dir_entry = FatDirEntry::from_raw(
             &raw_data,
             cluster,
-            cluster_position_opt?,
+            self.cluster_offset,
             entry_start
         );
 

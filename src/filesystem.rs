@@ -258,7 +258,7 @@ impl<S: StorageDevice> FatFileSystem<S>
     /// Used when creating a new directory.
     /// TODO: don't assumbe that bytes_per_block == MINIMAL_CLUSTER_SIZE
     pub(crate) fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
-        let mut block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
+        let block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
         let mut block_index = 0;
 
         for cluster in ClusterOffsetIter::new(self, cluster, None) {
