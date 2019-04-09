@@ -3,7 +3,7 @@ use arrayvec::ArrayString;
 
 use crate::name::LongFileName;
 
-use libfs::block::BlockDevice;
+use libfs::storage::StorageDevice;
 use libfs::FileSystemResult;
 
 use super::dir_entry::DirectoryEntry;
@@ -12,14 +12,12 @@ use super::raw_dir_entry::FatDirEntry;
 use super::raw_dir_entry_iterator::FatDirEntryIterator;
 
 /// Represent a directory entries iterator.
-pub struct DirectoryEntryIterator<'a, T> {
+pub struct DirectoryEntryIterator<'a, S: StorageDevice> {
     /// The raw directory entries (8.3/VFAT entries) iterator.
-    pub(crate) raw_iter: FatDirEntryIterator<'a, T>,
+    pub(crate) raw_iter: FatDirEntryIterator<'a, S>,
 }
 
-impl<'a, T> Iterator for DirectoryEntryIterator<'a, T>
-where
-    T: BlockDevice,
+impl<'a, S: StorageDevice> Iterator for DirectoryEntryIterator<'a, S>
 {
     type Item = FileSystemResult<DirectoryEntry>;
     fn next(&mut self) -> Option<FileSystemResult<DirectoryEntry>> {
@@ -129,11 +127,12 @@ where
                 let first_raw_dir_entry = first_raw_dir_entry.unwrap();
 
                 // only a SFN entry
+                trace!("{:?}", file_name);
                 return Some(Ok(DirectoryEntry {
                     start_cluster: entry.get_cluster(),
                     raw_info: Some(DirectoryEntryRawInfo::new(
                         first_raw_dir_entry.entry_cluster,
-                        first_raw_dir_entry.entry_index,
+                        first_raw_dir_entry.entry_cluster_offset,
                         first_raw_dir_entry.entry_offset,
                         entry_count,
                         self.raw_iter.cluster_iter.is_none(),

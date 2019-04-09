@@ -2,14 +2,14 @@
 use arrayvec::ArrayString;
 
 use crate::attribute::Attributes;
-use crate::block_iter::BlockIndexClusterIter;
+use crate::offset_iter::ClusterOffsetIter;
 use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
 use crate::table;
 use crate::utils;
 use crate::FatFsType;
 
-use libfs::block::{Block, BlockDevice, BlockIndex};
+use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
@@ -24,11 +24,11 @@ pub(crate) struct DirectoryEntryRawInfo {
     /// The first cluster of the parent entry.
     pub parent_cluster: Cluster,
 
-    /// The first raw entry block index of the child entry in the parent entry.
-    pub first_entry_block_index: BlockIndex,
+    /// The cluster offset of the first entry in the parent entry.
+    pub first_entry_cluster_offset: u64,
 
-    /// The first raw entry offset of the child entry inside the block in the parent entry.
-    pub first_entry_offset: u32,
+    /// The first raw entry offset of the child entry in the parent entry.
+    pub first_entry_offset: u64,
 
     /// The count of raw entries used by the child entry.
     pub entry_count: u32,
@@ -38,14 +38,14 @@ impl DirectoryEntryRawInfo {
     /// Create a new directory entry raw info.
     pub fn new(
         parent_cluster: Cluster,
-        first_entry_block_index: BlockIndex,
-        first_entry_offset: u32,
+        first_entry_cluster_offset: u64,
+        first_entry_offset: u64,
         entry_count: u32,
         in_old_fat_root_directory: bool,
     ) -> Self {
         DirectoryEntryRawInfo {
             parent_cluster,
-            first_entry_block_index,
+            first_entry_cluster_offset,
             first_entry_offset,
             entry_count,
             in_old_fat_root_directory,
@@ -124,14 +124,12 @@ impl DirectoryEntry {
     }
 
     /// Read at a given offset of the file into a given buffer.
-    pub fn read<'a, T>(
+    pub fn read<'a, S: StorageDevice>(
         &mut self,
-        fs: &'a FatFileSystem<T>,
+        fs: &'a FatFileSystem<S>,
         offset: u64,
         buf: &mut [u8],
     ) -> FileSystemResult<u64>
-    where
-        T: BlockDevice,
     {
         if Self::check_range(offset, fs.boot_record.fat_type).is_err() {
             return Ok(0);
@@ -141,11 +139,11 @@ impl DirectoryEntry {
             return Ok(0);
         }
 
-        let device: &T = &fs.block_device;
+        /*let device: &S = &fs.storage_device;
 
         let mut raw_tmp_offset = offset as u64;
         let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
-        let mut cluster_block_iterator =
+        let mut cluster_offset_iterator =
             BlockIndexClusterIter::new(fs, self.start_cluster, Some(cluster_offset));
         let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
 
@@ -153,7 +151,7 @@ impl DirectoryEntry {
         let mut blocks = [Block::new()];
 
         while read_size < buf.len() as u64 {
-            let cluster_opt = cluster_block_iterator.next();
+            let cluster_opt = cluster_offset_iterator.next();
             if cluster_opt.is_none() {
                 break;
             }
@@ -193,19 +191,20 @@ impl DirectoryEntry {
             read_size += buf_limit as u64;
         }
 
-        Ok(read_size)
+        Ok(read_size)*/
+        // TODO: reimplement this
+        unimplemented!()
+
     }
 
     /// Write the given buffer at a given offset of the file.
-    pub fn write<'a, T>(
+    pub fn write<'a, S: StorageDevice>(
         &mut self,
-        fs: &'a FatFileSystem<T>,
+        fs: &'a FatFileSystem<S>,
         offset: u64,
         buf: &[u8],
         appendable: bool,
     ) -> FileSystemResult<()>
-    where
-        T: BlockDevice,
     {
         Self::check_range(offset, fs.boot_record.fat_type)?;
 
@@ -218,11 +217,11 @@ impl DirectoryEntry {
             }
         }
 
-        let device: &T = &fs.block_device;
+        /*let device: &S = &fs.storage_device;
 
         let mut raw_tmp_offset = offset as u64;
         let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
-        let mut cluster_block_iterator =
+        let mut cluster_offset_iterator =
             BlockIndexClusterIter::new(fs, self.start_cluster, Some(cluster_offset));
         let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
 
@@ -230,7 +229,7 @@ impl DirectoryEntry {
         let mut blocks = [Block::new()];
 
         while write_size < buf.len() as u64 {
-            let cluster = cluster_block_iterator
+            let cluster = cluster_offset_iterator
                 .next()
                 .ok_or(FileSystemError::WriteFailed)?;
 
@@ -273,13 +272,13 @@ impl DirectoryEntry {
             write_size += buf_limit as u64;
         }
 
-        Ok(())
+        Ok(())*/
+        // TODO: reimplement this
+        unimplemented!()
     }
 
     /// Set the file length
-    pub fn set_len<'a, T>(&mut self, fs: &'a FatFileSystem<T>, size: u64) -> FileSystemResult<()>
-    where
-        T: BlockDevice,
+    pub fn set_len<'a, S: StorageDevice>(&mut self, fs: &'a FatFileSystem<S>, size: u64) -> FileSystemResult<()>
     {
         let current_len = u64::from(self.file_size);
         if size == current_len {
@@ -351,14 +350,12 @@ impl DirectoryEntry {
 
 impl DirectoryEntryRawInfo {
     /// Contrust a directory entry from raw data
-    pub fn get_dir_entry<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<FatDirEntry>
-    where
-        T: BlockDevice,
+    pub fn get_dir_entry<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<FatDirEntry>
     {
-        let mut block_iter = super::FatDirEntryIterator::new(
+        let mut offset_iter = super::FatDirEntryIterator::new(
             fs,
             self.parent_cluster,
-            self.first_entry_block_index,
+            self.first_entry_cluster_offset,
             self.first_entry_offset,
             self.in_old_fat_root_directory,
         );
@@ -367,7 +364,7 @@ impl DirectoryEntryRawInfo {
         let mut res = None;
 
         while i < self.entry_count {
-            let result = block_iter.next();
+            let result = offset_iter.next();
             if let Some(result) = result {
                 res = Some(result?);
             } else {

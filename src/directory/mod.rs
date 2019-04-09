@@ -2,12 +2,12 @@
 
 use arrayvec::ArrayString;
 
-use libfs::block::{BlockDevice, BlockIndex};
+use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
 use super::attribute::Attributes;
-use super::block_iter::BlockIndexClusterIter;
+use super::offset_iter::ClusterOffsetIter;
 use super::cluster::Cluster;
 use super::name::ShortFileName;
 use super::name::ShortFileNameContext;
@@ -30,15 +30,15 @@ use raw_dir_entry_iterator::FatDirEntryIterator;
 
 #[derive(Copy)]
 /// Represent a Directory.
-pub struct Directory<'a, T> {
+pub struct Directory<'a, S: StorageDevice> {
     /// The information about this directory.
     dir_info: DirectoryEntry,
 
     /// A reference to the filesystem.
-    fs: &'a FatFileSystem<T>,
+    fs: &'a FatFileSystem<S>,
 }
 
-impl<'a, T> Clone for Directory<'a, T> {
+impl<'a, S: StorageDevice> Clone for Directory<'a, S> {
     fn clone(&self) -> Self {
         Directory {
             dir_info: self.dir_info,
@@ -47,9 +47,7 @@ impl<'a, T> Clone for Directory<'a, T> {
     }
 }
 
-impl<'a, T> Directory<'a, T>
-where
-    T: BlockDevice,
+impl<'a, S: StorageDevice> Directory<'a, S>
 {
     /// Helper to determine if the directory is the root directory.
     pub fn is_root_directory(&self) -> bool {
@@ -57,7 +55,7 @@ where
     }
 
     /// Create a directory from a filesystem reference and a directory entry.
-    pub fn from_entry(fs: &'a FatFileSystem<T>, dir_info: DirectoryEntry) -> Self {
+    pub fn from_entry(fs: &'a FatFileSystem<S>, dir_info: DirectoryEntry) -> Self {
         Directory { dir_info, fs }
     }
 
@@ -111,7 +109,7 @@ where
     }
 
     /// Open a directory at the given path.
-    pub fn open_dir(self, path: &str) -> FileSystemResult<Directory<'a, T>> {
+    pub fn open_dir(self, path: &str) -> FileSystemResult<Directory<'a, S>> {
         let (name, rest_opt) = utils::split_path(path);
 
         let fs = self.fs;
@@ -131,9 +129,9 @@ where
     /// Search space to allocate a directory entry and return a raw entry iterator to it.
     fn allocate_entries(
         entry: &DirectoryEntry,
-        fs: &'a FatFileSystem<T>,
+        fs: &'a FatFileSystem<S>,
         count: u32,
-    ) -> FileSystemResult<FatDirEntryIterator<'a, T>> {
+    ) -> FileSystemResult<FatDirEntryIterator<'a, S>> {
         let mut i = 0;
         let directory = Directory::from_entry(fs, *entry);
         let is_root_directory = directory.is_root_directory();
@@ -145,7 +143,7 @@ where
                     return Ok(FatDirEntryIterator::new(
                         fs,
                         raw_dir_entry.entry_cluster,
-                        raw_dir_entry.entry_index,
+                        raw_dir_entry.entry_cluster_offset,
                         raw_dir_entry.entry_offset,
                         is_root_directory,
                     ));
@@ -175,7 +173,7 @@ where
         Ok(FatDirEntryIterator::new(
             fs,
             new_cluster,
-            BlockIndex(0),
+            0,
             0,
             is_root_directory,
         ))
@@ -183,7 +181,7 @@ where
 
     /// Create a directory entry in a given parent directory.
     fn create_dir_entry(
-        fs: &'a FatFileSystem<T>,
+        fs: &'a FatFileSystem<S>,
         parent_entry: &DirectoryEntry,
         attribute: Attributes,
         name: &str,
@@ -257,7 +255,7 @@ where
             sfn_entry,
             Some(DirectoryEntryRawInfo::new(
                 first_raw_dir_entry.entry_cluster,
-                first_raw_dir_entry.entry_index,
+                first_raw_dir_entry.entry_cluster_offset,
                 first_raw_dir_entry.entry_offset,
                 count,
                 is_in_old_root_directory,
@@ -268,21 +266,21 @@ where
 
     /// Delete a directory entry in a given parent directory.
     fn delete_dir_entry(
-        fs: &'a FatFileSystem<T>,
+        fs: &'a FatFileSystem<S>,
         dir_entry: &DirectoryEntry,
     ) -> FileSystemResult<()> {
         if let Some(raw_info) = dir_entry.raw_info {
-            let mut block_iter = FatDirEntryIterator::new(
+            let mut offset_iter = FatDirEntryIterator::new(
                 fs,
                 raw_info.parent_cluster,
-                raw_info.first_entry_block_index,
+                raw_info.first_entry_cluster_offset,
                 raw_info.first_entry_offset,
                 raw_info.in_old_fat_root_directory,
             );
 
             let mut i = 0;
             while i < raw_info.entry_count {
-                if let Some(block_res) = block_iter.next() {
+                if let Some(block_res) = offset_iter.next() {
                     let mut res = block_res?;
 
                     res.set_deleted();
@@ -445,7 +443,7 @@ where
             let mut entries_iter = FatDirEntryIterator::new(
                 self.fs,
                 old_raw_info.parent_cluster,
-                old_raw_info.first_entry_block_index,
+                old_raw_info.first_entry_cluster_offset,
                 old_raw_info.first_entry_offset,
                 old_raw_info.in_old_fat_root_directory,
             );
@@ -513,7 +511,7 @@ where
                 let mut iter = FatDirEntryIterator::new(
                     self.fs,
                     new_entry.start_cluster,
-                    BlockIndex(0),
+                    0,
                     0,
                     new_raw_info.in_old_fat_root_directory,
                 );
@@ -530,42 +528,38 @@ where
     }
 }
 
-impl<'a, T> Directory<'a, T>
-where
-    T: BlockDevice,
+impl<'a, S: StorageDevice> Directory<'a, S>
 {
     /// Create a raw directory entry iterator from the directory.
-    pub(crate) fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, T> {
+    pub(crate) fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, S> {
         FatDirEntryIterator::from_directory(self)
     }
     /// Create a directory entry iterator from the directory.
-    pub fn iter(self) -> DirectoryEntryIterator<'a, T> {
+    pub fn iter(self) -> DirectoryEntryIterator<'a, S> {
         DirectoryEntryIterator::new(self)
     }
 }
 
-impl<'a, T> FatDirEntryIterator<'a, T>
-where
-    T: BlockDevice,
+impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S>
 {
     /// Create a raw directory entry iterator from a directory.
-    pub fn from_directory(root: Directory<'a, T>) -> Self {
+    pub fn from_directory(root: Directory<'a, S>) -> Self {
         let cluster = root.dir_info.start_cluster;
         let fs = &root.fs;
 
         let cluster_iter = if root.is_root_directory() {
             match fs.boot_record.fat_type {
                 FatFsType::Fat12 | FatFsType::Fat16 => None,
-                FatFsType::Fat32 => Some(BlockIndexClusterIter::new(fs, cluster, None)),
+                FatFsType::Fat32 => Some(ClusterOffsetIter::new(fs, cluster, None)),
                 _ => unimplemented!(),
             }
         } else {
-            Some(BlockIndexClusterIter::new(fs, cluster, None))
+            Some(ClusterOffsetIter::new(fs, cluster, None))
         };
 
         FatDirEntryIterator {
             counter: 0,
-            block_index: BlockIndex(0),
+            cluster_offset: 0,
             is_first: true,
             fs,
             cluster_iter,
@@ -574,12 +568,10 @@ where
     }
 }
 
-impl<'a, T> DirectoryEntryIterator<'a, T>
-where
-    T: BlockDevice,
+impl<'a, S: StorageDevice> DirectoryEntryIterator<'a, S>
 {
     /// Create a directory entry iterator from a directory.
-    pub fn new(root: Directory<'a, T>) -> Self {
+    pub fn new(root: Directory<'a, S>) -> Self {
         DirectoryEntryIterator {
             raw_iter: FatDirEntryIterator::from_directory(root),
         }

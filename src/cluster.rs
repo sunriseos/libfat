@@ -2,7 +2,7 @@
 
 use super::FatFileSystem;
 use super::FatFsType;
-use libfs::block::{BlockDevice, BlockIndex};
+use libfs::storage::StorageDevice;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// Represent a FAT Cluster position.
@@ -10,12 +10,10 @@ pub struct Cluster(pub u32);
 
 impl Cluster {
     /// Compute the offset of the data from the cluster position.
-    pub fn to_data_block_index<T>(self, fs: &FatFileSystem<T>) -> BlockIndex
-    where
-        T: BlockDevice,
+    pub fn to_data_bytes_offset<S: StorageDevice>(self, fs: &FatFileSystem<S>) -> u64
     {
         let first_block_of_cluster = (self.0 - 2) * u32::from(fs.boot_record.blocks_per_cluster());
-        BlockIndex(fs.first_data_offset.0 + u64::from(first_block_of_cluster))
+        fs.first_data_offset + u64::from(first_block_of_cluster * u32::from(fs.boot_record.bytes_per_block()))
     }
 
     /// Compute the offset in the cluster map of the cluster chain.
@@ -28,15 +26,13 @@ impl Cluster {
         }
     }
 
-    /// Compute the block index of a cluster in the cluster map.
-    pub fn to_fat_block_index<T>(self, fs: &FatFileSystem<T>) -> BlockIndex
-    where
-        T: BlockDevice,
+    /// Compute the bytes offset of a cluster in the cluster map.
+    pub fn to_fat_bytes_offset<S: StorageDevice>(self, fs: &FatFileSystem<S>) -> u64
     {
         let fat_offset = self.to_fat_offset(fs.boot_record.fat_type);
 
         let fat_block_index = u32::from(fs.boot_record.reserved_block_count())
             + (fat_offset / u32::from(fs.boot_record.bytes_per_block()));
-        BlockIndex(u64::from(fat_block_index))
+        u64::from(fat_block_index) * u64::from(fs.boot_record.bytes_per_block())
     }
 }

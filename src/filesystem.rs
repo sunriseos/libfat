@@ -4,7 +4,7 @@ use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
 use super::attribute::Attributes;
-use super::block_iter::BlockIndexClusterIter;
+use super::offset_iter::ClusterOffsetIter;
 use super::directory::{dir_entry::DirectoryEntry, Directory};
 use super::FatVolumeBootRecord;
 
@@ -13,7 +13,7 @@ use super::table;
 use super::table::FatValue;
 use super::utils;
 use super::FatFsType;
-use libfs::block::{Block, BlockCount, BlockDevice, BlockIndex};
+use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
@@ -32,36 +32,28 @@ struct FatFileSystemInfo {
 
 impl FatFileSystemInfo {
     /// Import FS Info from a FAT32 filesystem.
-    fn from_fs<T>(fs: &FatFileSystem<T>) -> FileSystemResult<Self>
-    where
-        T: BlockDevice,
+    fn from_fs<S: StorageDevice>(fs: &FatFileSystem<S>) -> FileSystemResult<Self>
     {
-        let mut blocks = [Block::new()];
+        let mut block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
 
         let mut last_cluster = 0xFFFF_FFFF;
         let mut free_cluster = 0xFFFF_FFFF;
 
-        fs.block_device
-            .read(
-                &mut blocks,
-                fs.partition_start,
-                BlockIndex(u64::from(fs.boot_record.fs_info_block())),
-            )
-            .or(Err(FileSystemError::ReadFailed))?;
+        fs.storage_device.read(fs.partition_start + u64::from(fs.boot_record.fs_info_block()) * u64::from(fs.boot_record.bytes_per_block()), &mut block).or(Err(FileSystemError::ReadFailed))?;
 
         // valid signature?
-        if &blocks[0][0..4] == b"RRaA"
-            && &blocks[0][0x1e4..0x1e8] == b"rrAa"
-            && LittleEndian::read_u16(&blocks[0][0x1fe..0x200]) == 0xAA55
+        if &block[0..4] == b"RRaA"
+            && &block[0x1e4..0x1e8] == b"rrAa"
+            && LittleEndian::read_u16(&block[0x1fe..0x200]) == 0xAA55
         {
             // check cluster sanity
-            let fs_last_cluster = LittleEndian::read_u32(&blocks[0][0x1ec..0x1f0]);
+            let fs_last_cluster = LittleEndian::read_u32(&block[0x1ec..0x1f0]);
             if fs_last_cluster >= 2 && fs_last_cluster < fs.boot_record.cluster_count {
                 last_cluster = fs_last_cluster;
             }
 
             // check sanity
-            let fs_free_cluster = LittleEndian::read_u32(&blocks[0][0x1e8..0x1ec]);
+            let fs_free_cluster = LittleEndian::read_u32(&block[0x1e8..0x1ec]);
             if fs_free_cluster <= fs.boot_record.cluster_count {
                 free_cluster = fs_free_cluster;
             }
@@ -74,36 +66,29 @@ impl FatFileSystemInfo {
     }
 
     /// Flush the FS Info to the disk on FAT32 filesystems.
-    fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
-    where
-        T: BlockDevice,
+    fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()>
     {
         if fs.boot_record.fat_type != FatFsType::Fat32 {
             return Ok(());
         }
 
-        let mut blocks = [Block::new()];
+        // We write a entire block because we want to ensure the data are correctly initialized.
+        let mut block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
 
-        LittleEndian::write_u32(&mut blocks[0][0..4], 0x4161_5252);
-        LittleEndian::write_u32(&mut blocks[0][0x1e4..0x1e8], 0x6141_7272);
-        LittleEndian::write_u16(&mut blocks[0][0x1fe..0x200], 0xAA55);
+        LittleEndian::write_u32(&mut block[0..4], 0x4161_5252);
+        LittleEndian::write_u32(&mut block[0x1e4..0x1e8], 0x6141_7272);
+        LittleEndian::write_u16(&mut block[0x1fe..0x200], 0xAA55);
 
         LittleEndian::write_u32(
-            &mut blocks[0][0x1ec..0x1f0],
+            &mut block[0x1ec..0x1f0],
             self.last_cluster.load(Ordering::SeqCst),
         );
         LittleEndian::write_u32(
-            &mut blocks[0][0x1e8..0x1ec],
+            &mut block[0x1e8..0x1ec],
             self.free_cluster.load(Ordering::SeqCst),
         );
 
-        fs.block_device
-            .write(
-                &blocks,
-                fs.partition_start,
-                BlockIndex(u64::from(fs.boot_record.fs_info_block())),
-            )
-            .or(Err(FileSystemError::ReadFailed))?;
+        fs.storage_device.write(fs.partition_start + u64::from(fs.boot_record.fs_info_block()) * u64::from(fs.boot_record.bytes_per_block()), &block).or(Err(FileSystemError::WriteFailed))?;
 
         Ok(())
     }
@@ -111,19 +96,19 @@ impl FatFileSystemInfo {
 
 /// Represent a FAT filesystem.
 #[allow(dead_code)]
-pub struct FatFileSystem<T> {
-    /// The block device of the filesystem.
-    pub(crate) block_device: T,
+pub struct FatFileSystem<S: StorageDevice> {
+    /// The device device of the filesystem.
+    pub(crate) storage_device: S,
 
     /// The block index of the start of the partition of this filesystem.
-    pub(crate) partition_start: BlockIndex,
+    pub(crate) partition_start: u64,
 
     /// Block index of the first block availaible for data.
-    pub(crate) first_data_offset: BlockIndex,
+    pub(crate) first_data_offset: u64,
 
     // TODO: check we don't go out of the partition
-    /// The count of blocks that this partition contains.
-    pub(crate) partition_block_count: BlockCount,
+    /// The size of the partition.
+    pub(crate) partition_size: u64,
 
     /// The volume information of the filesystem.
     pub(crate) boot_record: FatVolumeBootRecord,
@@ -132,23 +117,21 @@ pub struct FatFileSystem<T> {
     fat_info: FatFileSystemInfo,
 }
 
-impl<T> FatFileSystem<T>
-where
-    T: BlockDevice,
+impl<S: StorageDevice> FatFileSystem<S>
 {
     /// Create a new instance of FatFileSystem
     pub(crate) fn new(
-        block_device: T,
-        partition_start: BlockIndex,
-        first_data_offset: BlockIndex,
-        partition_block_count: BlockCount,
+        storage_device: S,
+        partition_start: u64,
+        first_data_offset: u64,
+        partition_size: u64,
         boot_record: FatVolumeBootRecord,
-    ) -> FileSystemResult<FatFileSystem<T>> {
+    ) -> FileSystemResult<FatFileSystem<S>> {
         let mut fs = FatFileSystem {
-            block_device,
+            storage_device,
             partition_start,
             first_data_offset,
-            partition_block_count,
+            partition_size,
             boot_record,
             fat_info: FatFileSystemInfo {
                 last_cluster: AtomicU32::new(0xFFFF_FFFF),
@@ -177,7 +160,7 @@ where
     }
 
     /// Get the root directory of the filesystem.
-    pub fn get_root_directory(&self) -> Directory<'_, T> {
+    pub fn get_root_directory(&self) -> Directory<'_, S> {
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
             raw_info: None,
@@ -273,19 +256,16 @@ where
 
     /// Clean cluster chain data.
     /// Used when creating a new directory.
+    /// TODO: don't assumbe that bytes_per_block == MINIMAL_CLUSTER_SIZE
     pub(crate) fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
-        let blocks = [Block::new()];
+        let mut block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
         let mut block_index = 0;
 
-        for cluster in BlockIndexClusterIter::new(self, cluster, None) {
+        for cluster in ClusterOffsetIter::new(self, cluster, None) {
             block_index = (block_index + 1) % u32::from(self.boot_record.blocks_per_cluster());
-            self.block_device
-                .write(
-                    &blocks,
-                    self.partition_start,
-                    BlockIndex(cluster.to_data_block_index(self).0 + u64::from(block_index)),
-                )
-                .or(Err(FileSystemError::WriteFailed))?;
+            self.storage_device.write(self.partition_start + cluster.to_data_bytes_offset(self)
+                + u64::from(block_index) * u64::from(self.boot_record.bytes_per_block()), &block)
+            .or(Err(FileSystemError::WriteFailed))?;
         }
 
         Ok(())

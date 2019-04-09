@@ -4,7 +4,7 @@ use super::filesystem::FatFileSystem;
 use super::Cluster;
 use super::FatFsType;
 use byteorder::{ByteOrder, LittleEndian};
-use libfs::block::{Block, BlockDevice, BlockIndex};
+use libfs::storage::StorageDevice;
 
 use crate::FileSystemError;
 
@@ -26,9 +26,9 @@ pub enum FatValue {
 
 /// Util iterator used to simplify iteration over cluster.
 #[derive(Copy, Clone)]
-pub struct FatClusterIter<'a, T> {
+pub struct FatClusterIter<'a, S: StorageDevice> {
     /// The filesystem it belongs to.
-    pub(crate) fs: &'a FatFileSystem<T>,
+    pub(crate) fs: &'a FatFileSystem<S>,
 
     /// The last cluster returned.
     current_cluster: Option<Cluster>,
@@ -37,12 +37,10 @@ pub struct FatClusterIter<'a, T> {
     last_fat: Option<FatValue>,
 }
 
-impl<'a, T> FatClusterIter<'a, T>
-where
-    T: BlockDevice,
+impl<'a, S: StorageDevice> FatClusterIter<'a, S>
 {
     /// Create a new Cluster iteractor starting at ``cluster``.
-    pub fn new(fs: &'a FatFileSystem<T>, cluster: Cluster) -> FatClusterIter<'a, T> {
+    pub fn new(fs: &'a FatFileSystem<S>, cluster: Cluster) -> FatClusterIter<'a, S> {
         let fat_value = FatValue::get(fs, cluster).ok();
         FatClusterIter {
             fs,
@@ -52,9 +50,7 @@ where
     }
 }
 
-impl<'a, T> Iterator for FatClusterIter<'a, T>
-where
-    T: BlockDevice,
+impl<'a, S: StorageDevice> Iterator for FatClusterIter<'a, S>
 {
     type Item = Cluster;
     fn next(&mut self) -> Option<Cluster> {
@@ -135,97 +131,66 @@ impl FatValue {
 
     /// Create a ```FatValue``` from a raw cluster.
     /// Used internally in get and raw_put.
-    fn from_cluster<T>(
-        fs: &FatFileSystem<T>,
-        blocks: &mut [Block],
+    fn from_cluster<S: StorageDevice>(
+        fs: &FatFileSystem<S>,
         cluster: Cluster,
         fat_index: u32,
-    ) -> Result<(Self, usize, BlockIndex, usize), FileSystemError>
-    where
-        T: BlockDevice,
+    ) -> Result<(Self, u64), FileSystemError>
     {
         let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
-        let cluster_block_index = BlockIndex(
-            cluster.to_fat_block_index(fs).0 + u64::from(fat_index * fs.boot_record.fat_size()),
-        );
-        let cluster_offset = (fat_offset % u32::from(fs.boot_record.bytes_per_block())) as usize;
+        let cluster_storage_offset = cluster.to_fat_bytes_offset(fs) + u64::from(fat_index * fs.boot_record.fat_size()) * u64::from(fs.boot_record.bytes_per_block());
 
-        fs.block_device
-            .read(blocks, fs.partition_start, cluster_block_index)
-            .or(Err(FileSystemError::ReadFailed))?;
-
-        let block = &blocks[0];
+        let partition_storage_offset = fs.partition_start + cluster_storage_offset;
 
         match fs.boot_record.fat_type {
-            FatFsType::Fat32 => Ok((
-                Self::from_fat32_value(
-                    LittleEndian::read_u32(&block[cluster_offset..cluster_offset + 4])
-                        & 0x0FFF_FFFF,
-                ),
-                cluster_offset,
-                cluster_block_index,
-                1,
-            )),
-            FatFsType::Fat16 => Ok((
-                Self::from_fat16_value(LittleEndian::read_u16(
-                    &block[cluster_offset..cluster_offset + 2],
-                )),
-                cluster_offset,
-                cluster_block_index,
-                1,
-            )),
+            FatFsType::Fat32 => {
+                let mut data = [0x0u8; 4];
+                fs.storage_device.read(partition_storage_offset, &mut data).or(Err(FileSystemError::ReadFailed))?;
+
+                Ok((Self::from_fat32_value(LittleEndian::read_u32(&data) & 0x0FFF_FFFF), cluster_storage_offset))
+            },
+            FatFsType::Fat16 => {
+                let mut data = [0x0u8; 2];
+                fs.storage_device.read(partition_storage_offset, &mut data).or(Err(FileSystemError::ReadFailed))?;
+
+                Ok((Self::from_fat16_value(LittleEndian::read_u16(&data)), cluster_storage_offset))
+            },
             FatFsType::Fat12 => {
-                let mut value = if cluster_offset + 2 > Block::LEN {
-                    fs.block_device
-                        .read(&mut blocks[1..], fs.partition_start, cluster_block_index)
-                        .or(Err(FileSystemError::ReadFailed))?;
-                    let mut buffer: [u8; 2] = [0x0; 2];
-                    buffer[0] = blocks[0][Block::LEN - 1];
-                    buffer[1] = blocks[1][0];
-                    LittleEndian::read_u16(&buffer)
-                } else {
-                    LittleEndian::read_u16(&block[cluster_offset..cluster_offset + 2])
-                };
+                let mut data = [0x0u8; 2];
+                fs.storage_device.read(partition_storage_offset, &mut data).or(Err(FileSystemError::ReadFailed))?;
+
+                let mut value = LittleEndian::read_u16(&data);
+
                 value = if (cluster.0 & 1) == 1 {
                     value >> 4
                 } else {
                     value & 0x0FFF
                 };
 
-                Ok((
-                    Self::from_fat12_value(value),
-                    cluster_offset,
-                    cluster_block_index,
-                    2,
-                ))
+                Ok((Self::from_fat12_value(value), cluster_storage_offset))
             }
             _ => unimplemented!(),
         }
     }
 
     /// Get the ```FatValue``` of a given cluster.
-    pub fn get<T>(fs: &FatFileSystem<T>, cluster: Cluster) -> Result<FatValue, FileSystemError>
-    where
-        T: BlockDevice,
+    pub fn get<S: StorageDevice>(fs: &FatFileSystem<S>, cluster: Cluster) -> Result<FatValue, FileSystemError>
     {
-        let mut blocks = [Block::new(), Block::new()];
-        Ok(FatValue::from_cluster(fs, &mut blocks, cluster, 0)?.0)
+        Ok(FatValue::from_cluster(fs, cluster, 0)?.0)
     }
 
     /// Write the given ``FatValue``at a given ``Cluster`` in one FAT.
-    fn raw_put<T>(
-        fs: &FatFileSystem<T>,
+    fn raw_put<S: StorageDevice>(
+        fs: &FatFileSystem<S>,
         cluster: Cluster,
         value: FatValue,
         fat_index: u32,
     ) -> Result<(), FileSystemError>
-    where
-        T: BlockDevice,
     {
-        let mut blocks = [Block::new(), Block::new()];
 
-        let (res, cluster_offset, cluster_block_index, block_count) =
-            FatValue::from_cluster(fs, &mut blocks, cluster, fat_index)?;
+        let (res, cluster_storage_offset) = FatValue::from_cluster(fs, cluster, fat_index)?;
+
+        let partition_storage_offset = fs.partition_start + cluster_storage_offset;
 
         // no write needed
         if res == value {
@@ -233,14 +198,16 @@ impl FatValue {
         }
 
         match fs.boot_record.fat_type {
-            FatFsType::Fat32 => LittleEndian::write_u32(
-                &mut blocks[0][cluster_offset..cluster_offset + 4],
-                value.to_fat32_value() & 0x0FFF_FFFF,
-            ),
-            FatFsType::Fat16 => LittleEndian::write_u16(
-                &mut blocks[0][cluster_offset..cluster_offset + 2],
-                value.to_fat16_value(),
-            ),
+            FatFsType::Fat32 => {
+                let mut data = [0x0u8; 4];
+                LittleEndian::write_u32(&mut data, value.to_fat32_value() & 0x0FFF_FFFF);
+                fs.storage_device.write(partition_storage_offset, &data).or(Err(FileSystemError::WriteFailed))?;
+            },
+            FatFsType::Fat16 => {
+                let mut data = [0x0u8; 2];
+                LittleEndian::write_u16(&mut data, value.to_fat16_value());
+                fs.storage_device.write(partition_storage_offset, &data).or(Err(FileSystemError::WriteFailed))?;
+            },
             FatFsType::Fat12 => {
                 let mut value = value.to_fat12_value();
                 value = if (cluster.0 & 1) == 1 {
@@ -249,40 +216,22 @@ impl FatValue {
                     value & 0x0FFF
                 };
 
-                if cluster_offset + 2 > Block::LEN {
-                    let mut buffer: [u8; 2] = [0x0; 2];
-                    LittleEndian::write_u16(&mut buffer, value);
-                    blocks[0][Block::LEN - 1] = buffer[0];
-                    blocks[1][0] = buffer[1];
-                } else {
-                    LittleEndian::write_u16(
-                        &mut blocks[0][cluster_offset..cluster_offset + 2],
-                        value,
-                    );
-                }
+                let mut data = [0x0u8; 2];
+                LittleEndian::write_u16(&mut data, value);
+                fs.storage_device.write(partition_storage_offset, &data).or(Err(FileSystemError::WriteFailed))?;
             }
             _ => unimplemented!(),
         }
-
-        fs.block_device
-            .write(
-                &blocks[0..block_count],
-                fs.partition_start,
-                cluster_block_index,
-            )
-            .or(Err(FileSystemError::WriteFailed))?;
 
         Ok(())
     }
 
     /// Write the given ``FatValue``at a given ``Cluster`` in all FATs.
-    pub fn put<T>(
-        fs: &FatFileSystem<T>,
+    pub fn put<S: StorageDevice>(
+        fs: &FatFileSystem<S>,
         cluster: Cluster,
         value: FatValue,
     ) -> Result<(), FileSystemError>
-    where
-        T: BlockDevice,
     {
         for fat_index in 0..u32::from(fs.boot_record.fats_count()) {
             Self::raw_put(fs, cluster, value, fat_index)?;
@@ -292,23 +241,19 @@ impl FatValue {
 }
 
 /// Get the last cluster of a cluster chain.
-pub fn get_last_cluster<T>(
-    fs: &FatFileSystem<T>,
+pub fn get_last_cluster<S: StorageDevice>(
+    fs: &FatFileSystem<S>,
     cluster: Cluster,
 ) -> Result<Cluster, FileSystemError>
-where
-    T: BlockDevice,
 {
     Ok(get_last_and_previous_cluster(fs, cluster)?.0)
 }
 
 /// Get the last cluster and prevous cluster of a cluster chain.
-pub fn get_last_and_previous_cluster<T>(
-    fs: &FatFileSystem<T>,
+pub fn get_last_and_previous_cluster<S: StorageDevice>(
+    fs: &FatFileSystem<S>,
     cluster: Cluster,
 ) -> Result<(Cluster, Option<Cluster>), FileSystemError>
-where
-    T: BlockDevice,
 {
     let mut previous_cluster = None;
     let mut current_cluster = cluster;
@@ -322,9 +267,7 @@ where
 }
 
 /// Compute the whole cluster count of a given FileSystem.
-pub fn get_free_cluster_count<T>(fs: &FatFileSystem<T>) -> Result<u32, FileSystemError>
-where
-    T: BlockDevice,
+pub fn get_free_cluster_count<S: StorageDevice>(fs: &FatFileSystem<S>) -> Result<u32, FileSystemError>
 {
     let mut current_cluster = Cluster(2);
 

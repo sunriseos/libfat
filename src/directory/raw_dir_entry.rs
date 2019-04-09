@@ -8,7 +8,7 @@ use crate::datetime::FatDateTime;
 use crate::filesystem::FatFileSystem;
 use crate::name::{LongFileName, ShortFileName};
 
-use libfs::block::{Block, BlockDevice, BlockIndex};
+use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
@@ -44,7 +44,7 @@ pub struct LongFileNameDirEntry {
 }
 
 /// Represent a 8.3 entry.
-#[derive(Clone, Copy, View)]
+#[derive(Clone, Copy, View, Debug)]
 #[repr(C)]
 pub struct ShortFileNameDirEntry {
     /// Short file name and extension. (padded with spaces)
@@ -92,11 +92,11 @@ pub struct FatDirEntry {
     /// The cluster where this entry is.
     pub entry_cluster: Cluster,
 
-    /// The block index of this entry.
-    pub entry_index: BlockIndex,
+    /// The entry offset on the cluster.
+    pub entry_cluster_offset: u64,
 
-    /// The offset of the entry in the block.
-    pub entry_offset: u32,
+    /// The entry offset in the block.
+    pub entry_offset: u64,
 
     /// The raw data of the entry.
     pub data: [u8; Self::LEN],
@@ -110,15 +110,15 @@ impl FatDirEntry {
     pub fn from_raw(
         data: &[u8],
         entry_cluster: Cluster,
-        entry_index: BlockIndex,
-        entry_offset: u32,
+        entry_cluster_offset: u64,
+        entry_offset: u64,
     ) -> FatDirEntry {
         let mut data_copied = [0x0u8; Self::LEN];
 
         data_copied[..data.len()].clone_from_slice(&data[..]);
         FatDirEntry {
             entry_cluster,
-            entry_index,
+            entry_cluster_offset,
             entry_offset,
             data: data_copied,
         }
@@ -150,50 +150,21 @@ impl FatDirEntry {
     }
 
     /// Write the raw data buffer to disk.
-    pub fn flush<T>(&self, fs: &FatFileSystem<T>) -> FileSystemResult<()>
-    where
-        T: BlockDevice,
+    pub fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()>
     {
-        let mut blocks = [Block::new()];
-
         let is_in_old_root_directory = match fs.boot_record.fat_type {
             FatFsType::Fat12 | FatFsType::Fat16 => self.entry_cluster.0 == 0,
             _ => false,
         };
 
-        let entry_block_index = if is_in_old_root_directory {
-            let root_dir_blocks = ((u32::from(fs.boot_record.root_dir_childs_count()) * 32)
-                + (u32::from(fs.boot_record.bytes_per_block()) - 1))
-                / u32::from(fs.boot_record.bytes_per_block());
-
-            if self.entry_index.0 > u64::from(root_dir_blocks) {
-                Err(FileSystemError::NoSpaceLeft)
-            } else {
-                Ok(BlockIndex(
-                    fs.first_data_offset.0 - u64::from(root_dir_blocks) + self.entry_index.0,
-                ))
-            }
+        let entry_offset = if is_in_old_root_directory {
+            // TODO: remove this
+            unimplemented!()
         } else {
-            Ok(BlockIndex(
-                self.entry_cluster.to_data_block_index(fs).0 + self.entry_index.0,
-            ))
-        }?;
+            self.entry_cluster_offset + self.entry_offset
+        };
 
-        fs.block_device
-            .read(&mut blocks, fs.partition_start, entry_block_index)
-            .or(Err(FileSystemError::ReadFailed))?;
-
-        let block = &mut blocks[0];
-        let entry_start = self.entry_offset as usize;
-        let entry_end = entry_start + Self::LEN;
-
-        for (i, val) in block[entry_start..entry_end].iter_mut().enumerate() {
-            *val = self.data[i];
-        }
-
-        fs.block_device
-            .write(&blocks, fs.partition_start, entry_block_index)
-            .or(Err(FileSystemError::WriteFailed))
+        fs.storage_device.write(fs.partition_start + entry_offset, &self.data).or(Err(FileSystemError::WriteFailed))
     }
 
     /// Return the entry attributes.
