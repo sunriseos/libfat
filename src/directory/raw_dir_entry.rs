@@ -150,8 +150,7 @@ impl FatDirEntry {
     }
 
     /// Write the raw data buffer to disk.
-    pub fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()>
-    {
+    pub fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()> {
         let is_in_old_root_directory = match fs.boot_record.fat_type {
             FatFsType::Fat12 | FatFsType::Fat16 => self.entry_cluster.0 == 0,
             _ => false,
@@ -161,10 +160,14 @@ impl FatDirEntry {
             // TODO: remove this
             unimplemented!()
         } else {
-            self.entry_cluster.to_data_bytes_offset(fs) +  self.entry_cluster_offset + self.entry_offset
+            self.entry_cluster.to_data_bytes_offset(fs)
+                + self.entry_cluster_offset
+                + self.entry_offset
         };
 
-        fs.storage_device.write(fs.partition_start + entry_offset, &self.data).or(Err(FileSystemError::WriteFailed))
+        fs.storage_device
+            .write(fs.partition_start + entry_offset, &self.data)
+            .or(Err(FileSystemError::WriteFailed))
     }
 
     /// Return the entry attributes.

@@ -18,12 +18,12 @@
 )]
 
 pub mod attribute;
-pub(crate) mod offset_iter;
 pub(crate) mod cluster;
 pub mod datetime;
 pub mod directory;
 pub mod filesystem;
 pub mod name;
+pub(crate) mod offset_iter;
 pub(crate) mod table;
 mod utils;
 
@@ -39,6 +39,7 @@ use libfs::FileSystemError;
 /// The minimal cluster size supported
 pub const MINIMAL_CLUSTER_SIZE: usize = 512;
 
+#[allow(unused_imports)]
 #[macro_use]
 extern crate log;
 
@@ -239,11 +240,12 @@ fn parse_fat_boot_record<S: StorageDevice>(
     storage_device: S,
     partition_start: u64,
     partition_size: u64,
-) -> Result<FatFileSystem<S>, FileSystemError>
-{
+) -> Result<FatFileSystem<S>, FileSystemError> {
     let mut block = [0x0u8; 512];
 
-    storage_device.read(partition_start, &mut block).or(Err(FileSystemError::ReadFailed))?;
+    storage_device
+        .read(partition_start, &mut block)
+        .or(Err(FileSystemError::ReadFailed))?;
 
     let boot_record: FatVolumeBootRecord = FatVolumeBootRecord::new(block);
 
@@ -276,8 +278,9 @@ fn parse_fat_boot_record<S: StorageDevice>(
 }
 
 /// Treat the block device directly as a filesystem.
-pub fn get_raw_partition<S: StorageDevice>(storage_device: S) -> Result<FatFileSystem<S>, FileSystemError>
-{
+pub fn get_raw_partition<S: StorageDevice>(
+    storage_device: S,
+) -> Result<FatFileSystem<S>, FileSystemError> {
     let storage_len = storage_device.len().unwrap();
     parse_fat_boot_record(storage_device, 0, storage_len)
 }
@@ -286,8 +289,7 @@ pub fn get_raw_partition<S: StorageDevice>(storage_device: S) -> Result<FatFileS
 pub fn get_partition<S: StorageDevice>(
     storage_device: S,
     index: u64,
-) -> Result<FatFileSystem<S>, FileSystemError>
-{
+) -> Result<FatFileSystem<S>, FileSystemError> {
     let mut block = [0x0u8; 512];
 
     /// The Partition Table offset.
@@ -299,7 +301,9 @@ pub fn get_partition<S: StorageDevice>(
     /// The size of a partition table entry.
     const PARITION_TABLE_ENTRY_SIZE: usize = 16;
 
-    storage_device.read(index, &mut block).or(Err(FileSystemError::ReadFailed))?;
+    storage_device
+        .read(index, &mut block)
+        .or(Err(FileSystemError::ReadFailed))?;
 
     if LittleEndian::read_u16(&block[MBR_SIGNATURE..MBR_SIGNATURE + 2]) != 0xAA55 {
         return Err(FileSystemError::InvalidPartition);

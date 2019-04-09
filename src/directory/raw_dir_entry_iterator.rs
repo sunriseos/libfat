@@ -1,7 +1,7 @@
 //! Low level directory entry iterator.
-use crate::offset_iter::ClusterOffsetIter;
 use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
+use crate::offset_iter::ClusterOffsetIter;
 
 use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
@@ -32,8 +32,7 @@ pub struct FatDirEntryIterator<'a, S: StorageDevice> {
     pub is_first: bool,
 }
 
-impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S>
-{
+impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S> {
     /// Create a new iterator from a cluster, a block index and an offset (representing the starting point of the iterator).  
     pub fn new(
         fs: &'a FatFileSystem<S>,
@@ -71,8 +70,7 @@ impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S>
     }
 }
 
-impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S>
-{
+impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S> {
     type Item = FileSystemResult<FatDirEntry>;
     fn next(&mut self) -> Option<FileSystemResult<FatDirEntry>> {
         let fs = self.fs;
@@ -88,7 +86,8 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S>
 
             self.is_first = false;
             if let Some(cluster_iter) = &mut self.cluster_iter {
-                self.cluster_offset %= u64::from(fs.boot_record.blocks_per_cluster()) * block_size as u64;
+                self.cluster_offset %=
+                    u64::from(fs.boot_record.blocks_per_cluster()) * block_size as u64;
                 self.last_cluster = cluster_iter.next();
             } else {
                 self.last_cluster = Some(Cluster(0));
@@ -120,18 +119,19 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S>
         };
 
         let entry_start: u64 = (entry_index * FatDirEntry::LEN) as u64;
-        let read_res = fs.storage_device.read(fs.partition_start + cluster_position_opt? + entry_start, &mut raw_data).or(Err(FileSystemError::ReadFailed));
+        let read_res = fs
+            .storage_device
+            .read(
+                fs.partition_start + cluster_position_opt? + entry_start,
+                &mut raw_data,
+            )
+            .or(Err(FileSystemError::ReadFailed));
 
         if let Err(error) = read_res {
             return Some(Err(error));
         }
 
-        let dir_entry = FatDirEntry::from_raw(
-            &raw_data,
-            cluster,
-            self.cluster_offset,
-            entry_start
-        );
+        let dir_entry = FatDirEntry::from_raw(&raw_data, cluster, self.cluster_offset, entry_start);
 
         // The entry isn't a valid one but this doesn't mark the end of the directory
         self.counter += 1;

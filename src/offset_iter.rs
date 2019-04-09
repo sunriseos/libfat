@@ -22,8 +22,7 @@ pub struct ClusterOffsetIter<'a, S: StorageDevice> {
     counter: usize,
 }
 
-impl<'a, S: StorageDevice> ClusterOffsetIter<'a, S>
-{
+impl<'a, S: StorageDevice> ClusterOffsetIter<'a, S> {
     /// Create a new iterator from a cluster and a block index.
     pub fn new(
         fs: &'a FatFileSystem<S>,
@@ -32,16 +31,17 @@ impl<'a, S: StorageDevice> ClusterOffsetIter<'a, S>
     ) -> Self {
         let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
 
-        let (cluster, start_cluster_offset) = if let Some(start_cluster_offset) = start_cluster_offset {
-            let cluster_offset = start_cluster_offset / blocks_per_cluster;
-            let start_cluster_offset = start_cluster_offset % blocks_per_cluster;
-            (
-                Cluster(cluster.0 + cluster_offset as u32),
-                Some(start_cluster_offset),
-            )
-        } else {
-            (cluster, start_cluster_offset)
-        };
+        let (cluster, start_cluster_offset) =
+            if let Some(start_cluster_offset) = start_cluster_offset {
+                let cluster_offset = start_cluster_offset / blocks_per_cluster;
+                let start_cluster_offset = start_cluster_offset % blocks_per_cluster;
+                (
+                    Cluster(cluster.0 + cluster_offset as u32),
+                    Some(start_cluster_offset),
+                )
+            } else {
+                (cluster, start_cluster_offset)
+            };
 
         ClusterOffsetIter {
             counter: blocks_per_cluster as usize,
@@ -52,8 +52,7 @@ impl<'a, S: StorageDevice> ClusterOffsetIter<'a, S>
     }
 }
 
-impl<'a, S: StorageDevice> Iterator for ClusterOffsetIter<'a, S>
-{
+impl<'a, S: StorageDevice> Iterator for ClusterOffsetIter<'a, S> {
     type Item = Cluster;
     fn next(&mut self) -> Option<Cluster> {
         let cluster_opt =

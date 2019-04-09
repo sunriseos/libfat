@@ -4,8 +4,8 @@ use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
 use super::attribute::Attributes;
-use super::offset_iter::ClusterOffsetIter;
 use super::directory::{dir_entry::DirectoryEntry, Directory};
+use super::offset_iter::ClusterOffsetIter;
 use super::FatVolumeBootRecord;
 
 use super::cluster::Cluster;
@@ -32,14 +32,20 @@ struct FatFileSystemInfo {
 
 impl FatFileSystemInfo {
     /// Import FS Info from a FAT32 filesystem.
-    fn from_fs<S: StorageDevice>(fs: &FatFileSystem<S>) -> FileSystemResult<Self>
-    {
+    fn from_fs<S: StorageDevice>(fs: &FatFileSystem<S>) -> FileSystemResult<Self> {
         let mut block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
 
         let mut last_cluster = 0xFFFF_FFFF;
         let mut free_cluster = 0xFFFF_FFFF;
 
-        fs.storage_device.read(fs.partition_start + u64::from(fs.boot_record.fs_info_block()) * u64::from(fs.boot_record.bytes_per_block()), &mut block).or(Err(FileSystemError::ReadFailed))?;
+        fs.storage_device
+            .read(
+                fs.partition_start
+                    + u64::from(fs.boot_record.fs_info_block())
+                        * u64::from(fs.boot_record.bytes_per_block()),
+                &mut block,
+            )
+            .or(Err(FileSystemError::ReadFailed))?;
 
         // valid signature?
         if &block[0..4] == b"RRaA"
@@ -66,8 +72,7 @@ impl FatFileSystemInfo {
     }
 
     /// Flush the FS Info to the disk on FAT32 filesystems.
-    fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()>
-    {
+    fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()> {
         if fs.boot_record.fat_type != FatFsType::Fat32 {
             return Ok(());
         }
@@ -88,7 +93,14 @@ impl FatFileSystemInfo {
             self.free_cluster.load(Ordering::SeqCst),
         );
 
-        fs.storage_device.write(fs.partition_start + u64::from(fs.boot_record.fs_info_block()) * u64::from(fs.boot_record.bytes_per_block()), &block).or(Err(FileSystemError::WriteFailed))?;
+        fs.storage_device
+            .write(
+                fs.partition_start
+                    + u64::from(fs.boot_record.fs_info_block())
+                        * u64::from(fs.boot_record.bytes_per_block()),
+                &block,
+            )
+            .or(Err(FileSystemError::WriteFailed))?;
 
         Ok(())
     }
@@ -117,8 +129,7 @@ pub struct FatFileSystem<S: StorageDevice> {
     fat_info: FatFileSystemInfo,
 }
 
-impl<S: StorageDevice> FatFileSystem<S>
-{
+impl<S: StorageDevice> FatFileSystem<S> {
     /// Create a new instance of FatFileSystem
     pub(crate) fn new(
         storage_device: S,
@@ -263,9 +274,14 @@ impl<S: StorageDevice> FatFileSystem<S>
 
         for cluster in ClusterOffsetIter::new(self, cluster, None) {
             block_index = (block_index + 1) % u32::from(self.boot_record.blocks_per_cluster());
-            self.storage_device.write(self.partition_start + cluster.to_data_bytes_offset(self)
-                + u64::from(block_index) * u64::from(self.boot_record.bytes_per_block()), &block)
-            .or(Err(FileSystemError::WriteFailed))?;
+            self.storage_device
+                .write(
+                    self.partition_start
+                        + cluster.to_data_bytes_offset(self)
+                        + u64::from(block_index) * u64::from(self.boot_record.bytes_per_block()),
+                    &block,
+                )
+                .or(Err(FileSystemError::WriteFailed))?;
         }
 
         Ok(())

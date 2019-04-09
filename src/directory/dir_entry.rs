@@ -2,7 +2,6 @@
 use arrayvec::ArrayString;
 
 use crate::attribute::Attributes;
-use crate::offset_iter::ClusterOffsetIter;
 use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
 use crate::table;
@@ -128,9 +127,8 @@ impl DirectoryEntry {
         &mut self,
         fs: &'a FatFileSystem<S>,
         offset: u64,
-        buf: &mut [u8],
-    ) -> FileSystemResult<u64>
-    {
+        _buf: &mut [u8],
+    ) -> FileSystemResult<u64> {
         if Self::check_range(offset, fs.boot_record.fat_type).is_err() {
             return Ok(0);
         }
@@ -194,7 +192,6 @@ impl DirectoryEntry {
         Ok(read_size)*/
         // TODO: reimplement this
         unimplemented!()
-
     }
 
     /// Write the given buffer at a given offset of the file.
@@ -204,8 +201,7 @@ impl DirectoryEntry {
         offset: u64,
         buf: &[u8],
         appendable: bool,
-    ) -> FileSystemResult<()>
-    {
+    ) -> FileSystemResult<()> {
         Self::check_range(offset, fs.boot_record.fat_type)?;
 
         let min_size = offset + buf.len() as u64;
@@ -278,8 +274,11 @@ impl DirectoryEntry {
     }
 
     /// Set the file length
-    pub fn set_len<'a, S: StorageDevice>(&mut self, fs: &'a FatFileSystem<S>, size: u64) -> FileSystemResult<()>
-    {
+    pub fn set_len<'a, S: StorageDevice>(
+        &mut self,
+        fs: &'a FatFileSystem<S>,
+        size: u64,
+    ) -> FileSystemResult<()> {
         let current_len = u64::from(self.file_size);
         if size == current_len {
             return Ok(());
@@ -350,8 +349,10 @@ impl DirectoryEntry {
 
 impl DirectoryEntryRawInfo {
     /// Contrust a directory entry from raw data
-    pub fn get_dir_entry<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<FatDirEntry>
-    {
+    pub fn get_dir_entry<S: StorageDevice>(
+        &self,
+        fs: &FatFileSystem<S>,
+    ) -> FileSystemResult<FatDirEntry> {
         let mut offset_iter = super::FatDirEntryIterator::new(
             fs,
             self.parent_cluster,

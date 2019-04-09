@@ -7,10 +7,10 @@ use libfs::FileSystemError;
 use libfs::FileSystemResult;
 
 use super::attribute::Attributes;
-use super::offset_iter::ClusterOffsetIter;
 use super::cluster::Cluster;
 use super::name::ShortFileName;
 use super::name::ShortFileNameContext;
+use super::offset_iter::ClusterOffsetIter;
 use super::utils;
 
 use super::table;
@@ -47,8 +47,7 @@ impl<'a, S: StorageDevice> Clone for Directory<'a, S> {
     }
 }
 
-impl<'a, S: StorageDevice> Directory<'a, S>
-{
+impl<'a, S: StorageDevice> Directory<'a, S> {
     /// Helper to determine if the directory is the root directory.
     pub fn is_root_directory(&self) -> bool {
         self.dir_info.raw_info.is_none()
@@ -528,8 +527,7 @@ impl<'a, S: StorageDevice> Directory<'a, S>
     }
 }
 
-impl<'a, S: StorageDevice> Directory<'a, S>
-{
+impl<'a, S: StorageDevice> Directory<'a, S> {
     /// Create a raw directory entry iterator from the directory.
     pub(crate) fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, S> {
         FatDirEntryIterator::from_directory(self)
@@ -540,8 +538,7 @@ impl<'a, S: StorageDevice> Directory<'a, S>
     }
 }
 
-impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S>
-{
+impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S> {
     /// Create a raw directory entry iterator from a directory.
     pub fn from_directory(root: Directory<'a, S>) -> Self {
         let cluster = root.dir_info.start_cluster;
@@ -568,8 +565,7 @@ impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S>
     }
 }
 
-impl<'a, S: StorageDevice> DirectoryEntryIterator<'a, S>
-{
+impl<'a, S: StorageDevice> DirectoryEntryIterator<'a, S> {
     /// Create a directory entry iterator from a directory.
     pub fn new(root: Directory<'a, S>) -> Self {
         DirectoryEntryIterator {

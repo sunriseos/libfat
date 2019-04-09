@@ -17,8 +17,7 @@ pub struct DirectoryEntryIterator<'a, S: StorageDevice> {
     pub(crate) raw_iter: FatDirEntryIterator<'a, S>,
 }
 
-impl<'a, S: StorageDevice> Iterator for DirectoryEntryIterator<'a, S>
-{
+impl<'a, S: StorageDevice> Iterator for DirectoryEntryIterator<'a, S> {
     type Item = FileSystemResult<DirectoryEntry>;
     fn next(&mut self) -> Option<FileSystemResult<DirectoryEntry>> {
         let mut next_is_end_entry = false;
