@@ -3,8 +3,8 @@ use arrayvec::ArrayString;
 
 use crate::name::LongFileName;
 
-use libfs::storage::StorageDevice;
 use libfs::FileSystemResult;
+use storage_device::StorageDevice;
 
 use super::dir_entry::DirectoryEntry;
 use super::dir_entry::DirectoryEntryRawInfo;

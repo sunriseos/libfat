@@ -15,7 +15,7 @@ pub(crate) mod table;
 mod utils;
 
 use byteorder::{ByteOrder, LittleEndian};
-use libfs::storage::StorageDevice;
+use storage_device::StorageDevice;
 
 use cluster::Cluster;
 

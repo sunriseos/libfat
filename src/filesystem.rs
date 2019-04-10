@@ -13,9 +13,9 @@ use super::table;
 use super::table::FatValue;
 use super::utils;
 use super::FatFsType;
-use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
+use storage_device::StorageDevice;
 
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;

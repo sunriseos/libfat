@@ -2,7 +2,7 @@
 
 use super::FatFileSystem;
 use super::FatFsType;
-use libfs::storage::StorageDevice;
+use storage_device::StorageDevice;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// Represent a FAT Cluster position.

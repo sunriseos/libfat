@@ -2,9 +2,9 @@
 
 use arrayvec::ArrayString;
 
-use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
+use storage_device::StorageDevice;
 
 use super::attribute::Attributes;
 use super::cluster::Cluster;

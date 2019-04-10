@@ -8,9 +8,9 @@ use crate::datetime::FatDateTime;
 use crate::filesystem::FatFileSystem;
 use crate::name::{LongFileName, ShortFileName};
 
-use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
+use storage_device::StorageDevice;
 
 use crate::FatFsType;
 

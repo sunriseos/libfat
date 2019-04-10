@@ -4,7 +4,7 @@ use super::filesystem::FatFileSystem;
 use super::Cluster;
 use super::FatFsType;
 use byteorder::{ByteOrder, LittleEndian};
-use libfs::storage::StorageDevice;
+use storage_device::StorageDevice;
 
 use crate::FileSystemError;
 

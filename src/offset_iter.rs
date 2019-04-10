@@ -4,7 +4,7 @@ use super::cluster::Cluster;
 use super::filesystem::FatFileSystem;
 use super::table::FatClusterIter;
 
-use libfs::storage::StorageDevice;
+use storage_device::StorageDevice;
 
 /// Util Iterator used to simplify iteration over cluster.
 #[derive(Copy, Clone)]

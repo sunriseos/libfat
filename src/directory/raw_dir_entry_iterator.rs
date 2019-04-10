@@ -3,9 +3,9 @@ use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
 use crate::offset_iter::ClusterOffsetIter;
 
-use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
+use storage_device::StorageDevice;
 
 use super::raw_dir_entry::FatDirEntry;
 
