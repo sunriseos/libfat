@@ -277,7 +277,7 @@ fn parse_fat_boot_record<S: StorageDevice>(
     }
 }
 
-/// Treat the block device directly as a filesystem.
+/// Treat the storage device directly as a filesystem.
 pub fn get_raw_partition<S: StorageDevice>(
     storage_device: S,
 ) -> Result<FatFileSystem<S>, FileSystemError> {
