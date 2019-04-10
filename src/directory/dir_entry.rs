@@ -8,6 +8,8 @@ use crate::table;
 use crate::utils;
 use crate::FatFsType;
 
+use crate::offset_iter::ClusterOffsetIter;
+
 use libfs::storage::StorageDevice;
 use libfs::FileSystemError;
 use libfs::FileSystemResult;
@@ -127,7 +129,7 @@ impl DirectoryEntry {
         &mut self,
         fs: &'a FatFileSystem<S>,
         offset: u64,
-        _buf: &mut [u8],
+        buf: &mut [u8],
     ) -> FileSystemResult<u64> {
         if Self::check_range(offset, fs.boot_record.fat_type).is_err() {
             return Ok(0);
@@ -137,16 +139,10 @@ impl DirectoryEntry {
             return Ok(0);
         }
 
-        /*let device: &S = &fs.storage_device;
-
-        let mut raw_tmp_offset = offset as u64;
-        let mut cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
-        let mut cluster_offset_iterator =
-            BlockIndexClusterIter::new(fs, self.start_cluster, Some(cluster_offset));
-        let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
+        let block_size = u64::from(fs.boot_record.bytes_per_block());
+        let mut cluster_offset_iterator = ClusterOffsetIter::new(fs, self.start_cluster, Some(offset / block_size));
 
         let mut read_size = 0u64;
-        let mut blocks = [Block::new()];
 
         while read_size < buf.len() as u64 {
             let cluster_opt = cluster_offset_iterator.next();
@@ -154,44 +150,31 @@ impl DirectoryEntry {
                 break;
             }
 
-            cluster_offset = BlockIndex(raw_tmp_offset / Block::LEN_U64);
-
             let cluster = cluster_opt.unwrap();
-            let block_start_index = cluster.to_data_block_index(fs);
-            let tmp_index = cluster_offset.0 % blocks_per_cluster;
-            let tmp_offset = raw_tmp_offset % Block::LEN_U64;
 
-            device
-                .read(
-                    &mut blocks,
-                    fs.partition_start,
-                    BlockIndex(block_start_index.0 + tmp_index),
-                )
-                .or(Err(FileSystemError::ReadFailed))?;
+            let mut buf_limit = block_size;
 
-            let buf_slice = &mut buf[read_size as usize..];
-            let mut buf_limit = if buf_slice.len() >= Block::LEN {
-                Block::LEN
-            } else {
-                buf_slice.len()
-            };
+            let bytes_left = u64::from(self.file_size) - read_size - offset;
 
-            let bytes_left = (u64::from(self.file_size) - read_size - offset) as usize;
-            if bytes_left < buf_limit {
+            if bytes_left == 0 {
+                break;
+            } else if bytes_left < buf_limit {
                 buf_limit = bytes_left;
             }
 
-            for (index, buf_entry) in buf_slice.iter_mut().take(buf_limit).enumerate() {
-                *buf_entry = blocks[0][tmp_offset as usize + index];
+            if buf_limit > buf.len() as u64 {
+                buf_limit = buf.len() as u64;
             }
 
-            raw_tmp_offset += buf_limit as u64;
-            read_size += buf_limit as u64;
+            let mut buf_slice = &mut buf[read_size as usize..buf_limit as usize];
+
+            let cluster_offset = cluster.to_data_bytes_offset(fs);
+            fs.storage_device.read(fs.partition_start + cluster_offset + offset + read_size, &mut buf_slice).or(Err(FileSystemError::ReadFailed))?;
+
+            read_size += buf_slice.len() as u64;
         }
 
-        Ok(read_size)*/
-        // TODO: reimplement this
-        unimplemented!()
+        Ok(read_size)
     }
 
     /// Write the given buffer at a given offset of the file.
