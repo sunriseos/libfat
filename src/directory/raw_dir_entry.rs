@@ -157,16 +157,22 @@ impl FatDirEntry {
         };
 
         let entry_offset = if is_in_old_root_directory {
-            // TODO: remove this
-            unimplemented!()
+            let root_dir_blocks = ((u32::from(fs.boot_record.root_dir_childs_count()) * 32)
+                + (u32::from(fs.boot_record.bytes_per_block()) - 1))
+                / u32::from(fs.boot_record.bytes_per_block());
+            let root_dir_offset = root_dir_blocks * u32::from(fs.boot_record.bytes_per_block());
+
+            if self.entry_cluster_offset > u64::from(root_dir_offset) {
+                Err(FileSystemError::NoSpaceLeft)
+            } else {
+                Ok(fs.first_data_offset - u64::from(root_dir_offset) + self.entry_cluster_offset + self.entry_offset)
+        }
         } else {
-            self.entry_cluster.to_data_bytes_offset(fs)
-                + self.entry_cluster_offset
-                + self.entry_offset
+            Ok(self.entry_cluster.to_data_bytes_offset(fs) + self.entry_cluster_offset + self.entry_offset)
         };
 
         fs.storage_device
-            .write(fs.partition_start + entry_offset, &self.data)
+            .write(fs.partition_start + entry_offset?, &self.data)
             .or(Err(FileSystemError::WriteFailed))
     }
 
