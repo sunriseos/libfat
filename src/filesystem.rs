@@ -33,7 +33,7 @@ struct FatFileSystemInfo {
 impl FatFileSystemInfo {
     /// Import FS Info from a FAT32 filesystem.
     fn from_fs<S: StorageDevice>(fs: &FatFileSystem<S>) -> FileSystemResult<Self> {
-        let mut block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
+        let mut block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
 
         let mut last_cluster = 0xFFFF_FFFF;
         let mut free_cluster = 0xFFFF_FFFF;
@@ -78,7 +78,7 @@ impl FatFileSystemInfo {
         }
 
         // We write a entire block because we want to ensure the data are correctly initialized.
-        let mut block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
+        let mut block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
 
         LittleEndian::write_u32(&mut block[0..4], 0x4161_5252);
         LittleEndian::write_u32(&mut block[0x1e4..0x1e8], 0x6141_7272);
@@ -267,21 +267,27 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
     /// Clean cluster chain data.
     /// Used when creating a new directory.
-    /// TODO: don't assumbe that bytes_per_block == MINIMAL_CLUSTER_SIZE
     pub(crate) fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
-        let block = [0x0u8; crate::MINIMAL_CLUSTER_SIZE];
+        let block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
         let mut block_index = 0;
 
         for cluster in ClusterOffsetIter::new(self, cluster, None) {
             block_index = (block_index + 1) % u32::from(self.boot_record.blocks_per_cluster());
-            self.storage_device
-                .write(
-                    self.partition_start
-                        + cluster.to_data_bytes_offset(self)
-                        + u64::from(block_index) * u64::from(self.boot_record.bytes_per_block()),
-                    &block,
-                )
-                .or(Err(FileSystemError::WriteFailed))?;
+            let write_per_block =
+                self.boot_record.bytes_per_block() as usize / crate::MINIMAL_BLOCK_SIZE;
+
+            for index in 0..write_per_block {
+                self.storage_device
+                    .write(
+                        self.partition_start
+                            + cluster.to_data_bytes_offset(self)
+                            + u64::from(block_index)
+                                * u64::from(self.boot_record.bytes_per_block())
+                            + (index * crate::MINIMAL_BLOCK_SIZE) as u64,
+                        &block,
+                    )
+                    .or(Err(FileSystemError::WriteFailed))?;
+            }
         }
 
         Ok(())

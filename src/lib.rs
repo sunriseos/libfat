@@ -36,8 +36,8 @@ use filesystem::FatFileSystem;
 
 use libfs::FileSystemError;
 
-/// The minimal cluster size supported
-pub const MINIMAL_CLUSTER_SIZE: usize = 512;
+/// The minimal block size supported
+pub const MINIMAL_BLOCK_SIZE: usize = 512;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -62,7 +62,7 @@ pub enum FatFsType {
 /// Represent the FAT Volume BootRecord.
 struct FatVolumeBootRecord {
     /// The actual data of the boot record.
-    data: [u8; 512],
+    data: [u8; MINIMAL_BLOCK_SIZE],
 
     /// The type of FAT filesystem.
     fat_type: FatFsType,
@@ -74,7 +74,7 @@ struct FatVolumeBootRecord {
 #[allow(dead_code)]
 impl FatVolumeBootRecord {
     /// Create a new FAT volume boot record from raw data.
-    pub fn new(data: [u8; 512]) -> FatVolumeBootRecord {
+    pub fn new(data: [u8; MINIMAL_BLOCK_SIZE]) -> FatVolumeBootRecord {
         let mut res = FatVolumeBootRecord {
             data,
             fat_type: FatFsType::Fat12,
@@ -131,8 +131,7 @@ impl FatVolumeBootRecord {
             return false;
         }
 
-        // TODO: bytes per block that are > to 512 bytes.
-        if self.bytes_per_block() != MINIMAL_CLUSTER_SIZE as u16 {
+        if self.bytes_per_block() < MINIMAL_BLOCK_SIZE as u16 {
             return false;
         }
 
@@ -241,8 +240,9 @@ fn parse_fat_boot_record<S: StorageDevice>(
     partition_start: u64,
     partition_size: u64,
 ) -> Result<FatFileSystem<S>, FileSystemError> {
-    let mut block = [0x0u8; 512];
+    let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
+    trace!("{}", partition_start);
     storage_device
         .read(partition_start, &mut block)
         .or(Err(FileSystemError::ReadFailed))?;
@@ -289,8 +289,13 @@ pub fn get_raw_partition<S: StorageDevice>(
 pub fn get_partition<S: StorageDevice>(
     storage_device: S,
     index: u64,
+    block_size: u64,
 ) -> Result<FatFileSystem<S>, FileSystemError> {
-    let mut block = [0x0u8; 512];
+    let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
+
+    if block_size < block.len() as u64 {
+        return Err(FileSystemError::InvalidPartition);
+    }
 
     /// The Partition Table offset.
     const PARITION_TABLE_OFFSET: usize = 446;
@@ -327,9 +332,8 @@ pub fn get_partition<S: StorageDevice>(
     match partition_type {
         0xC => parse_fat_boot_record(
             storage_device,
-            // TODO: don't hardcode sector size
-            u64::from(partition_start) * MINIMAL_CLUSTER_SIZE as u64,
-            u64::from(partition_block_count) * MINIMAL_CLUSTER_SIZE as u64,
+            u64::from(partition_start) * block_size as u64,
+            u64::from(partition_block_count) * block_size as u64,
         ),
         _ => Err(FileSystemError::Custom {
             name: "Unknown Partition Type",
