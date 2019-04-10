@@ -21,14 +21,58 @@ use cluster::Cluster;
 
 use filesystem::FatFileSystem;
 
-use libfs::{FileSystemResult, FileSystemError};
-
 /// The minimal block size supported
 pub const MINIMAL_BLOCK_SIZE: usize = 512;
 
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
+
+/// Represent a FAT filesystem error.
+#[derive(Debug)]
+pub enum FatError {
+    /// The given resource couldn't be found.
+    NotFound,
+
+    /// There isn't enough space for a resource to be stored.
+    NoSpaceLeft,
+
+    /// The access to a given resource has been denied.
+    AccessDenied,
+
+    /// A writing operation failed on the attached storage device.
+    WriteFailed,
+
+    /// A read operation failed on the attached storage device.
+    ReadFailed,
+
+    /// The given partition cannot be found.
+    PartitionNotFound,
+
+    /// The given resource cannot be represented as a file.
+    NotAFile,
+
+    /// The given resource cannot be represented as a directory.
+    NotADirectory,
+
+    /// A resource at the given path already exist.
+    FileExists,
+
+    /// The given path is too long to be resolved.
+    PathTooLong,
+
+    /// The partition wasn't used as it's invalid.
+    InvalidPartition,
+
+    /// Represent a custom error.
+    Custom {
+        /// The name of the custom error.
+        name: &'static str,
+    },
+}
+
+/// Represent a FAT filesystem result.
+pub type FatFileSystemResult<T> = core::result::Result<T, FatError>;
 
 /// Represent FAT filesystem types.
 #[derive(Clone, Copy, PartialEq)]
@@ -226,18 +270,18 @@ fn parse_fat_boot_record<S: StorageDevice>(
     storage_device: S,
     partition_start: u64,
     partition_size: u64,
-) -> FileSystemResult<FatFileSystem<S>> {
+) -> FatFileSystemResult<FatFileSystem<S>> {
     let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
     trace!("{}", partition_start);
     storage_device
         .read(partition_start, &mut block)
-        .or(Err(FileSystemError::ReadFailed))?;
+        .or(Err(FatError::ReadFailed))?;
 
     let boot_record: FatVolumeBootRecord = FatVolumeBootRecord::new(block);
 
     if !boot_record.is_valid() {
-        return Err(FileSystemError::InvalidPartition);
+        return Err(FatError::InvalidPartition);
     }
 
     match boot_record.fat_type {
@@ -267,7 +311,7 @@ fn parse_fat_boot_record<S: StorageDevice>(
 /// Treat the storage device directly as a filesystem.
 pub fn get_raw_partition<S: StorageDevice>(
     storage_device: S,
-) -> FileSystemResult<FatFileSystem<S>> {
+) -> FatFileSystemResult<FatFileSystem<S>> {
     let storage_len = storage_device.len().unwrap();
     parse_fat_boot_record(storage_device, 0, storage_len)
 }
@@ -277,11 +321,11 @@ pub fn get_partition<S: StorageDevice>(
     storage_device: S,
     index: u64,
     block_size: u64,
-) -> FileSystemResult<FatFileSystem<S>> {
+) -> FatFileSystemResult<FatFileSystem<S>> {
     let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
     if block_size < block.len() as u64 {
-        return Err(FileSystemError::InvalidPartition);
+        return Err(FatError::InvalidPartition);
     }
 
     /// The Partition Table offset.
@@ -295,21 +339,21 @@ pub fn get_partition<S: StorageDevice>(
 
     storage_device
         .read(index, &mut block)
-        .or(Err(FileSystemError::ReadFailed))?;
+        .or(Err(FatError::ReadFailed))?;
 
     if LittleEndian::read_u16(&block[MBR_SIGNATURE..MBR_SIGNATURE + 2]) != 0xAA55 {
-        return Err(FileSystemError::InvalidPartition);
+        return Err(FatError::InvalidPartition);
     }
 
     let partition = if index < 4 {
         let offset = PARITION_TABLE_OFFSET + (PARITION_TABLE_ENTRY_SIZE * (index as usize));
         &block[offset..offset + PARITION_TABLE_ENTRY_SIZE]
     } else {
-        return Err(FileSystemError::PartitionNotFound);
+        return Err(FatError::PartitionNotFound);
     };
 
     if (partition[0] & 0x7F) != 0 {
-        return Err(FileSystemError::InvalidPartition);
+        return Err(FatError::InvalidPartition);
     }
 
     let partition_start = LittleEndian::read_u32(&partition[0x8..0xC]);
@@ -322,7 +366,7 @@ pub fn get_partition<S: StorageDevice>(
             u64::from(partition_start) * block_size as u64,
             u64::from(partition_block_count) * block_size as u64,
         ),
-        _ => Err(FileSystemError::Custom {
+        _ => Err(FatError::Custom {
             name: "Unknown Partition Type",
         }),
     }

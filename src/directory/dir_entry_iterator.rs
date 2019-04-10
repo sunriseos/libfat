@@ -3,7 +3,7 @@ use arrayvec::ArrayString;
 
 use crate::name::LongFileName;
 
-use libfs::FileSystemResult;
+use crate::FatFileSystemResult;
 use storage_device::StorageDevice;
 
 use super::dir_entry::DirectoryEntry;
@@ -18,8 +18,8 @@ pub struct DirectoryEntryIterator<'a, S: StorageDevice> {
 }
 
 impl<'a, S: StorageDevice> Iterator for DirectoryEntryIterator<'a, S> {
-    type Item = FileSystemResult<DirectoryEntry>;
-    fn next(&mut self) -> Option<FileSystemResult<DirectoryEntry>> {
+    type Item = FatFileSystemResult<DirectoryEntry>;
+    fn next(&mut self) -> Option<FatFileSystemResult<DirectoryEntry>> {
         let mut next_is_end_entry = false;
         let mut first_raw_dir_entry: Option<FatDirEntry> = None;
         let mut entry_count = 0;

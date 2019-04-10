@@ -2,8 +2,8 @@
 
 use arrayvec::ArrayString;
 
-use libfs::FileSystemError;
-use libfs::FileSystemResult;
+use crate::FatError;
+use crate::FatFileSystemResult;
 use storage_device::StorageDevice;
 
 use super::attribute::Attributes;
@@ -59,9 +59,9 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Search an entry inside the directory and if found return it.
-    pub fn find_entry(self, name: &str) -> FileSystemResult<DirectoryEntry> {
+    pub fn find_entry(self, name: &str) -> FatFileSystemResult<DirectoryEntry> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE {
-            return Err(FileSystemError::PathTooLong);
+            return Err(FatError::PathTooLong);
         }
 
         let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
@@ -85,11 +85,11 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             }
         }
 
-        Err(FileSystemError::NotFound)
+        Err(FatError::NotFound)
     }
 
     /// Open a file a the given path.
-    pub fn open_file(self, path: &str) -> FileSystemResult<DirectoryEntry> {
+    pub fn open_file(self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
         let (name, rest_opt) = utils::split_path(path);
         let fs = self.fs;
 
@@ -98,7 +98,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         match rest_opt {
             Some(rest) => {
                 if !child_entry.attribute.is_directory() {
-                    Err(FileSystemError::NotFound)
+                    Err(FatError::NotFound)
                 } else {
                     Directory::from_entry(fs, child_entry).open_file(rest)
                 }
@@ -108,7 +108,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Open a directory at the given path.
-    pub fn open_dir(self, path: &str) -> FileSystemResult<Directory<'a, S>> {
+    pub fn open_dir(self, path: &str) -> FatFileSystemResult<Directory<'a, S>> {
         let (name, rest_opt) = utils::split_path(path);
 
         let fs = self.fs;
@@ -116,7 +116,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         let child_entry = self.find_entry(name)?;
 
         if !child_entry.attribute.is_directory() {
-            return Err(FileSystemError::NotFound);
+            return Err(FatError::NotFound);
         }
 
         match rest_opt {
@@ -130,7 +130,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         entry: &DirectoryEntry,
         fs: &'a FatFileSystem<S>,
         count: u32,
-    ) -> FileSystemResult<FatDirEntryIterator<'a, S>> {
+    ) -> FatFileSystemResult<FatDirEntryIterator<'a, S>> {
         let mut i = 0;
         let directory = Directory::from_entry(fs, *entry);
         let is_root_directory = directory.is_root_directory();
@@ -152,7 +152,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
         if is_root_directory {
             match fs.boot_record.fat_type {
-                FatFsType::Fat12 | FatFsType::Fat16 => return Err(FileSystemError::NoSpaceLeft),
+                FatFsType::Fat12 | FatFsType::Fat16 => return Err(FatError::NoSpaceLeft),
                 _ => {}
             }
         }
@@ -186,7 +186,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         name: &str,
         cluster: Cluster,
         file_size: u32,
-    ) -> FileSystemResult<DirectoryEntry> {
+    ) -> FatFileSystemResult<DirectoryEntry> {
         let is_special_entry = name == "." || name == "..";
         let mut count: u32 = 1;
 
@@ -267,7 +267,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     fn delete_dir_entry(
         fs: &'a FatFileSystem<S>,
         dir_entry: &DirectoryEntry,
-    ) -> FileSystemResult<()> {
+    ) -> FatFileSystemResult<()> {
         if let Some(raw_info) = dir_entry.raw_info {
             let mut offset_iter = FatDirEntryIterator::new(
                 fs,
@@ -286,7 +286,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                     res.flush(fs)?;
                     i += 1;
                 } else {
-                    return Err(FileSystemError::ReadFailed);
+                    return Err(FatError::ReadFailed);
                 }
             }
         }
@@ -295,9 +295,9 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Create a directory with the given name.
-    pub fn mkdir(&mut self, name: &str) -> FileSystemResult<()> {
+    pub fn mkdir(&mut self, name: &str) -> FatFileSystemResult<()> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
-            return Err(FileSystemError::PathTooLong);
+            return Err(FatError::PathTooLong);
         }
 
         // Allocate a cluster for the directory entries
@@ -373,9 +373,9 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Create a file with the given name.
-    pub fn touch(&mut self, name: &str) -> FileSystemResult<()> {
+    pub fn touch(&mut self, name: &str) -> FatFileSystemResult<()> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
-            return Err(FileSystemError::PathTooLong);
+            return Err(FatError::PathTooLong);
         }
 
         Self::create_dir_entry(
@@ -391,24 +391,24 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Delete a directory or a file with the given name.
-    pub fn unlink(self, name: &str, is_dir: bool) -> FileSystemResult<()> {
+    pub fn unlink(self, name: &str, is_dir: bool) -> FatFileSystemResult<()> {
         let fs = self.fs;
 
         let dir_entry = self.find_entry(name)?;
 
         if dir_entry.attribute.is_directory() != is_dir {
             if is_dir {
-                return Err(FileSystemError::NotADirectory);
+                return Err(FatError::NotADirectory);
             }
 
-            return Err(FileSystemError::NotAFile);
+            return Err(FatError::NotAFile);
         }
 
         // Check for directory not being empty
         if dir_entry.attribute.is_directory()
             && Self::from_entry(fs, dir_entry).iter().nth(2).is_some()
         {
-            return Err(FileSystemError::AccessDenied);
+            return Err(FatError::AccessDenied);
         }
 
         Self::delete_dir_entry(fs, &dir_entry)?;
@@ -427,9 +427,9 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         dir_entry: DirectoryEntry,
         new_name: &str,
         is_dir: bool,
-    ) -> FileSystemResult<()> {
+    ) -> FatFileSystemResult<()> {
         if new_name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
-            return Err(FileSystemError::PathTooLong);
+            return Err(FatError::PathTooLong);
         }
         let old_raw_info = dir_entry.raw_info.unwrap();
 

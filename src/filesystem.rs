@@ -12,9 +12,9 @@ use super::cluster::Cluster;
 use super::table;
 use super::table::FatValue;
 use super::utils;
+use super::FatError;
+use super::FatFileSystemResult;
 use super::FatFsType;
-use libfs::FileSystemError;
-use libfs::FileSystemResult;
 use storage_device::StorageDevice;
 
 use core::sync::atomic::AtomicU32;
@@ -32,7 +32,7 @@ struct FatFileSystemInfo {
 
 impl FatFileSystemInfo {
     /// Import FS Info from a FAT32 filesystem.
-    fn from_fs<S: StorageDevice>(fs: &FatFileSystem<S>) -> FileSystemResult<Self> {
+    fn from_fs<S: StorageDevice>(fs: &FatFileSystem<S>) -> FatFileSystemResult<Self> {
         let mut block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
 
         let mut last_cluster = 0xFFFF_FFFF;
@@ -45,7 +45,7 @@ impl FatFileSystemInfo {
                         * u64::from(fs.boot_record.bytes_per_block()),
                 &mut block,
             )
-            .or(Err(FileSystemError::ReadFailed))?;
+            .or(Err(FatError::ReadFailed))?;
 
         // valid signature?
         if &block[0..4] == b"RRaA"
@@ -72,7 +72,7 @@ impl FatFileSystemInfo {
     }
 
     /// Flush the FS Info to the disk on FAT32 filesystems.
-    fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()> {
+    fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FatFileSystemResult<()> {
         if fs.boot_record.fat_type != FatFsType::Fat32 {
             return Ok(());
         }
@@ -100,7 +100,7 @@ impl FatFileSystemInfo {
                         * u64::from(fs.boot_record.bytes_per_block()),
                 &block,
             )
-            .or(Err(FileSystemError::WriteFailed))?;
+            .or(Err(FatError::WriteFailed))?;
 
         Ok(())
     }
@@ -137,7 +137,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         first_data_offset: u64,
         partition_size: u64,
         boot_record: FatVolumeBootRecord,
-    ) -> FileSystemResult<FatFileSystem<S>> {
+    ) -> FatFileSystemResult<FatFileSystem<S>> {
         let mut fs = FatFileSystem {
             storage_device,
             partition_start,
@@ -155,7 +155,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
     }
 
     /// Initialize the filesystem.
-    fn init(&mut self) -> FileSystemResult<()> {
+    fn init(&mut self) -> FatFileSystemResult<()> {
         // read FAT infos
         if self.boot_record.fat_type == FatFsType::Fat32 {
             self.fat_info = FatFileSystemInfo::from_fs(self)?;
@@ -187,7 +187,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
     }
 
     /// Create a new directory at the given path.
-    pub fn mkdir(&self, path: &str) -> FileSystemResult<()> {
+    pub fn mkdir(&self, path: &str) -> FatFileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
         let mut parent_dir = if parent_name == "" {
             self.get_root_directory()
@@ -197,14 +197,14 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
         // precheck that it doesn't exist already
         if parent_dir.clone().find_entry(file_name).is_ok() {
-            return Err(FileSystemError::FileExists);
+            return Err(FatError::FileExists);
         }
 
         parent_dir.mkdir(file_name)
     }
 
     /// Create a new file at the given path.
-    pub fn touch(&self, path: &str) -> FileSystemResult<()> {
+    pub fn touch(&self, path: &str) -> FatFileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
         let mut parent_dir = if parent_name == "" {
             self.get_root_directory()
@@ -214,14 +214,14 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
         // precheck that it doesn't exist already
         if parent_dir.clone().find_entry(file_name).is_ok() {
-            return Err(FileSystemError::FileExists);
+            return Err(FatError::FileExists);
         }
 
         parent_dir.touch(file_name)
     }
 
     /// Delete a directory or a file at the given path.
-    pub fn unlink(&self, path: &str, is_dir: bool) -> FileSystemResult<()> {
+    pub fn unlink(&self, path: &str, is_dir: bool) -> FatFileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(path);
         let parent_dir = if parent_name == "" {
             self.get_root_directory()
@@ -233,7 +233,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
     }
 
     /// Rename a directory or a file at the given path to a new path.
-    pub fn rename(&self, old_path: &str, new_path: &str, is_dir: bool) -> FileSystemResult<()> {
+    pub fn rename(&self, old_path: &str, new_path: &str, is_dir: bool) -> FatFileSystemResult<()> {
         let (parent_name, file_name) = utils::get_parent(old_path);
         let parent_old_dir = if parent_name == "" {
             self.get_root_directory()
@@ -245,9 +245,9 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
         if old_entry.attribute.is_directory() != is_dir {
             if is_dir {
-                return Err(FileSystemError::NotADirectory);
+                return Err(FatError::NotADirectory);
             } else {
-                return Err(FileSystemError::NotAFile);
+                return Err(FatError::NotAFile);
             }
         }
 
@@ -259,7 +259,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         };
 
         if parent_new_dir.clone().find_entry(file_name).is_ok() {
-            return Err(FileSystemError::FileExists);
+            return Err(FatError::FileExists);
         }
 
         parent_new_dir.rename(old_entry, file_name, is_dir)
@@ -267,7 +267,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
     /// Clean cluster chain data.
     /// Used when creating a new directory.
-    pub(crate) fn clean_cluster_data(&self, cluster: Cluster) -> FileSystemResult<()> {
+    pub(crate) fn clean_cluster_data(&self, cluster: Cluster) -> FatFileSystemResult<()> {
         let block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
         let mut block_index = 0;
 
@@ -286,7 +286,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
                             + (index * crate::MINIMAL_BLOCK_SIZE) as u64,
                         &block,
                     )
-                    .or(Err(FileSystemError::WriteFailed))?;
+                    .or(Err(FatError::WriteFailed))?;
             }
         }
 
@@ -297,7 +297,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
     pub(crate) fn alloc_cluster(
         &self,
         last_cluster_allocated_opt: Option<Cluster>,
-    ) -> FileSystemResult<Cluster> {
+    ) -> FatFileSystemResult<Cluster> {
         let mut start_cluster = Cluster(self.fat_info.last_cluster.load(Ordering::SeqCst));
         let mut resize_existing_cluster = false;
 
@@ -320,7 +320,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         }
 
         if self.fat_info.free_cluster.load(Ordering::SeqCst) == 0 {
-            return Err(FileSystemError::NoSpaceLeft);
+            return Err(FatError::NoSpaceLeft);
         }
 
         let mut number_cluster = 0;
@@ -352,7 +352,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
                 if number_cluster >= self.boot_record.cluster_count {
                     number_cluster = 2;
                     if number_cluster > start_cluster.0 {
-                        return Err(FileSystemError::NoSpaceLeft);
+                        return Err(FatError::NoSpaceLeft);
                     }
                 }
 
@@ -363,7 +363,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
                 }
 
                 if number_cluster == start_cluster.0 {
-                    return Err(FileSystemError::NoSpaceLeft);
+                    return Err(FatError::NoSpaceLeft);
                 }
             }
         }
@@ -399,7 +399,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         &self,
         to_remove: Cluster,
         previous_cluster: Option<Cluster>,
-    ) -> FileSystemResult<()> {
+    ) -> FatFileSystemResult<()> {
         if let Some(previous_cluster) = previous_cluster {
             FatValue::put(self, previous_cluster, FatValue::EndOfChain)?;
         }

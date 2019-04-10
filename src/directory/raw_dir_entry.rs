@@ -8,8 +8,8 @@ use crate::datetime::FatDateTime;
 use crate::filesystem::FatFileSystem;
 use crate::name::{LongFileName, ShortFileName};
 
-use libfs::FileSystemError;
-use libfs::FileSystemResult;
+use crate::FatError;
+use crate::FatFileSystemResult;
 use storage_device::StorageDevice;
 
 use crate::FatFsType;
@@ -150,7 +150,7 @@ impl FatDirEntry {
     }
 
     /// Write the raw data buffer to disk.
-    pub fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FileSystemResult<()> {
+    pub fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FatFileSystemResult<()> {
         let is_in_old_root_directory = match fs.boot_record.fat_type {
             FatFsType::Fat12 | FatFsType::Fat16 => self.entry_cluster.0 == 0,
             _ => false,
@@ -163,7 +163,7 @@ impl FatDirEntry {
             let root_dir_offset = root_dir_blocks * u32::from(fs.boot_record.bytes_per_block());
 
             if self.entry_cluster_offset > u64::from(root_dir_offset) {
-                Err(FileSystemError::NoSpaceLeft)
+                Err(FatError::NoSpaceLeft)
             } else {
                 Ok(fs.first_data_offset - u64::from(root_dir_offset)
                     + self.entry_cluster_offset
@@ -177,7 +177,7 @@ impl FatDirEntry {
 
         fs.storage_device
             .write(fs.partition_start + entry_offset?, &self.data)
-            .or(Err(FileSystemError::WriteFailed))
+            .or(Err(FatError::WriteFailed))
     }
 
     /// Return the entry attributes.

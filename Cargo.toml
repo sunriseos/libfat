@@ -8,7 +8,6 @@ edition = "2018"
 byteorder = "1.0"
 log = "0.4.6"
 structview = { version = "0.3", default-features = false }
-libfs = { path = "../libfs" }
 storage_device = { path = "../storage_device" }
 
 [dependencies.arrayvec]

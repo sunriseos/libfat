@@ -3,8 +3,8 @@ use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
 use crate::offset_iter::ClusterOffsetIter;
 
-use libfs::FileSystemError;
-use libfs::FileSystemResult;
+use crate::FatError;
+use crate::FatFileSystemResult;
 use storage_device::StorageDevice;
 
 use super::raw_dir_entry::FatDirEntry;
@@ -71,8 +71,8 @@ impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S> {
 }
 
 impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S> {
-    type Item = FileSystemResult<FatDirEntry>;
-    fn next(&mut self) -> Option<FileSystemResult<FatDirEntry>> {
+    type Item = FatFileSystemResult<FatDirEntry>;
+    fn next(&mut self) -> Option<FatFileSystemResult<FatDirEntry>> {
         let fs = self.fs;
 
         let block_size = fs.boot_record.bytes_per_block() as usize;
@@ -125,7 +125,7 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S> {
                 fs.partition_start + cluster_position_opt? + entry_start,
                 &mut raw_data,
             )
-            .or(Err(FileSystemError::ReadFailed));
+            .or(Err(FatError::ReadFailed));
 
         if let Err(error) = read_res {
             return Some(Err(error));

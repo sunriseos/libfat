@@ -2,11 +2,11 @@
 
 use super::filesystem::FatFileSystem;
 use super::Cluster;
+use super::FatError;
+use super::FatFileSystemResult;
 use super::FatFsType;
 use byteorder::{ByteOrder, LittleEndian};
 use storage_device::StorageDevice;
-
-use libfs::{FileSystemResult, FileSystemError};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// Represent a cluster chan value.
@@ -133,7 +133,7 @@ impl FatValue {
         fs: &FatFileSystem<S>,
         cluster: Cluster,
         fat_index: u32,
-    ) -> FileSystemResult<(Self, u64)> {
+    ) -> FatFileSystemResult<(Self, u64)> {
         let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
         let cluster_storage_offset = cluster.to_fat_bytes_offset(fs)
             + u64::from(fat_index * fs.boot_record.fat_size())
@@ -147,7 +147,7 @@ impl FatValue {
                 let mut data = [0x0u8; 4];
                 fs.storage_device
                     .read(partition_storage_offset, &mut data)
-                    .or(Err(FileSystemError::ReadFailed))?;
+                    .or(Err(FatError::ReadFailed))?;
 
                 Ok((
                     Self::from_fat32_value(LittleEndian::read_u32(&data) & 0x0FFF_FFFF),
@@ -158,7 +158,7 @@ impl FatValue {
                 let mut data = [0x0u8; 2];
                 fs.storage_device
                     .read(partition_storage_offset, &mut data)
-                    .or(Err(FileSystemError::ReadFailed))?;
+                    .or(Err(FatError::ReadFailed))?;
 
                 Ok((
                     Self::from_fat16_value(LittleEndian::read_u16(&data)),
@@ -169,7 +169,7 @@ impl FatValue {
                 let mut data = [0x0u8; 2];
                 fs.storage_device
                     .read(partition_storage_offset, &mut data)
-                    .or(Err(FileSystemError::ReadFailed))?;
+                    .or(Err(FatError::ReadFailed))?;
 
                 let mut value = LittleEndian::read_u16(&data);
 
@@ -189,7 +189,7 @@ impl FatValue {
     pub fn get<S: StorageDevice>(
         fs: &FatFileSystem<S>,
         cluster: Cluster,
-    ) -> FileSystemResult<FatValue> {
+    ) -> FatFileSystemResult<FatValue> {
         Ok(FatValue::from_cluster(fs, cluster, 0)?.0)
     }
 
@@ -199,7 +199,7 @@ impl FatValue {
         cluster: Cluster,
         value: FatValue,
         fat_index: u32,
-    ) -> FileSystemResult<()> {
+    ) -> FatFileSystemResult<()> {
         let (res, cluster_storage_offset) = FatValue::from_cluster(fs, cluster, fat_index)?;
 
         let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
@@ -217,14 +217,14 @@ impl FatValue {
                 LittleEndian::write_u32(&mut data, value.to_fat32_value() & 0x0FFF_FFFF);
                 fs.storage_device
                     .write(partition_storage_offset, &data)
-                    .or(Err(FileSystemError::WriteFailed))?;
+                    .or(Err(FatError::WriteFailed))?;
             }
             FatFsType::Fat16 => {
                 let mut data = [0x0u8; 2];
                 LittleEndian::write_u16(&mut data, value.to_fat16_value());
                 fs.storage_device
                     .write(partition_storage_offset, &data)
-                    .or(Err(FileSystemError::WriteFailed))?;
+                    .or(Err(FatError::WriteFailed))?;
             }
             FatFsType::Fat12 => {
                 let mut value = value.to_fat12_value();
@@ -238,7 +238,7 @@ impl FatValue {
                 LittleEndian::write_u16(&mut data, value);
                 fs.storage_device
                     .write(partition_storage_offset, &data)
-                    .or(Err(FileSystemError::WriteFailed))?;
+                    .or(Err(FatError::WriteFailed))?;
             }
             _ => unimplemented!(),
         }
@@ -251,7 +251,7 @@ impl FatValue {
         fs: &FatFileSystem<S>,
         cluster: Cluster,
         value: FatValue,
-    ) -> FileSystemResult<()> {
+    ) -> FatFileSystemResult<()> {
         for fat_index in 0..u32::from(fs.boot_record.fats_count()) {
             Self::raw_put(fs, cluster, value, fat_index)?;
         }
@@ -263,7 +263,7 @@ impl FatValue {
 pub fn get_last_cluster<S: StorageDevice>(
     fs: &FatFileSystem<S>,
     cluster: Cluster,
-) -> FileSystemResult<Cluster> {
+) -> FatFileSystemResult<Cluster> {
     Ok(get_last_and_previous_cluster(fs, cluster)?.0)
 }
 
@@ -271,7 +271,7 @@ pub fn get_last_cluster<S: StorageDevice>(
 pub fn get_last_and_previous_cluster<S: StorageDevice>(
     fs: &FatFileSystem<S>,
     cluster: Cluster,
-) -> FileSystemResult<(Cluster, Option<Cluster>)> {
+) -> FatFileSystemResult<(Cluster, Option<Cluster>)> {
     let mut previous_cluster = None;
     let mut current_cluster = cluster;
 
@@ -284,9 +284,7 @@ pub fn get_last_and_previous_cluster<S: StorageDevice>(
 }
 
 /// Compute the whole cluster count of a given FileSystem.
-pub fn get_free_cluster_count<S: StorageDevice>(
-    fs: &FatFileSystem<S>,
-) -> FileSystemResult<u32> {
+pub fn get_free_cluster_count<S: StorageDevice>(fs: &FatFileSystem<S>) -> FatFileSystemResult<u32> {
     let mut current_cluster = Cluster(2);
 
     let mut res = 0;

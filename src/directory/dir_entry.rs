@@ -10,8 +10,8 @@ use crate::FatFsType;
 
 use crate::offset_iter::ClusterOffsetIter;
 
-use libfs::FileSystemError;
-use libfs::FileSystemResult;
+use crate::FatError;
+use crate::FatFileSystemResult;
 use storage_device::StorageDevice;
 
 use super::raw_dir_entry::FatDirEntry;
@@ -109,7 +109,7 @@ impl DirectoryEntry {
     }
 
     /// Check offset range for a given fat_type.
-    fn check_range(offset: u64, fs_type: FatFsType) -> FileSystemResult<()> {
+    fn check_range(offset: u64, fs_type: FatFsType) -> FatFileSystemResult<()> {
         let max_size = match fs_type {
             FatFsType::Fat12 => 0x01FF_FFFF,
             FatFsType::Fat16 => 0x7FFF_FFFF,
@@ -118,7 +118,7 @@ impl DirectoryEntry {
         };
 
         if offset > max_size {
-            return Err(FileSystemError::AccessDenied);
+            return Err(FatError::AccessDenied);
         }
 
         Ok(())
@@ -130,7 +130,7 @@ impl DirectoryEntry {
         fs: &'a FatFileSystem<S>,
         offset: u64,
         buf: &mut [u8],
-    ) -> FileSystemResult<u64> {
+    ) -> FatFileSystemResult<u64> {
         if Self::check_range(offset, fs.boot_record.fat_type).is_err() {
             return Ok(0);
         }
@@ -180,7 +180,7 @@ impl DirectoryEntry {
                         + (read_size % (block_size * blocks_per_cluster)),
                     &mut buf_slice,
                 )
-                .or(Err(FileSystemError::ReadFailed))?;
+                .or(Err(FatError::ReadFailed))?;
 
             read_size += buf_slice.len() as u64;
         }
@@ -195,7 +195,7 @@ impl DirectoryEntry {
         offset: u64,
         buf: &[u8],
         appendable: bool,
-    ) -> FileSystemResult<()> {
+    ) -> FatFileSystemResult<()> {
         Self::check_range(offset, fs.boot_record.fat_type)?;
 
         let min_size = offset + buf.len() as u64;
@@ -203,7 +203,7 @@ impl DirectoryEntry {
             if appendable {
                 self.set_len(fs, min_size)?;
             } else {
-                return Err(FileSystemError::AccessDenied);
+                return Err(FatError::AccessDenied);
             }
         }
 
@@ -246,7 +246,7 @@ impl DirectoryEntry {
                         + (write_size % (block_size * blocks_per_cluster)),
                     &buf_slice,
                 )
-                .or(Err(FileSystemError::WriteFailed))?;
+                .or(Err(FatError::WriteFailed))?;
             write_size += buf_slice.len() as u64;
         }
 
@@ -258,15 +258,15 @@ impl DirectoryEntry {
         &mut self,
         fs: &'a FatFileSystem<S>,
         size: u64,
-    ) -> FileSystemResult<()> {
+    ) -> FatFileSystemResult<()> {
         let current_len = u64::from(self.file_size);
         if size == current_len {
             return Ok(());
         } else if size > 0xFFFF_FFFF {
-            return Err(FileSystemError::NoSpaceLeft);
+            return Err(FatError::NoSpaceLeft);
         }
 
-        let raw_file_info = self.raw_info.ok_or(FileSystemError::Custom {
+        let raw_file_info = self.raw_info.ok_or(FatError::Custom {
             name: "Raw Info is missing ON A FILE",
         })?;
         let mut raw_dir_entry = raw_file_info.get_dir_entry(fs)?;
@@ -332,7 +332,7 @@ impl DirectoryEntryRawInfo {
     pub fn get_dir_entry<S: StorageDevice>(
         &self,
         fs: &FatFileSystem<S>,
-    ) -> FileSystemResult<FatDirEntry> {
+    ) -> FatFileSystemResult<FatDirEntry> {
         let mut offset_iter = super::FatDirEntryIterator::new(
             fs,
             self.parent_cluster,
@@ -357,7 +357,7 @@ impl DirectoryEntryRawInfo {
         if let Some(res) = res {
             Ok(res)
         } else {
-            Err(FileSystemError::NotFound)
+            Err(FatError::NotFound)
         }
     }
 }
