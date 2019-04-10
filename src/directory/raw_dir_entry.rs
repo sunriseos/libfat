@@ -165,10 +165,14 @@ impl FatDirEntry {
             if self.entry_cluster_offset > u64::from(root_dir_offset) {
                 Err(FileSystemError::NoSpaceLeft)
             } else {
-                Ok(fs.first_data_offset - u64::from(root_dir_offset) + self.entry_cluster_offset + self.entry_offset)
-        }
+                Ok(fs.first_data_offset - u64::from(root_dir_offset)
+                    + self.entry_cluster_offset
+                    + self.entry_offset)
+            }
         } else {
-            Ok(self.entry_cluster.to_data_bytes_offset(fs) + self.entry_cluster_offset + self.entry_offset)
+            Ok(self.entry_cluster.to_data_bytes_offset(fs)
+                + self.entry_cluster_offset
+                + self.entry_offset)
         };
 
         fs.storage_device
