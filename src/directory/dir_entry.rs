@@ -139,6 +139,7 @@ impl DirectoryEntry {
             return Ok(0);
         }
 
+        let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
         let block_size = u64::from(fs.boot_record.bytes_per_block());
         let mut cluster_offset_iterator =
             ClusterOffsetIter::new(fs, self.start_cluster, Some(offset / block_size));
@@ -169,13 +170,14 @@ impl DirectoryEntry {
 
             let mut buf_slice = &mut buf[read_size as usize..(read_size + buf_limit) as usize];
 
-            trace!("READ {:x} {:x} {:x}", read_size, buf_limit, buf_slice.len());
-
             let cluster_offset = cluster.to_data_bytes_offset(fs);
 
             fs.storage_device
                 .read(
-                    fs.partition_start + cluster_offset + offset + read_size,
+                    fs.partition_start
+                        + cluster_offset
+                        + (offset % block_size)
+                        + (read_size % (block_size * blocks_per_cluster)),
                     &mut buf_slice,
                 )
                 .or(Err(FileSystemError::ReadFailed))?;
@@ -205,6 +207,7 @@ impl DirectoryEntry {
             }
         }
 
+        let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
         let block_size = u64::from(fs.boot_record.bytes_per_block());
         let mut cluster_offset_iterator =
             ClusterOffsetIter::new(fs, self.start_cluster, Some(offset / block_size));
@@ -237,7 +240,10 @@ impl DirectoryEntry {
             );
             fs.storage_device
                 .write(
-                    fs.partition_start + cluster_offset + offset + write_size,
+                    fs.partition_start
+                        + cluster_offset
+                        + (offset % block_size)
+                        + (write_size % (block_size * blocks_per_cluster)),
                     &buf_slice,
                 )
                 .or(Err(FileSystemError::WriteFailed))?;
