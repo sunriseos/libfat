@@ -6,7 +6,7 @@ use super::FatFsType;
 use byteorder::{ByteOrder, LittleEndian};
 use storage_device::StorageDevice;
 
-use crate::FileSystemError;
+use libfs::{FileSystemResult, FileSystemError};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// Represent a cluster chan value.
@@ -133,7 +133,7 @@ impl FatValue {
         fs: &FatFileSystem<S>,
         cluster: Cluster,
         fat_index: u32,
-    ) -> Result<(Self, u64), FileSystemError> {
+    ) -> FileSystemResult<(Self, u64)> {
         let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
         let cluster_storage_offset = cluster.to_fat_bytes_offset(fs)
             + u64::from(fat_index * fs.boot_record.fat_size())
@@ -189,7 +189,7 @@ impl FatValue {
     pub fn get<S: StorageDevice>(
         fs: &FatFileSystem<S>,
         cluster: Cluster,
-    ) -> Result<FatValue, FileSystemError> {
+    ) -> FileSystemResult<FatValue> {
         Ok(FatValue::from_cluster(fs, cluster, 0)?.0)
     }
 
@@ -199,7 +199,7 @@ impl FatValue {
         cluster: Cluster,
         value: FatValue,
         fat_index: u32,
-    ) -> Result<(), FileSystemError> {
+    ) -> FileSystemResult<()> {
         let (res, cluster_storage_offset) = FatValue::from_cluster(fs, cluster, fat_index)?;
 
         let fat_offset = cluster.to_fat_offset(fs.boot_record.fat_type);
@@ -251,7 +251,7 @@ impl FatValue {
         fs: &FatFileSystem<S>,
         cluster: Cluster,
         value: FatValue,
-    ) -> Result<(), FileSystemError> {
+    ) -> FileSystemResult<()> {
         for fat_index in 0..u32::from(fs.boot_record.fats_count()) {
             Self::raw_put(fs, cluster, value, fat_index)?;
         }
@@ -263,7 +263,7 @@ impl FatValue {
 pub fn get_last_cluster<S: StorageDevice>(
     fs: &FatFileSystem<S>,
     cluster: Cluster,
-) -> Result<Cluster, FileSystemError> {
+) -> FileSystemResult<Cluster> {
     Ok(get_last_and_previous_cluster(fs, cluster)?.0)
 }
 
@@ -271,7 +271,7 @@ pub fn get_last_cluster<S: StorageDevice>(
 pub fn get_last_and_previous_cluster<S: StorageDevice>(
     fs: &FatFileSystem<S>,
     cluster: Cluster,
-) -> Result<(Cluster, Option<Cluster>), FileSystemError> {
+) -> FileSystemResult<(Cluster, Option<Cluster>)> {
     let mut previous_cluster = None;
     let mut current_cluster = cluster;
 
@@ -286,7 +286,7 @@ pub fn get_last_and_previous_cluster<S: StorageDevice>(
 /// Compute the whole cluster count of a given FileSystem.
 pub fn get_free_cluster_count<S: StorageDevice>(
     fs: &FatFileSystem<S>,
-) -> Result<u32, FileSystemError> {
+) -> FileSystemResult<u32> {
     let mut current_cluster = Cluster(2);
 
     let mut res = 0;

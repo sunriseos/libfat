@@ -21,7 +21,7 @@ use cluster::Cluster;
 
 use filesystem::FatFileSystem;
 
-use libfs::FileSystemError;
+use libfs::{FileSystemResult, FileSystemError};
 
 /// The minimal block size supported
 pub const MINIMAL_BLOCK_SIZE: usize = 512;
@@ -226,7 +226,7 @@ fn parse_fat_boot_record<S: StorageDevice>(
     storage_device: S,
     partition_start: u64,
     partition_size: u64,
-) -> Result<FatFileSystem<S>, FileSystemError> {
+) -> FileSystemResult<FatFileSystem<S>> {
     let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
     trace!("{}", partition_start);
@@ -267,7 +267,7 @@ fn parse_fat_boot_record<S: StorageDevice>(
 /// Treat the storage device directly as a filesystem.
 pub fn get_raw_partition<S: StorageDevice>(
     storage_device: S,
-) -> Result<FatFileSystem<S>, FileSystemError> {
+) -> FileSystemResult<FatFileSystem<S>> {
     let storage_len = storage_device.len().unwrap();
     parse_fat_boot_record(storage_device, 0, storage_len)
 }
@@ -277,7 +277,7 @@ pub fn get_partition<S: StorageDevice>(
     storage_device: S,
     index: u64,
     block_size: u64,
-) -> Result<FatFileSystem<S>, FileSystemError> {
+) -> FileSystemResult<FatFileSystem<S>> {
     let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
     if block_size < block.len() as u64 {
