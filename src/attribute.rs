@@ -7,6 +7,7 @@ pub struct Attributes(u8);
 impl Attributes {
     /// The filesystem will not allow a file to be opened for modification.
     // TODO: Follow this behaviour.
+    // BODY: If a read only attribute is encounter, we should act accordingly.
     pub const READ_ONLY: u8 = 0x01;
 
     /// Hides files or directories from normal directory views.

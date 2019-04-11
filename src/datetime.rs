@@ -63,6 +63,8 @@ impl FatDateTime {
     /// NOTE: This only support the 2000-2099 range. If something outside this range is provided, it will return an UNIX epoch.
     pub fn to_unix_time(&self) -> u64 {
         // TODO: support other ranges than 2000-2099
+        // BODY: If a date that is outside the 2000-2099 range is provided, we should support it.
+        // BODY: In practice, this only apply to the range 1980-1999.
         if self.year > 2099 || self.year < 2000 {
             return 0;
         }

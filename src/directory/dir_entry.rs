@@ -317,6 +317,7 @@ impl DirectoryEntry {
             new_size = self.file_size - diff_size as u32;
         }
         // TODO: update modified date?
+        // BODY: We should update the modification date here at some point.
         raw_dir_entry.set_cluster(self.start_cluster);
         raw_dir_entry.set_file_size(new_size);
         raw_dir_entry.flush(fs)?;

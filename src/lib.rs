@@ -1,5 +1,5 @@
-// TODO: Write a proper crate doc.
 //! The FAT library
+//! This crate currently supports FAT12/FAT16/FAT32 with a sector size >= 512 bytes.
 #![no_std]
 
 pub mod attribute;
@@ -19,7 +19,7 @@ use cluster::Cluster;
 
 use filesystem::FatFileSystem;
 
-/// The minimal block size supported
+/// The minimal block size supported.
 pub const MINIMAL_BLOCK_SIZE: usize = 512;
 
 #[allow(unused_imports)]
