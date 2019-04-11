@@ -3,13 +3,13 @@
 #![no_std]
 
 pub mod attribute;
-pub(crate) mod cluster;
-pub mod datetime;
+mod cluster;
+mod datetime;
 pub mod directory;
 pub mod filesystem;
-pub mod name;
-pub(crate) mod offset_iter;
-pub(crate) mod table;
+mod name;
+mod offset_iter;
+mod table;
 mod utils;
 
 use byteorder::{ByteOrder, LittleEndian};
@@ -271,7 +271,6 @@ fn parse_fat_boot_record<S: StorageDevice>(
 ) -> FatFileSystemResult<FatFileSystem<S>> {
     let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
-    trace!("{}", partition_start);
     storage_device
         .read(partition_start, &mut block)
         .or(Err(FatError::ReadFailed))?;

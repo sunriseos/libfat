@@ -4,7 +4,7 @@ use arrayvec::ArrayString;
 use byteorder::{ByteOrder, LittleEndian};
 
 use super::attribute::Attributes;
-use super::directory::{dir_entry::DirectoryEntry, Directory};
+use super::directory::{dir_entry::DirectoryEntry, Directory, File};
 use super::offset_iter::ClusterOffsetIter;
 use super::FatVolumeBootRecord;
 
@@ -171,7 +171,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
     }
 
     /// Get the root directory of the filesystem.
-    pub fn get_root_directory(&self) -> Directory<'_, S> {
+    pub(crate) fn get_root_directory(&self) -> Directory<'_, S> {
         let dir_info = DirectoryEntry {
             start_cluster: self.boot_record.root_dir_childs_cluster(),
             raw_info: None,
@@ -186,60 +186,89 @@ impl<S: StorageDevice> FatFileSystem<S> {
         Directory::from_entry(self, dir_info)
     }
 
-    /// Create a new directory at the given path.
-    pub fn mkdir(&self, path: &str) -> FatFileSystemResult<()> {
-        let (parent_name, file_name) = utils::get_parent(path);
-        let mut parent_dir = if parent_name == "" {
-            self.get_root_directory()
+    /// Open the parent directory of a given path.
+    fn open_parent_directory(&self, path: &str) -> FatFileSystemResult<Directory<'_, S>> {
+        let (parent_name, _) = utils::get_parent(path);
+        if parent_name == "" {
+            Ok(self.get_root_directory())
         } else {
-            self.get_root_directory().open_dir(parent_name)?
-        };
+            self.get_root_directory().open_directory(parent_name)
+        }
+    }
+
+    /// Search for a directory entry inside the filesystem at the given path.
+    pub fn search_entry(&self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
+        let (_, file_name) = utils::get_parent(path);
+        self.open_parent_directory(path)?.search_entry(file_name)
+    }
+
+    /// Open a directory at the given path.
+    pub fn open_directory(&self, path: &str) -> FatFileSystemResult<Directory<'_, S>> {
+        if path == "/" {
+            Ok(self.get_root_directory())
+        } else {
+            self.get_root_directory().open_directory(path)
+        }
+    }
+
+    /// Open a file at the given path.
+    pub fn open_file(&self, path: &str) -> FatFileSystemResult<File<'_, S>> {
+        self.get_root_directory().open_file(path)
+    }
+
+    /// Create a new directory at the given path.
+    pub fn create_directory(&self, path: &str) -> FatFileSystemResult<()> {
+        let (_, file_name) = utils::get_parent(path);
+        let mut parent_dir = self.open_parent_directory(path)?;
 
         // precheck that it doesn't exist already
         if parent_dir.clone().find_entry(file_name).is_ok() {
             return Err(FatError::FileExists);
         }
 
-        parent_dir.mkdir(file_name)
+        parent_dir.create_directory(file_name)
     }
 
     /// Create a new file at the given path.
-    pub fn touch(&self, path: &str) -> FatFileSystemResult<()> {
-        let (parent_name, file_name) = utils::get_parent(path);
-        let mut parent_dir = if parent_name == "" {
-            self.get_root_directory()
-        } else {
-            self.get_root_directory().open_dir(parent_name)?
-        };
+    pub fn create_file(&self, path: &str) -> FatFileSystemResult<()> {
+        let (_, file_name) = utils::get_parent(path);
+        let mut parent_dir = self.open_parent_directory(path)?;
 
         // precheck that it doesn't exist already
         if parent_dir.clone().find_entry(file_name).is_ok() {
             return Err(FatError::FileExists);
         }
 
-        parent_dir.touch(file_name)
+        parent_dir.create_file(file_name)
     }
 
-    /// Delete a directory or a file at the given path.
-    pub fn unlink(&self, path: &str, is_dir: bool) -> FatFileSystemResult<()> {
-        let (parent_name, file_name) = utils::get_parent(path);
-        let parent_dir = if parent_name == "" {
-            self.get_root_directory()
-        } else {
-            self.get_root_directory().open_dir(parent_name)?
-        };
+    /// Delete a file at the given path.
+    pub fn delete_file(&self, path: &str) -> FatFileSystemResult<()> {
+        let (_, file_name) = utils::get_parent(path);
+        self.open_parent_directory(path)?.delete_file(file_name)
+    }
 
-        parent_dir.unlink(file_name, is_dir)
+    /// Delete a directory at the given path.
+    pub fn delete_directory(&self, path: &str) -> FatFileSystemResult<()> {
+        let (_, file_name) = utils::get_parent(path);
+        self.open_parent_directory(path)?
+            .delete_directory(file_name)
+    }
+
+    /// Rename a file at the given path to a new path.
+    pub fn rename_file(&self, old_path: &str, new_path: &str) -> FatFileSystemResult<()> {
+        self.rename(old_path, new_path, false)
+    }
+
+    /// Rename a directory at the given path to a new path.
+    pub fn rename_directory(&self, old_path: &str, new_path: &str) -> FatFileSystemResult<()> {
+        self.rename(old_path, new_path, true)
     }
 
     /// Rename a directory or a file at the given path to a new path.
-    pub fn rename(&self, old_path: &str, new_path: &str, is_dir: bool) -> FatFileSystemResult<()> {
-        let (parent_name, file_name) = utils::get_parent(old_path);
-        let parent_old_dir = if parent_name == "" {
-            self.get_root_directory()
-        } else {
-            self.get_root_directory().open_dir(parent_name)?
-        };
+    fn rename(&self, old_path: &str, new_path: &str, is_dir: bool) -> FatFileSystemResult<()> {
+        let (_, file_name) = utils::get_parent(old_path);
+        let parent_old_dir = self.open_parent_directory(old_path)?;
 
         let old_entry = parent_old_dir.find_entry(file_name)?;
 
@@ -251,12 +280,8 @@ impl<S: StorageDevice> FatFileSystem<S> {
             }
         }
 
-        let (parent_name, file_name) = utils::get_parent(new_path);
-        let parent_new_dir = if parent_name == "" {
-            self.get_root_directory()
-        } else {
-            self.get_root_directory().open_dir(parent_name)?
-        };
+        let (_, file_name) = utils::get_parent(new_path);
+        let parent_new_dir = self.open_parent_directory(new_path)?;
 
         if parent_new_dir.clone().find_entry(file_name).is_ok() {
             return Err(FatError::FileExists);

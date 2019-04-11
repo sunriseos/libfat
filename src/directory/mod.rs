@@ -38,10 +38,29 @@ pub struct Directory<'a, S: StorageDevice> {
     fs: &'a FatFileSystem<S>,
 }
 
+#[derive(Copy)]
+/// Represent a File.
+pub struct File<'a, S: StorageDevice> {
+    /// The information about this file.
+    pub file_info: DirectoryEntry,
+
+    /// A reference to the filesystem.
+    fs: &'a FatFileSystem<S>,
+}
+
 impl<'a, S: StorageDevice> Clone for Directory<'a, S> {
     fn clone(&self) -> Self {
         Directory {
             dir_info: self.dir_info,
+            fs: self.fs,
+        }
+    }
+}
+
+impl<'a, S: StorageDevice> Clone for File<'a, S> {
+    fn clone(&self) -> Self {
+        File {
+            file_info: self.file_info,
             fs: self.fs,
         }
     }
@@ -88,8 +107,22 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         Err(FatError::NotFound)
     }
 
+    /// Recursively search for an entry.
+    pub(crate) fn search_entry(self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
+        let (name, rest_opt) = utils::split_path(path);
+
+        let fs = self.fs;
+
+        let child_entry = self.find_entry(name)?;
+
+        match rest_opt {
+            Some(rest) => Directory::from_entry(fs, child_entry).search_entry(rest),
+            None => Ok(child_entry),
+        }
+    }
+
     /// Open a file a the given path.
-    pub fn open_file(self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
+    pub fn open_file(self, path: &str) -> FatFileSystemResult<File<'a, S>> {
         let (name, rest_opt) = utils::split_path(path);
         let fs = self.fs;
 
@@ -97,18 +130,18 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
         match rest_opt {
             Some(rest) => {
-                if !child_entry.attribute.is_directory() {
-                    Err(FatError::NotFound)
+                if child_entry.attribute.is_directory() {
+                    Err(FatError::NotAFile)
                 } else {
                     Directory::from_entry(fs, child_entry).open_file(rest)
                 }
             }
-            None => Ok(child_entry),
+            None => Ok(File::from_entry(fs, child_entry)),
         }
     }
 
     /// Open a directory at the given path.
-    pub fn open_dir(self, path: &str) -> FatFileSystemResult<Directory<'a, S>> {
+    pub fn open_directory(self, path: &str) -> FatFileSystemResult<Directory<'a, S>> {
         let (name, rest_opt) = utils::split_path(path);
 
         let fs = self.fs;
@@ -116,11 +149,11 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         let child_entry = self.find_entry(name)?;
 
         if !child_entry.attribute.is_directory() {
-            return Err(FatError::NotFound);
+            return Err(FatError::NotADirectory);
         }
 
         match rest_opt {
-            Some(rest) => Directory::from_entry(fs, child_entry).open_dir(rest),
+            Some(rest) => Directory::from_entry(fs, child_entry).open_directory(rest),
             None => Ok(Directory::from_entry(fs, child_entry)),
         }
     }
@@ -295,7 +328,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Create a directory with the given name.
-    pub fn mkdir(&mut self, name: &str) -> FatFileSystemResult<()> {
+    pub fn create_directory(&mut self, name: &str) -> FatFileSystemResult<()> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
             return Err(FatError::PathTooLong);
         }
@@ -373,7 +406,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Create a file with the given name.
-    pub fn touch(&mut self, name: &str) -> FatFileSystemResult<()> {
+    pub fn create_file(&mut self, name: &str) -> FatFileSystemResult<()> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
             return Err(FatError::PathTooLong);
         }
@@ -390,8 +423,18 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         Ok(())
     }
 
+    /// Delete a file at the given path.
+    pub fn delete_file(self, path: &str) -> FatFileSystemResult<()> {
+        self.unlink(path, false)
+    }
+
+    /// Delete a directory at the given path.
+    pub fn delete_directory(self, path: &str) -> FatFileSystemResult<()> {
+        self.unlink(path, true)
+    }
+
     /// Delete a directory or a file with the given name.
-    pub fn unlink(self, name: &str, is_dir: bool) -> FatFileSystemResult<()> {
+    fn unlink(self, name: &str, is_dir: bool) -> FatFileSystemResult<()> {
         let fs = self.fs;
 
         let dir_entry = self.find_entry(name)?;
@@ -571,5 +614,222 @@ impl<'a, S: StorageDevice> DirectoryEntryIterator<'a, S> {
         DirectoryEntryIterator {
             raw_iter: FatDirEntryIterator::from_directory(root),
         }
+    }
+}
+
+impl<'a, S: StorageDevice> File<'a, S> {
+    /// Create a file from a filesystem reference and a directory entry.
+    pub fn from_entry(fs: &'a FatFileSystem<S>, file_info: DirectoryEntry) -> Self {
+        File { file_info, fs }
+    }
+
+    /// Check offset range for a given fat_type.
+    fn check_range(offset: u64, fs_type: FatFsType) -> FatFileSystemResult<()> {
+        let max_size = match fs_type {
+            FatFsType::Fat12 => 0x01FF_FFFF,
+            FatFsType::Fat16 => 0x7FFF_FFFF,
+            FatFsType::Fat32 => 0xFFFF_FFFF,
+            _ => unimplemented!(),
+        };
+
+        if offset > max_size {
+            return Err(FatError::AccessDenied);
+        }
+
+        Ok(())
+    }
+
+    /// Read at a given offset of the file into a given buffer.
+    pub fn read(
+        &mut self,
+        fs: &'a FatFileSystem<S>,
+        offset: u64,
+        buf: &mut [u8],
+    ) -> FatFileSystemResult<u64> {
+        if Self::check_range(offset, fs.boot_record.fat_type).is_err() {
+            return Ok(0);
+        }
+
+        if offset >= u64::from(self.file_info.file_size) {
+            return Ok(0);
+        }
+
+        let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
+        let block_size = u64::from(fs.boot_record.bytes_per_block());
+        let mut cluster_offset_iterator =
+            ClusterOffsetIter::new(fs, self.file_info.start_cluster, Some(offset / block_size));
+
+        let mut read_size = 0u64;
+
+        while read_size < buf.len() as u64 {
+            let cluster_opt = cluster_offset_iterator.next();
+            if cluster_opt.is_none() {
+                break;
+            }
+
+            let cluster = cluster_opt.unwrap();
+
+            let mut buf_limit = block_size;
+
+            let bytes_left = u64::from(self.file_info.file_size) - read_size - offset;
+
+            if bytes_left == 0 {
+                break;
+            } else if bytes_left < buf_limit {
+                buf_limit = bytes_left;
+            }
+
+            if buf_limit > buf.len() as u64 {
+                buf_limit = buf.len() as u64;
+            }
+
+            let mut buf_slice = &mut buf[read_size as usize..(read_size + buf_limit) as usize];
+
+            let cluster_offset = cluster.to_data_bytes_offset(fs);
+
+            fs.storage_device
+                .read(
+                    fs.partition_start
+                        + cluster_offset
+                        + (offset % block_size)
+                        + (read_size % (block_size * blocks_per_cluster)),
+                    &mut buf_slice,
+                )
+                .or(Err(FatError::ReadFailed))?;
+
+            read_size += buf_slice.len() as u64;
+        }
+
+        Ok(read_size)
+    }
+
+    /// Write the given buffer at a given offset of the file.
+    pub fn write(
+        &mut self,
+        fs: &'a FatFileSystem<S>,
+        offset: u64,
+        buf: &[u8],
+        appendable: bool,
+    ) -> FatFileSystemResult<()> {
+        Self::check_range(offset, fs.boot_record.fat_type)?;
+
+        let min_size = offset + buf.len() as u64;
+        if min_size > u64::from(self.file_info.file_size) {
+            if appendable {
+                self.set_len(fs, min_size)?;
+            } else {
+                return Err(FatError::AccessDenied);
+            }
+        }
+
+        let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
+        let block_size = u64::from(fs.boot_record.bytes_per_block());
+        let mut cluster_offset_iterator =
+            ClusterOffsetIter::new(fs, self.file_info.start_cluster, Some(offset / block_size));
+
+        let mut write_size = 0u64;
+
+        while write_size < buf.len() as u64 {
+            let cluster_opt = cluster_offset_iterator.next();
+            if cluster_opt.is_none() {
+                break;
+            }
+
+            let cluster = cluster_opt.unwrap();
+
+            let mut buf_limit = block_size;
+
+            if buf_limit > (&buf[write_size as usize..]).len() as u64 {
+                buf_limit = (&buf[write_size as usize..]).len() as u64;
+            }
+
+            let buf_slice = &buf[write_size as usize..(write_size + buf_limit) as usize];
+
+            let cluster_offset = cluster.to_data_bytes_offset(fs);
+
+            fs.storage_device
+                .write(
+                    fs.partition_start
+                        + cluster_offset
+                        + (offset % block_size)
+                        + (write_size % (block_size * blocks_per_cluster)),
+                    &buf_slice,
+                )
+                .or(Err(FatError::WriteFailed))?;
+            write_size += buf_slice.len() as u64;
+        }
+
+        Ok(())
+    }
+
+    /// Set the file length
+    pub fn set_len(&mut self, fs: &'a FatFileSystem<S>, size: u64) -> FatFileSystemResult<()> {
+        let current_len = u64::from(self.file_info.file_size);
+        if size == current_len {
+            return Ok(());
+        } else if size > 0xFFFF_FFFF {
+            return Err(FatError::NoSpaceLeft);
+        }
+
+        let raw_file_info = self.file_info.raw_info.ok_or(FatError::Custom {
+            name: "Raw Info is missing ON A FILE",
+        })?;
+        let mut raw_dir_entry = raw_file_info.get_dir_entry(fs)?;
+
+        let cluster_size = u64::from(
+            u16::from(fs.boot_record.blocks_per_cluster()) * fs.boot_record.bytes_per_block(),
+        );
+        let aligned_size = utils::align_up(size, cluster_size);
+        let aligned_current_len = utils::align_up(current_len, cluster_size);
+
+        let new_size;
+
+        if size > current_len {
+            let diff_size = size - current_len;
+            let mut cluster_to_add_count = (aligned_size - aligned_current_len) / cluster_size;
+            let mut start_cluster =
+                if self.file_info.start_cluster.0 == 0 || self.file_info.file_size == 0 {
+                    None
+                } else {
+                    Some(table::get_last_cluster(fs, self.file_info.start_cluster)?)
+                };
+
+            let mut last_cluster = start_cluster;
+            let need_update_cluster = start_cluster.is_none();
+
+            while cluster_to_add_count != 0 {
+                last_cluster = Some(fs.alloc_cluster(last_cluster)?);
+                if start_cluster.is_none() {
+                    start_cluster = last_cluster;
+                }
+                cluster_to_add_count -= 1;
+            }
+
+            new_size = self.file_info.file_size + diff_size as u32;
+            if need_update_cluster {
+                self.file_info.start_cluster = start_cluster.unwrap();
+            }
+        } else {
+            let diff_size = current_len - size;
+            let mut cluster_to_remove_count = (aligned_current_len - aligned_size) / cluster_size;
+
+            while cluster_to_remove_count != 0 {
+                let (last_cluster, previous_cluster) =
+                    table::get_last_and_previous_cluster(fs, self.file_info.start_cluster)?;
+                fs.free_cluster(last_cluster, previous_cluster)?;
+                cluster_to_remove_count -= 1;
+            }
+
+            new_size = self.file_info.file_size - diff_size as u32;
+        }
+        // TODO: update modified date?
+        // BODY: We should update the modification date here at some point.
+        raw_dir_entry.set_cluster(self.file_info.start_cluster);
+        raw_dir_entry.set_file_size(new_size);
+        raw_dir_entry.flush(fs)?;
+
+        self.file_info.file_size = new_size;
+
+        Ok(())
     }
 }
