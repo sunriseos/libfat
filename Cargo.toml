@@ -5,16 +5,9 @@ authors = ["Thog <me@thog.eu>"]
 edition = "2018"
 
 [dependencies]
-byteorder = "1.0"
+arrayvec = {version = "0.4", default-features = false, features = ["array-sizes-33-128"]}
+byteorder = { version = "1.0", default-features = false }
 log = "0.4.6"
-structview = { version = "0.3", default-features = false }
+num-traits = { version = "0.2", default-features = false }
 storage_device = { path = "../storage_device" }
-
-[dependencies.arrayvec]
-default-features = false
-version = "0.4.10"
-features = ["array-sizes-33-128"]
-
-[dependencies.num-traits]
-version = "0.2"
-default-features = false
+structview = { version = "0.3", default-features = false }

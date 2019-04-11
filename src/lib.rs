@@ -1,7 +1,5 @@
 // TODO: Write a proper crate doc.
 //! The FAT library
-
-#![feature(alloc)]
 #![no_std]
 
 pub mod attribute;
