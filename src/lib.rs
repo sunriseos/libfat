@@ -271,6 +271,8 @@ fn parse_fat_boot_record<S: StorageDevice>(
 ) -> FatFileSystemResult<FatFileSystem<S>> {
     let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
+    let mut storage_device = storage_device;
+
     storage_device
         .read(partition_start, &mut block)
         .or(Err(FatError::ReadFailed))?;
@@ -309,7 +311,9 @@ fn parse_fat_boot_record<S: StorageDevice>(
 pub fn get_raw_partition<S: StorageDevice>(
     storage_device: S,
 ) -> FatFileSystemResult<FatFileSystem<S>> {
+    let mut storage_device = storage_device;
     let storage_len = storage_device.len().unwrap();
+
     parse_fat_boot_record(storage_device, 0, storage_len)
 }
 
@@ -333,6 +337,8 @@ pub fn get_partition<S: StorageDevice>(
 
     /// The size of a partition table entry.
     const PARITION_TABLE_ENTRY_SIZE: usize = 16;
+
+    let mut storage_device = storage_device;
 
     storage_device
         .read(index, &mut block)

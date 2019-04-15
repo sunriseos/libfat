@@ -121,6 +121,7 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S> {
         let entry_start: u64 = (entry_index * FatDirEntry::LEN) as u64;
         let read_res = fs
             .storage_device
+            .lock()
             .read(
                 fs.partition_start + cluster_position_opt? + entry_start,
                 &mut raw_data,

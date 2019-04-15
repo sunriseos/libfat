@@ -176,6 +176,7 @@ impl FatDirEntry {
         };
 
         fs.storage_device
+            .lock()
             .write(fs.partition_start + entry_offset?, &self.data)
             .or(Err(FatError::WriteFailed))
     }

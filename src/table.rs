@@ -146,6 +146,7 @@ impl FatValue {
             FatFsType::Fat32 => {
                 let mut data = [0x0u8; 4];
                 fs.storage_device
+                    .lock()
                     .read(partition_storage_offset, &mut data)
                     .or(Err(FatError::ReadFailed))?;
 
@@ -157,6 +158,7 @@ impl FatValue {
             FatFsType::Fat16 => {
                 let mut data = [0x0u8; 2];
                 fs.storage_device
+                    .lock()
                     .read(partition_storage_offset, &mut data)
                     .or(Err(FatError::ReadFailed))?;
 
@@ -168,6 +170,7 @@ impl FatValue {
             FatFsType::Fat12 => {
                 let mut data = [0x0u8; 2];
                 fs.storage_device
+                    .lock()
                     .read(partition_storage_offset, &mut data)
                     .or(Err(FatError::ReadFailed))?;
 
@@ -216,6 +219,7 @@ impl FatValue {
                 let mut data = [0x0u8; 4];
                 LittleEndian::write_u32(&mut data, value.to_fat32_value() & 0x0FFF_FFFF);
                 fs.storage_device
+                    .lock()
                     .write(partition_storage_offset, &data)
                     .or(Err(FatError::WriteFailed))?;
             }
@@ -223,6 +227,7 @@ impl FatValue {
                 let mut data = [0x0u8; 2];
                 LittleEndian::write_u16(&mut data, value.to_fat16_value());
                 fs.storage_device
+                    .lock()
                     .write(partition_storage_offset, &data)
                     .or(Err(FatError::WriteFailed))?;
             }
@@ -237,6 +242,7 @@ impl FatValue {
                 let mut data = [0x0u8; 2];
                 LittleEndian::write_u16(&mut data, value);
                 fs.storage_device
+                    .lock()
                     .write(partition_storage_offset, &data)
                     .or(Err(FatError::WriteFailed))?;
             }

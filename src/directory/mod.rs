@@ -688,6 +688,7 @@ impl<'a, S: StorageDevice> File<'a, S> {
             let cluster_offset = cluster.to_data_bytes_offset(fs);
 
             fs.storage_device
+                .lock()
                 .read(
                     fs.partition_start
                         + cluster_offset
@@ -748,6 +749,7 @@ impl<'a, S: StorageDevice> File<'a, S> {
             let cluster_offset = cluster.to_data_bytes_offset(fs);
 
             fs.storage_device
+                .lock()
                 .write(
                     fs.partition_start
                         + cluster_offset

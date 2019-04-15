@@ -16,6 +16,7 @@ use super::FatError;
 use super::FatFileSystemResult;
 use super::FatFsType;
 use storage_device::StorageDevice;
+use spin::Mutex;
 
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
@@ -39,6 +40,7 @@ impl FatFileSystemInfo {
         let mut free_cluster = 0xFFFF_FFFF;
 
         fs.storage_device
+            .lock()
             .read(
                 fs.partition_start
                     + u64::from(fs.boot_record.fs_info_block())
@@ -94,6 +96,7 @@ impl FatFileSystemInfo {
         );
 
         fs.storage_device
+            .lock()
             .write(
                 fs.partition_start
                     + u64::from(fs.boot_record.fs_info_block())
@@ -110,7 +113,7 @@ impl FatFileSystemInfo {
 #[allow(dead_code)]
 pub struct FatFileSystem<S: StorageDevice> {
     /// The device device of the filesystem.
-    pub(crate) storage_device: S,
+    pub(crate) storage_device: Mutex<S>,
 
     /// The block index of the start of the partition of this filesystem.
     pub(crate) partition_start: u64,
@@ -139,7 +142,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         boot_record: FatVolumeBootRecord,
     ) -> FatFileSystemResult<FatFileSystem<S>> {
         let mut fs = FatFileSystem {
-            storage_device,
+            storage_device: Mutex::new(storage_device),
             partition_start,
             first_data_offset,
             partition_size,
@@ -303,6 +306,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
             for index in 0..write_per_block {
                 self.storage_device
+                    .lock()
                     .write(
                         self.partition_start
                             + cluster.to_data_bytes_offset(self)
