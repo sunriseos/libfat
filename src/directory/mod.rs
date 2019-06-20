@@ -38,29 +38,17 @@ pub struct Directory<'a, S: StorageDevice> {
     fs: &'a FatFileSystem<S>,
 }
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 /// Represent a File.
-pub struct File<'a, S: StorageDevice> {
+pub struct File {
     /// The information about this file.
     pub file_info: DirectoryEntry,
-
-    /// A reference to the filesystem.
-    fs: &'a FatFileSystem<S>,
 }
 
 impl<'a, S: StorageDevice> Clone for Directory<'a, S> {
     fn clone(&self) -> Self {
         Directory {
             dir_info: self.dir_info,
-            fs: self.fs,
-        }
-    }
-}
-
-impl<'a, S: StorageDevice> Clone for File<'a, S> {
-    fn clone(&self) -> Self {
-        File {
-            file_info: self.file_info,
             fs: self.fs,
         }
     }
@@ -122,7 +110,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Open a file a the given path.
-    pub fn open_file(self, path: &str) -> FatFileSystemResult<File<'a, S>> {
+    pub fn open_file(self, path: &str) -> FatFileSystemResult<File> {
         let (name, rest_opt) = utils::split_path(path);
         let fs = self.fs;
 
@@ -136,7 +124,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                     Directory::from_entry(fs, child_entry).open_file(rest)
                 }
             }
-            None => Ok(File::from_entry(fs, child_entry)),
+            None => Ok(File::from_entry(child_entry)),
         }
     }
 
@@ -617,10 +605,10 @@ impl<'a, S: StorageDevice> DirectoryEntryIterator<'a, S> {
     }
 }
 
-impl<'a, S: StorageDevice> File<'a, S> {
+impl File {
     /// Create a file from a filesystem reference and a directory entry.
-    pub fn from_entry(fs: &'a FatFileSystem<S>, file_info: DirectoryEntry) -> Self {
-        File { file_info, fs }
+    pub fn from_entry(file_info: DirectoryEntry) -> Self {
+        File { file_info }
     }
 
     /// Check offset range for a given fat_type.
@@ -640,9 +628,9 @@ impl<'a, S: StorageDevice> File<'a, S> {
     }
 
     /// Read at a given offset of the file into a given buffer.
-    pub fn read(
+    pub fn read<S: StorageDevice>(
         &mut self,
-        fs: &'a FatFileSystem<S>,
+        fs: &FatFileSystem<S>,
         offset: u64,
         buf: &mut [u8],
     ) -> FatFileSystemResult<u64> {
@@ -705,9 +693,9 @@ impl<'a, S: StorageDevice> File<'a, S> {
     }
 
     /// Write the given buffer at a given offset of the file.
-    pub fn write(
+    pub fn write<S: StorageDevice>(
         &mut self,
-        fs: &'a FatFileSystem<S>,
+        fs: &FatFileSystem<S>,
         offset: u64,
         buf: &[u8],
         appendable: bool,
@@ -765,7 +753,7 @@ impl<'a, S: StorageDevice> File<'a, S> {
     }
 
     /// Set the file length
-    pub fn set_len(&mut self, fs: &'a FatFileSystem<S>, size: u64) -> FatFileSystemResult<()> {
+    pub fn set_len<S: StorageDevice>(&mut self, fs: &FatFileSystem<S>, size: u64) -> FatFileSystemResult<()> {
         let current_len = u64::from(self.file_info.file_size);
         if size == current_len {
             return Ok(());

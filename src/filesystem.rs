@@ -215,7 +215,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
     }
 
     /// Open a file at the given path.
-    pub fn open_file(&self, path: &str) -> FatFileSystemResult<File<'_, S>> {
+    pub fn open_file(&self, path: &str) -> FatFileSystemResult<File> {
         self.get_root_directory().open_file(path)
     }
 
@@ -266,6 +266,11 @@ impl<S: StorageDevice> FatFileSystem<S> {
     /// Rename a directory at the given path to a new path.
     pub fn rename_directory(&self, old_path: &str, new_path: &str) -> FatFileSystemResult<()> {
         self.rename(old_path, new_path, true)
+    }
+
+    /// Get the FAT filesystem type.
+    pub fn get_type(&self) -> FatFsType {
+        self.boot_record.fat_type
     }
 
     /// Rename a directory or a file at the given path to a new path.

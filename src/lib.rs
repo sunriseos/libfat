@@ -263,15 +263,13 @@ impl FatVolumeBootRecord {
     }
 }
 
-/// Parse a FAT boot record and return a FatFileSystem instance.
-fn parse_fat_boot_record<S: StorageDevice>(
-    storage_device: S,
-    partition_start: u64,
-    partition_size: u64,
-) -> FatFileSystemResult<FatFileSystem<S>> {
-    let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
-    let mut storage_device = storage_device;
+/// Get a FAT boot record from a StorageDevice.
+fn get_fat_boot_record(
+    storage_device: &mut dyn StorageDevice,
+    partition_start: u64
+) -> FatFileSystemResult<FatVolumeBootRecord> {
+    let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
     storage_device
         .read(partition_start, &mut block)
@@ -282,6 +280,19 @@ fn parse_fat_boot_record<S: StorageDevice>(
     if !boot_record.is_valid() {
         return Err(FatError::InvalidPartition);
     }
+
+    Ok(boot_record)
+}
+
+/// Parse a FAT boot record and return a FatFileSystem instance.
+fn parse_fat_boot_record<S: StorageDevice>(
+    storage_device: S,
+    partition_start: u64,
+    partition_size: u64,
+) -> FatFileSystemResult<FatFileSystem<S>> {
+
+    let mut storage_device = storage_device;
+    let boot_record = get_fat_boot_record(&mut storage_device, partition_start)?;
 
     match boot_record.fat_type {
         FatFsType::ExFat => unimplemented!(),
@@ -315,6 +326,13 @@ pub fn get_raw_partition<S: StorageDevice>(
     let storage_len = storage_device.len().unwrap();
 
     parse_fat_boot_record(storage_device, 0, storage_len)
+}
+
+/// Treat the storage device directly as a partition and try to determine the FAT type of the partition
+pub fn get_fat_type(
+    storage_device: &mut dyn StorageDevice,
+) -> FatFileSystemResult<FatFsType> {
+    Ok(get_fat_boot_record(storage_device, 0)?.fat_type)
 }
 
 /// Parse the MBR and return an instance to a filesystem at the given partition index.
