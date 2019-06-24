@@ -28,7 +28,8 @@ use dir_entry::{DirectoryEntry, DirectoryEntryRawInfo};
 use dir_entry_iterator::DirectoryEntryIterator;
 use raw_dir_entry_iterator::FatDirEntryIterator;
 
-#[derive(Copy)]
+use crate::utils::FileSystemIterator;
+
 /// Represent a Directory.
 pub struct Directory<'a, S: StorageDevice> {
     /// The information about this directory.
@@ -38,20 +39,10 @@ pub struct Directory<'a, S: StorageDevice> {
     fs: &'a FatFileSystem<S>,
 }
 
-#[derive(Copy, Clone)]
 /// Represent a File.
 pub struct File {
     /// The information about this file.
     pub file_info: DirectoryEntry,
-}
-
-impl<'a, S: StorageDevice> Clone for Directory<'a, S> {
-    fn clone(&self) -> Self {
-        Directory {
-            dir_info: self.dir_info,
-            fs: self.fs,
-        }
-    }
 }
 
 impl<'a, S: StorageDevice> Directory<'a, S> {
@@ -66,7 +57,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Search an entry inside the directory and if found return it.
-    pub fn find_entry(self, name: &str) -> FatFileSystemResult<DirectoryEntry> {
+    pub fn find_entry(&self, name: &str) -> FatFileSystemResult<DirectoryEntry> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE {
             return Err(FatError::PathTooLong);
         }
@@ -77,7 +68,8 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             lowercase_name.push(c.to_lowercase().next().unwrap());
         }
 
-        for entry in self.iter() {
+        let mut iter = self.iter();
+        while let Some(entry) = iter.next(self.fs) {
             let entry = entry?;
 
             let mut file_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
@@ -96,7 +88,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Recursively search for an entry.
-    pub(crate) fn search_entry(self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
+    pub(crate) fn search_entry(&self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
         let (name, rest_opt) = utils::split_path(path);
 
         let fs = self.fs;
@@ -151,11 +143,13 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         entry: &DirectoryEntry,
         fs: &'a FatFileSystem<S>,
         count: u32,
-    ) -> FatFileSystemResult<FatDirEntryIterator<'a, S>> {
+    ) -> FatFileSystemResult<FatDirEntryIterator> {
         let mut i = 0;
         let directory = Directory::from_entry(fs, *entry);
         let is_root_directory = directory.is_root_directory();
-        for raw_dir_entry in directory.fat_dir_entry_iter() {
+
+        let mut fat_dir_entry_iter = directory.fat_dir_entry_iter();
+        while let Some(raw_dir_entry) = fat_dir_entry_iter.next(fs) {
             let raw_dir_entry = raw_dir_entry?;
             if raw_dir_entry.is_free() || raw_dir_entry.is_deleted() {
                 i += 1;
@@ -231,7 +225,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                     target_index as u8
                 };
 
-                let mut lfn_entry = free_entries_iter.next().unwrap()?;
+                let mut lfn_entry = free_entries_iter.next(fs).unwrap()?;
                 if first_raw_dir_entry.is_none() {
                     first_raw_dir_entry = Some(lfn_entry);
                 }
@@ -249,7 +243,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             short_file_name = ShortFileName::from_data(&name.as_bytes());
         }
 
-        let mut sfn_entry = free_entries_iter.next().unwrap()?;
+        let mut sfn_entry = free_entries_iter.next(fs).unwrap()?;
         sfn_entry.clear();
         sfn_entry.set_file_size(file_size);
         sfn_entry.set_cluster(cluster);
@@ -300,7 +294,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
             let mut i = 0;
             while i < raw_info.entry_count {
-                if let Some(block_res) = offset_iter.next() {
+                if let Some(block_res) = offset_iter.next(fs) {
                     let mut res = block_res?;
 
                     res.set_deleted();
@@ -437,7 +431,10 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
         // Check for directory not being empty
         if dir_entry.attribute.is_directory()
-            && Self::from_entry(fs, dir_entry).iter().nth(2).is_some()
+            && Self::from_entry(fs, dir_entry)
+                .iter()
+                .nth(self.fs, 2)
+                .is_some()
         {
             return Err(FatError::AccessDenied);
         }
@@ -492,7 +489,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                     target_index as u8
                 };
 
-                let mut lfn_entry = entries_iter.next().unwrap()?;
+                let mut lfn_entry = entries_iter.next(self.fs).unwrap()?;
 
                 lfn_entry.clear();
                 lfn_entry.set_attribute(Attributes::new(Attributes::LFN));
@@ -502,7 +499,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                 lfn_entry.flush(self.fs)?;
             }
 
-            let mut sfn_entry = entries_iter.next().unwrap()?;
+            let mut sfn_entry = entries_iter.next(self.fs).unwrap()?;
             sfn_entry.set_short_name(&short_file_name);
             sfn_entry.flush(self.fs)?;
             return Ok(());
@@ -547,7 +544,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                 );
 
                 // FIXME: is that always the second entry?
-                let mut second_entry = iter.nth(2).unwrap()?;
+                let mut second_entry = iter.nth(self.fs, 2).unwrap()?;
                 second_entry.set_cluster(new_parent_cluster);
                 second_entry.flush(self.fs)?;
             }
@@ -560,18 +557,18 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
 impl<'a, S: StorageDevice> Directory<'a, S> {
     /// Create a raw directory entry iterator from the directory.
-    pub(crate) fn fat_dir_entry_iter(self) -> FatDirEntryIterator<'a, S> {
+    pub(crate) fn fat_dir_entry_iter(&self) -> FatDirEntryIterator {
         FatDirEntryIterator::from_directory(self)
     }
     /// Create a directory entry iterator from the directory.
-    pub fn iter(self) -> DirectoryEntryIterator<'a, S> {
+    pub fn iter(&self) -> DirectoryEntryIterator {
         DirectoryEntryIterator::new(self)
     }
 }
 
-impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S> {
+impl FatDirEntryIterator {
     /// Create a raw directory entry iterator from a directory.
-    pub fn from_directory(root: Directory<'a, S>) -> Self {
+    pub fn from_directory<S: StorageDevice>(root: &Directory<'_, S>) -> Self {
         let cluster = root.dir_info.start_cluster;
         let fs = &root.fs;
 
@@ -589,16 +586,15 @@ impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S> {
             counter: 0,
             cluster_offset: 0,
             is_first: true,
-            fs,
             cluster_iter,
             last_cluster: None,
         }
     }
 }
 
-impl<'a, S: StorageDevice> DirectoryEntryIterator<'a, S> {
+impl DirectoryEntryIterator {
     /// Create a directory entry iterator from a directory.
-    pub fn new(root: Directory<'a, S>) -> Self {
+    pub fn new<S: StorageDevice>(root: &Directory<'_, S>) -> Self {
         DirectoryEntryIterator {
             raw_iter: FatDirEntryIterator::from_directory(root),
         }
@@ -650,7 +646,7 @@ impl File {
         let mut read_size = 0u64;
 
         while read_size < buf.len() as u64 {
-            let cluster_opt = cluster_offset_iterator.next();
+            let cluster_opt = cluster_offset_iterator.next(fs);
             if cluster_opt.is_none() {
                 break;
             }
@@ -719,7 +715,7 @@ impl File {
         let mut write_size = 0u64;
 
         while write_size < buf.len() as u64 {
-            let cluster_opt = cluster_offset_iterator.next();
+            let cluster_opt = cluster_offset_iterator.next(fs);
             if cluster_opt.is_none() {
                 break;
             }
@@ -753,7 +749,11 @@ impl File {
     }
 
     /// Set the file length
-    pub fn set_len<S: StorageDevice>(&mut self, fs: &FatFileSystem<S>, size: u64) -> FatFileSystemResult<()> {
+    pub fn set_len<S: StorageDevice>(
+        &mut self,
+        fs: &FatFileSystem<S>,
+        size: u64,
+    ) -> FatFileSystemResult<()> {
         let current_len = u64::from(self.file_info.file_size);
         if size == current_len {
             return Ok(());

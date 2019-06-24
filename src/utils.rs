@@ -1,7 +1,9 @@
 //! Utils used in the crate.
 
+use crate::filesystem::FatFileSystem;
 use core::ops::{BitAnd, Not};
 use num_traits::Num;
+use storage_device::StorageDevice;
 
 /// Align the address to the next alignment.
 ///
@@ -47,4 +49,61 @@ pub fn split_path(path: &str) -> (&str, Option<&str>) {
     let rest_opt = path_split.next();
 
     (comp, rest_opt)
+}
+
+/// A simple FileSystemIterator wrapper that implement Iterator
+pub struct GenericFileSystemIterator<'a, S: StorageDevice, T: FileSystemIterator<S>> {
+    /// A reference to the filesystem.
+    fs: &'a FatFileSystem<S>,
+    /// The filesystem iterator
+    inner: T,
+}
+
+impl<'a, S: StorageDevice, T: FileSystemIterator<S>> GenericFileSystemIterator<'a, S, T> {
+    /// Create a new GenericFileSystemIterator
+    pub fn new(fs: &'a FatFileSystem<S>, inner: T) -> Self {
+        GenericFileSystemIterator { fs, inner }
+    }
+}
+
+impl<'a, S: StorageDevice, T: FileSystemIterator<S>> Iterator
+    for GenericFileSystemIterator<'a, S, T>
+{
+    type Item = T::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next(self.fs)
+    }
+}
+
+/// A simple iterator that take a reference to a FatFileSystem in next.
+///
+/// Note:
+///
+/// This permit to cir
+pub trait FileSystemIterator<S: StorageDevice>: Sized {
+    /// The type of the elements being iterated over.
+    type Item;
+
+    /// Advances the iterator and returns the next value.
+    fn next(&mut self, filesystem: &FatFileSystem<S>) -> Option<Self::Item>;
+
+    /// Returns the `n`th element of the iterator.
+    fn nth(&mut self, filesystem: &FatFileSystem<S>, mut n: usize) -> Option<Self::Item> {
+        while let Some(x) = self.next(filesystem) {
+            if n == 0 {
+                return Some(x);
+            }
+            n -= 1;
+        }
+        None
+    }
+
+    /// Convert the FileSystemIterator to a regular iterator.
+    fn to_iterator<'a>(
+        self,
+        filesystem: &'a FatFileSystem<S>,
+    ) -> GenericFileSystemIterator<'a, S, Self> {
+        GenericFileSystemIterator::new(filesystem, self)
+    }
 }

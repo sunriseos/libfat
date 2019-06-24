@@ -3,14 +3,14 @@
 use super::cluster::Cluster;
 use super::filesystem::FatFileSystem;
 use super::table::FatClusterIter;
+use super::utils::FileSystemIterator;
 
 use storage_device::StorageDevice;
 
 /// Util Iterator used to simplify iteration over cluster.
-#[derive(Copy, Clone)]
-pub struct ClusterOffsetIter<'a, S: StorageDevice> {
+pub struct ClusterOffsetIter {
     /// The cluster iterator.
-    pub cluster_iter: FatClusterIter<'a, S>,
+    pub cluster_iter: FatClusterIter,
 
     /// The last cluster used.
     last_cluster: Option<Cluster>,
@@ -22,10 +22,10 @@ pub struct ClusterOffsetIter<'a, S: StorageDevice> {
     counter: usize,
 }
 
-impl<'a, S: StorageDevice> ClusterOffsetIter<'a, S> {
+impl ClusterOffsetIter {
     /// Create a new iterator from a cluster and a block index.
-    pub fn new(
-        fs: &'a FatFileSystem<S>,
+    pub fn new<S: StorageDevice>(
+        fs: &FatFileSystem<S>,
         cluster: Cluster,
         start_cluster_offset: Option<u64>,
     ) -> Self {
@@ -52,18 +52,17 @@ impl<'a, S: StorageDevice> ClusterOffsetIter<'a, S> {
     }
 }
 
-impl<'a, S: StorageDevice> Iterator for ClusterOffsetIter<'a, S> {
+impl<S: StorageDevice> FileSystemIterator<S> for ClusterOffsetIter {
     type Item = Cluster;
-    fn next(&mut self) -> Option<Cluster> {
-        let cluster_opt =
-            if self.counter == self.cluster_iter.fs.boot_record.blocks_per_cluster() as usize {
-                self.counter = self.start_cluster_offset.or(Some(0))? as usize;
-                self.start_cluster_offset = None;
-                self.last_cluster = self.cluster_iter.next();
-                self.last_cluster
-            } else {
-                self.last_cluster
-            };
+    fn next(&mut self, filesystem: &FatFileSystem<S>) -> Option<Cluster> {
+        let cluster_opt = if self.counter == filesystem.boot_record.blocks_per_cluster() as usize {
+            self.counter = self.start_cluster_offset.or(Some(0))? as usize;
+            self.start_cluster_offset = None;
+            self.last_cluster = self.cluster_iter.next(filesystem);
+            self.last_cluster
+        } else {
+            self.last_cluster
+        };
 
         let cluster = cluster_opt?;
 

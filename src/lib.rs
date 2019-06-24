@@ -22,6 +22,8 @@ use filesystem::FatFileSystem;
 /// The minimal block size supported.
 pub const MINIMAL_BLOCK_SIZE: usize = 512;
 
+pub use utils::FileSystemIterator;
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
@@ -263,11 +265,10 @@ impl FatVolumeBootRecord {
     }
 }
 
-
 /// Get a FAT boot record from a StorageDevice.
 fn get_fat_boot_record(
     storage_device: &mut dyn StorageDevice,
-    partition_start: u64
+    partition_start: u64,
 ) -> FatFileSystemResult<FatVolumeBootRecord> {
     let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
 
@@ -290,7 +291,6 @@ fn parse_fat_boot_record<S: StorageDevice>(
     partition_start: u64,
     partition_size: u64,
 ) -> FatFileSystemResult<FatFileSystem<S>> {
-
     let mut storage_device = storage_device;
     let boot_record = get_fat_boot_record(&mut storage_device, partition_start)?;
 
@@ -329,9 +329,7 @@ pub fn get_raw_partition<S: StorageDevice>(
 }
 
 /// Treat the storage device directly as a partition and try to determine the FAT type of the partition
-pub fn get_fat_type(
-    storage_device: &mut dyn StorageDevice,
-) -> FatFileSystemResult<FatFsType> {
+pub fn get_fat_type(storage_device: &mut dyn StorageDevice) -> FatFileSystemResult<FatFsType> {
     Ok(get_fat_boot_record(storage_device, 0)?.fat_type)
 }
 

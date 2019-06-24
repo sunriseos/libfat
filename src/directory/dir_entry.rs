@@ -11,6 +11,8 @@ use storage_device::StorageDevice;
 
 use super::raw_dir_entry::FatDirEntry;
 
+use crate::utils::FileSystemIterator;
+
 #[derive(Debug, Clone, Copy)]
 /// Represent the information of a child entry into in it parent entry.
 pub(crate) struct DirectoryEntryRawInfo {
@@ -122,7 +124,7 @@ impl DirectoryEntryRawInfo {
         let mut res = None;
 
         while i < self.entry_count {
-            let result = offset_iter.next();
+            let result = offset_iter.next(fs);
             if let Some(result) = result {
                 res = Some(result?);
             } else {

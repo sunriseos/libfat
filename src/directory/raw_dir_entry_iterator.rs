@@ -11,13 +11,12 @@ use super::raw_dir_entry::FatDirEntry;
 
 use super::FatFsType;
 
-/// Represent a raw FAT directory entries iterator.
-pub struct FatDirEntryIterator<'a, S: StorageDevice> {
-    /// The cluster iterator.
-    pub(crate) cluster_iter: Option<ClusterOffsetIter<'a, S>>,
+use crate::utils::FileSystemIterator;
 
-    /// Filesystem reference.
-    pub(crate) fs: &'a FatFileSystem<S>,
+/// Represent a raw FAT directory entries iterator.
+pub struct FatDirEntryIterator {
+    /// The cluster iterator.
+    pub(crate) cluster_iter: Option<ClusterOffsetIter>,
 
     /// The last cluster used.
     pub last_cluster: Option<Cluster>,
@@ -32,10 +31,10 @@ pub struct FatDirEntryIterator<'a, S: StorageDevice> {
     pub is_first: bool,
 }
 
-impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S> {
+impl FatDirEntryIterator {
     /// Create a new iterator from a cluster, a block index and an offset (representing the starting point of the iterator).  
-    pub fn new(
-        fs: &'a FatFileSystem<S>,
+    pub fn new<S: StorageDevice>(
+        fs: &FatFileSystem<S>,
         start_cluster: Cluster,
         cluster_offset: u64,
         offset: u64,
@@ -63,19 +62,17 @@ impl<'a, S: StorageDevice> FatDirEntryIterator<'a, S> {
             counter: (offset / FatDirEntry::LEN as u64) as u8,
             cluster_offset,
             is_first: true,
-            fs,
             cluster_iter,
             last_cluster: None,
         }
     }
 }
 
-impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S> {
+impl<S: StorageDevice> FileSystemIterator<S> for FatDirEntryIterator {
     type Item = FatFileSystemResult<FatDirEntry>;
-    fn next(&mut self) -> Option<FatFileSystemResult<FatDirEntry>> {
-        let fs = self.fs;
 
-        let block_size = fs.boot_record.bytes_per_block() as usize;
+    fn next(&mut self, filesystem: &FatFileSystem<S>) -> Option<FatFileSystemResult<FatDirEntry>> {
+        let block_size = filesystem.boot_record.bytes_per_block() as usize;
         let entry_per_block_count = (block_size / FatDirEntry::LEN) as u8;
 
         let cluster_opt = if self.counter == entry_per_block_count || self.is_first {
@@ -87,8 +84,8 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S> {
             self.is_first = false;
             if let Some(cluster_iter) = &mut self.cluster_iter {
                 self.cluster_offset %=
-                    u64::from(fs.boot_record.blocks_per_cluster()) * block_size as u64;
-                self.last_cluster = cluster_iter.next();
+                    u64::from(filesystem.boot_record.blocks_per_cluster()) * block_size as u64;
+                self.last_cluster = cluster_iter.next(filesystem);
             } else {
                 self.last_cluster = Some(Cluster(0));
             }
@@ -104,26 +101,30 @@ impl<'a, S: StorageDevice> Iterator for FatDirEntryIterator<'a, S> {
         let entry_index = (self.counter % entry_per_block_count) as usize;
 
         let cluster_position_opt = if self.cluster_iter.is_none() {
-            let root_dir_blocks = ((u32::from(fs.boot_record.root_dir_childs_count()) * 32)
-                + (u32::from(fs.boot_record.bytes_per_block()) - 1))
-                / u32::from(fs.boot_record.bytes_per_block());
-            let root_dir_offset = root_dir_blocks * u32::from(fs.boot_record.bytes_per_block());
+            let root_dir_blocks = ((u32::from(filesystem.boot_record.root_dir_childs_count())
+                * 32)
+                + (u32::from(filesystem.boot_record.bytes_per_block()) - 1))
+                / u32::from(filesystem.boot_record.bytes_per_block());
+            let root_dir_offset =
+                root_dir_blocks * u32::from(filesystem.boot_record.bytes_per_block());
 
             if self.cluster_offset > u64::from(root_dir_offset) {
                 None
             } else {
-                Some(fs.first_data_offset - u64::from(root_dir_offset) + self.cluster_offset)
+                Some(
+                    filesystem.first_data_offset - u64::from(root_dir_offset) + self.cluster_offset,
+                )
             }
         } else {
-            Some(cluster.to_data_bytes_offset(fs) + self.cluster_offset)
+            Some(cluster.to_data_bytes_offset(filesystem) + self.cluster_offset)
         };
 
         let entry_start: u64 = (entry_index * FatDirEntry::LEN) as u64;
-        let read_res = fs
+        let read_res = filesystem
             .storage_device
             .lock()
             .read(
-                fs.partition_start + cluster_position_opt? + entry_start,
+                filesystem.partition_start + cluster_position_opt? + entry_start,
                 &mut raw_data,
             )
             .or(Err(FatError::ReadFailed));

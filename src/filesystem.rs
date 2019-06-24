@@ -15,11 +15,13 @@ use super::utils;
 use super::FatError;
 use super::FatFileSystemResult;
 use super::FatFsType;
-use storage_device::StorageDevice;
 use spin::Mutex;
+use storage_device::StorageDevice;
 
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
+
+use crate::utils::FileSystemIterator;
 
 /// Reprsent the FS Info structure of FAT32.
 struct FatFileSystemInfo {
@@ -225,7 +227,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         let mut parent_dir = self.open_parent_directory(path)?;
 
         // precheck that it doesn't exist already
-        if parent_dir.clone().find_entry(file_name).is_ok() {
+        if parent_dir.find_entry(file_name).is_ok() {
             return Err(FatError::FileExists);
         }
 
@@ -238,7 +240,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         let mut parent_dir = self.open_parent_directory(path)?;
 
         // precheck that it doesn't exist already
-        if parent_dir.clone().find_entry(file_name).is_ok() {
+        if parent_dir.find_entry(file_name).is_ok() {
             return Err(FatError::FileExists);
         }
 
@@ -291,7 +293,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         let (_, file_name) = utils::get_parent(new_path);
         let parent_new_dir = self.open_parent_directory(new_path)?;
 
-        if parent_new_dir.clone().find_entry(file_name).is_ok() {
+        if parent_new_dir.find_entry(file_name).is_ok() {
             return Err(FatError::FileExists);
         }
 
@@ -304,7 +306,9 @@ impl<S: StorageDevice> FatFileSystem<S> {
         let block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
         let mut block_index = 0;
 
-        for cluster in ClusterOffsetIter::new(self, cluster, None) {
+        let mut cluster_iterator = ClusterOffsetIter::new(self, cluster, None);
+
+        while let Some(cluster) = cluster_iterator.next(self) {
             block_index = (block_index + 1) % u32::from(self.boot_record.blocks_per_cluster());
             let write_per_block =
                 self.boot_record.bytes_per_block() as usize / crate::MINIMAL_BLOCK_SIZE;

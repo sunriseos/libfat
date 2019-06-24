@@ -10,23 +10,28 @@ use super::dir_entry::DirectoryEntry;
 use super::dir_entry::DirectoryEntryRawInfo;
 use super::raw_dir_entry::FatDirEntry;
 use super::raw_dir_entry_iterator::FatDirEntryIterator;
+use crate::filesystem::FatFileSystem;
+use crate::utils::FileSystemIterator;
 
 /// Represent a directory entries iterator.
-pub struct DirectoryEntryIterator<'a, S: StorageDevice> {
+pub struct DirectoryEntryIterator {
     /// The raw directory entries (8.3/VFAT entries) iterator.
-    pub(crate) raw_iter: FatDirEntryIterator<'a, S>,
+    pub(crate) raw_iter: FatDirEntryIterator,
 }
 
-impl<'a, S: StorageDevice> Iterator for DirectoryEntryIterator<'a, S> {
+impl<S: StorageDevice> FileSystemIterator<S> for DirectoryEntryIterator {
     type Item = FatFileSystemResult<DirectoryEntry>;
-    fn next(&mut self) -> Option<FatFileSystemResult<DirectoryEntry>> {
+    fn next(
+        &mut self,
+        filesystem: &FatFileSystem<S>,
+    ) -> Option<FatFileSystemResult<DirectoryEntry>> {
         let mut next_is_end_entry = false;
         let mut first_raw_dir_entry: Option<FatDirEntry> = None;
         let mut entry_count = 0;
         let mut lfn_index: i32 = 0;
         let mut file_name = ArrayString::<[_; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]>::new();
 
-        while let Some(entry) = self.raw_iter.next() {
+        while let Some(entry) = self.raw_iter.next(filesystem) {
             if let Err(error) = entry {
                 return Some(Err(error));
             }

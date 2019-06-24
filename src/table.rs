@@ -1,6 +1,7 @@
 //! FATs managment.
 
 use super::filesystem::FatFileSystem;
+use super::utils::FileSystemIterator;
 use super::Cluster;
 use super::FatError;
 use super::FatFileSystemResult;
@@ -25,11 +26,7 @@ pub enum FatValue {
 }
 
 /// Util iterator used to simplify iteration over cluster.
-#[derive(Copy, Clone)]
-pub struct FatClusterIter<'a, S: StorageDevice> {
-    /// The filesystem it belongs to.
-    pub(crate) fs: &'a FatFileSystem<S>,
-
+pub struct FatClusterIter {
     /// The last cluster returned.
     current_cluster: Option<Cluster>,
 
@@ -37,27 +34,26 @@ pub struct FatClusterIter<'a, S: StorageDevice> {
     last_fat: Option<FatValue>,
 }
 
-impl<'a, S: StorageDevice> FatClusterIter<'a, S> {
+impl FatClusterIter {
     /// Create a new Cluster iteractor starting at ``cluster``.
-    pub fn new(fs: &'a FatFileSystem<S>, cluster: Cluster) -> FatClusterIter<'a, S> {
+    pub fn new<S: StorageDevice>(fs: &FatFileSystem<S>, cluster: Cluster) -> FatClusterIter {
         let fat_value = FatValue::get(fs, cluster).ok();
         FatClusterIter {
-            fs,
             current_cluster: Some(cluster),
             last_fat: fat_value,
         }
     }
 }
 
-impl<'a, S: StorageDevice> Iterator for FatClusterIter<'a, S> {
+impl<S: StorageDevice> FileSystemIterator<S> for FatClusterIter {
     type Item = Cluster;
-    fn next(&mut self) -> Option<Cluster> {
+    fn next(&mut self, filesystem: &FatFileSystem<S>) -> Option<Cluster> {
         let res = self.current_cluster?;
 
         match self.last_fat {
             Some(FatValue::Data(data)) => {
                 self.current_cluster = Some(Cluster(data));
-                self.last_fat = FatValue::get(&self.fs, self.current_cluster?).ok();
+                self.last_fat = FatValue::get(filesystem, self.current_cluster?).ok();
             }
             _ => self.current_cluster = None,
         };
