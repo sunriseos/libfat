@@ -105,12 +105,16 @@ struct FatVolumeBootRecord {
 #[allow(dead_code)]
 impl FatVolumeBootRecord {
     /// Create a new FAT volume boot record from raw data.
-    pub fn new(data: [u8; MINIMAL_BLOCK_SIZE]) -> FatVolumeBootRecord {
+    pub fn new(data: [u8; MINIMAL_BLOCK_SIZE]) -> Option<FatVolumeBootRecord> {
         let mut res = FatVolumeBootRecord {
             data,
             fat_type: FatFsType::Fat12,
             cluster_count: 0,
         };
+
+        if !res.is_valid() {
+            return None;
+        }
 
         let root_dir_blocks = ((u32::from(res.root_dir_childs_count()) * 32)
             + (u32::from(res.bytes_per_block()) - 1))
@@ -129,7 +133,7 @@ impl FatVolumeBootRecord {
         }
         res.cluster_count = cluster_count + 2;
 
-        res
+        Some(res)
     }
 
     /// Checks the validity of the boot record.
@@ -276,13 +280,13 @@ fn get_fat_boot_record(
         .read(partition_start, &mut block)
         .or(Err(FatError::ReadFailed))?;
 
-    let boot_record: FatVolumeBootRecord = FatVolumeBootRecord::new(block);
+    let boot_record = FatVolumeBootRecord::new(block);
 
-    if !boot_record.is_valid() {
+    if boot_record.is_none() {
         return Err(FatError::InvalidPartition);
     }
 
-    Ok(boot_record)
+    Ok(boot_record.unwrap())
 }
 
 /// Parse a FAT boot record and return a FatFileSystem instance.
