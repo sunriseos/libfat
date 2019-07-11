@@ -135,7 +135,7 @@ pub struct FatFileSystem<S: StorageDevice> {
 }
 
 impl<S: StorageDevice> FatFileSystem<S> {
-    /// Create a new instance of FatFileSystem
+    /// Create a new instance of FatFileSystem.
     pub(crate) fn new(
         storage_device: S,
         partition_start: u64,
@@ -143,7 +143,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         partition_size: u64,
         boot_record: FatVolumeBootRecord,
     ) -> FatFileSystemResult<FatFileSystem<S>> {
-        let mut fs = FatFileSystem {
+        let fs = FatFileSystem {
             storage_device: Mutex::new(storage_device),
             partition_start,
             first_data_offset,
@@ -154,13 +154,11 @@ impl<S: StorageDevice> FatFileSystem<S> {
                 free_cluster: AtomicU32::new(0xFFFF_FFFF),
             },
         };
-        fs.init()?;
-
         Ok(fs)
     }
 
     /// Initialize the filesystem.
-    fn init(&mut self) -> FatFileSystemResult<()> {
+    pub(crate) fn init(&mut self) -> FatFileSystemResult<()> {
         // read FAT infos
         if self.boot_record.fat_type == FatFsType::Fat32 {
             self.fat_info = FatFileSystemInfo::from_fs(self)?;
@@ -189,6 +187,31 @@ impl<S: StorageDevice> FatFileSystem<S> {
         };
 
         Directory::from_entry(self, dir_info)
+    }
+
+    /// Create the root directory of the filesystem during formatting.
+    pub(crate) fn create_root_directory(&mut self) -> FatFileSystemResult<()> {
+        let is_old_root_directory = match self.boot_record.fat_type {
+            FatFsType::Fat12 | FatFsType::Fat16 => true,
+            _ => false,
+        };
+
+        if !is_old_root_directory {
+            // Allocate a cluster for the root directory
+            let cluster = self.alloc_cluster(None)?;
+            self.clean_cluster_data(cluster)?;
+            self.boot_record.set_root_dir_childs_cluster(cluster);
+        } else {
+            // Root directory is at the start and isn't part of the FAT so we need to clean it manually
+            let mut fat_dir_entry_iter = self.get_root_directory().fat_dir_entry_iter();
+            while let Some(raw_dir_entry) = fat_dir_entry_iter.next(self) {
+                let mut raw_dir_entry = raw_dir_entry?;
+                raw_dir_entry.clear();
+                raw_dir_entry.flush(self)?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Open the parent directory of a given path.

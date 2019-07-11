@@ -259,6 +259,14 @@ impl FatValue {
         }
         Ok(())
     }
+
+    /// Initialize clean FATs.
+    pub(crate) fn initialize<S: StorageDevice>(fs: &FatFileSystem<S>) -> FatFileSystemResult<()> {
+        for i in 0..fs.boot_record.cluster_count {
+            Self::put(fs, Cluster(i), FatValue::Free)?;
+        }
+        Ok(())
+    }
 }
 
 /// Get the last cluster of a cluster chain.

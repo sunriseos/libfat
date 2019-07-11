@@ -33,7 +33,7 @@ use crate::utils::FileSystemIterator;
 /// Represent a Directory.
 pub struct Directory<'a, S: StorageDevice> {
     /// The information about this directory.
-    dir_info: DirectoryEntry,
+    pub(crate) dir_info: DirectoryEntry,
 
     /// A reference to the filesystem.
     fs: &'a FatFileSystem<S>,
@@ -343,14 +343,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
         let entry = new_entry_res?;
 
-        let res = Self::create_dir_entry(
-            self.fs,
-            &entry,
-            Attributes::new(Attributes::DIRECTORY),
-            ".",
-            entry.start_cluster,
-            0,
-        );
+        let res = Self::create_special_directory_entries(self.fs, &entry);
 
         if let Err(err) = res {
             // If it fail here, this can be catastrophic but at least we tried our best.
@@ -359,18 +352,42 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             return Err(err);
         }
 
-        let raw_info = entry.raw_info.unwrap();
+        Ok(())
+    }
 
-        let parent_cluster =
-            if raw_info.parent_cluster == self.fs.get_root_directory().dir_info.start_cluster {
+    /// Create directory special entries (".", "..")
+    pub(crate) fn create_special_directory_entries(
+        fs: &'a FatFileSystem<S>,
+        parent_entry: &DirectoryEntry,
+    ) -> FatFileSystemResult<()> {
+        let res = Self::create_dir_entry(
+            fs,
+            parent_entry,
+            Attributes::new(Attributes::DIRECTORY),
+            ".",
+            parent_entry.start_cluster,
+            0,
+        );
+
+        if let Err(err) = res {
+            return Err(err);
+        }
+
+        let raw_info_opt = parent_entry.raw_info;
+
+        let parent_cluster = if let Some(raw_info) = raw_info_opt {
+            if raw_info.parent_cluster == fs.get_root_directory().dir_info.start_cluster {
                 Cluster(0)
             } else {
                 raw_info.parent_cluster
-            };
+            }
+        } else {
+            fs.get_root_directory().dir_info.start_cluster
+        };
 
         let res = Self::create_dir_entry(
-            self.fs,
-            &entry,
+            fs,
+            parent_entry,
             Attributes::new(Attributes::DIRECTORY),
             "..",
             parent_cluster,
@@ -378,9 +395,6 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         );
 
         if let Err(err) = res {
-            // If it fail here, this can be catastrophic but at least we tried our best.
-            Self::delete_dir_entry(self.fs, &entry)?;
-            self.fs.free_cluster(cluster, None)?;
             return Err(err);
         }
 
