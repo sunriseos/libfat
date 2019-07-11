@@ -228,15 +228,24 @@ impl FatValue {
                     .or(Err(FatError::WriteFailed))?;
             }
             FatFsType::Fat12 => {
-                let mut value = value.to_fat12_value();
-                value = if (cluster.0 & 1) == 1 {
-                    value >> 4
-                } else {
-                    value & 0x0FFF
-                };
-
+                // Welcome to the IBM world
                 let mut data = [0x0u8; 2];
-                LittleEndian::write_u16(&mut data, value);
+
+                fs.storage_device
+                    .lock()
+                    .read(partition_storage_offset, &mut data)
+                    .or(Err(FatError::ReadFailed))?;
+
+                let value = value.to_fat12_value();
+
+                if (cluster.0 & 1) == 1 {
+                    data[0] = (data[0] & 0x0F) | (value << 4) as u8;
+                    data[1] = (value >> 4) as u8;
+                } else {
+                    data[0] = value as u8;
+                    data[1] = (data[0] & 0xF0) | ((value >> 8) & 0x0F) as u8;
+                }
+
                 fs.storage_device
                     .lock()
                     .write(partition_storage_offset, &data)
