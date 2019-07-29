@@ -497,11 +497,22 @@ pub fn get_raw_partition<S: StorageDevice>(
 
 /// Format the given storage to hold a given FAT filesystem type.
 pub fn format_raw_partition<S: StorageDevice>(
-    storage_device: S,
+    mut storage_device: S,
     fat_type: FatFsType,
 ) -> FatFileSystemResult<()> {
-    let mut storage_device = storage_device;
     let storage_size = storage_device.len().or(Err(FatError::ReadFailed))?;
+
+    format_partition(storage_device, fat_type, 0, storage_size)
+}
+
+/// Format the partition to hold a given FAT filesystem type.
+pub fn format_partition<S: StorageDevice>(
+    storage_device: S,
+    fat_type: FatFsType,
+    partition_start: u64,
+    partition_size: u64
+) -> FatFileSystemResult<()> {
+    let mut storage_device = storage_device;
 
     // Create an empty boot record
     let mut boot_record = FatVolumeBootRecord::new_unchecked([0x0u8; MINIMAL_BLOCK_SIZE]);
@@ -510,9 +521,9 @@ pub fn format_raw_partition<S: StorageDevice>(
     let mut heads = 255;
     let mut cluster_size = 4;
 
-    let block_count = storage_size / Block::LEN_U64;
+    let block_count = partition_size / Block::LEN_U64;
 
-    if storage_size < 512 * 1024 * 1024 {
+    if partition_size < 512 * 1024 * 1024 {
         blocks_per_track = 32;
         heads = 64;
     }
@@ -520,7 +531,7 @@ pub fn format_raw_partition<S: StorageDevice>(
     let number_clusters = block_count / u64::from(cluster_size);
 
     if let FatFsType::Fat32 = fat_type {
-        let size_mb = storage_size / (1024 * 1024);
+        let size_mb = partition_size / (1024 * 1024);
         if size_mb > 32 * 1024 {
             cluster_size = 64;
         } else if size_mb > 16 * 1024 {
@@ -617,11 +628,11 @@ pub fn format_raw_partition<S: StorageDevice>(
 
     // Write the boot record for FatFilesystem creation
     storage_device
-        .write(0, &boot_record.data[..])
+        .write(partition_start, &boot_record.data[..])
         .or(Err(FatError::WriteFailed))?;
 
     // Now we open the filesystem and clean the FATs while defering initalization.
-    let mut filesystem = parse_fat_boot_record(storage_device, 0, storage_size, true)?;
+    let mut filesystem = parse_fat_boot_record(storage_device, partition_start, partition_size, true)?;
     table::FatValue::initialize(&filesystem)?;
 
     // Now that the FATs are clean, we can init the filesystem (and the volume information on FAT32)
