@@ -597,7 +597,7 @@ pub fn format_partition<S: StorageDevice>(
         // Make sure to clean the fs info block as it may contains valid data
         storage_device
             .write(
-                u64::from(boot_record.fs_info_block()) * u64::from(boot_record.bytes_per_block()),
+                partition_start + u64::from(boot_record.fs_info_block()) * u64::from(boot_record.bytes_per_block()),
                 &[0x0; 512],
             )
             .or(Err(FatError::WriteFailed))?;
