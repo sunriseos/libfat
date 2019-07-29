@@ -495,6 +495,15 @@ pub fn get_raw_partition<S: StorageDevice>(
     parse_fat_boot_record(storage_device, 0, storage_len, false)
 }
 
+/// Treat the storage device directly as a filesystem.
+pub fn get_raw_partition_with_start<S: StorageDevice>(
+    storage_device: S,
+    partition_start: u64,
+    partition_size: u64
+) -> FatFileSystemResult<FatFileSystem<S>> {
+    parse_fat_boot_record(storage_device, partition_start, partition_size, false)
+}
+
 /// Format the given storage to hold a given FAT filesystem type.
 pub fn format_raw_partition<S: StorageDevice>(
     mut storage_device: S,
