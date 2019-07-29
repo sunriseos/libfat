@@ -110,7 +110,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
         match rest_opt {
             Some(rest) => {
-                if child_entry.attribute.is_directory() {
+                if !child_entry.attribute.is_directory() {
                     Err(FatError::NotAFile)
                 } else {
                     Directory::from_entry(fs, child_entry).open_file(rest)
