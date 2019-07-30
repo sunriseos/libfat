@@ -1,4 +1,4 @@
-//! The FAT library
+//! A no_std FAT12/FAT16/FAT32 compatible crate.
 //! This crate currently supports FAT12/FAT16/FAT32 with a sector size >= 512 bytes.
 #![no_std]
 
@@ -24,10 +24,6 @@ use filesystem::FatFileSystem;
 pub const MINIMAL_BLOCK_SIZE: usize = 512;
 
 pub use utils::FileSystemIterator;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate log;
 
 /// Represent a FAT filesystem error.
 #[derive(Debug)]
