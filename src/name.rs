@@ -44,7 +44,7 @@ pub struct ShortFileNameContext {
 }
 
 impl ShortFileNameGenerator {
-    /// Permite to extract partial part of the VFAT name and format it to 8.3 name.
+    /// Transform VFAT file name into an MSDOS 8.3 filename, taking the first 8 character for the filename, and the first three character after the first dot for the extension. See [ShortFileNameGenerator::create()]
     fn copy_format_sfn_part(dst: &mut [u8], src: &str, is_base_name: bool) -> (usize, bool, bool) {
         let mut dst_pos = 0;
         let mut lossy_convertion = false;

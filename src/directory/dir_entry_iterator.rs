@@ -66,7 +66,7 @@ impl<S: StorageDevice> FileSystemIterator<S> for DirectoryEntryIterator {
                 }
 
                 let mut part = ArrayString::<[_; LongFileName::MAX_LEN_UNICODE]>::new();
-                // FIXME: Custom Iterator to catches those errors
+                // TODO: Custom Iterator to catches those errors
                 let raw_name = lfn_entry.chars().unwrap();
                 for c in &raw_name {
                     if *c == '\x00' {
@@ -76,7 +76,7 @@ impl<S: StorageDevice> FileSystemIterator<S> for DirectoryEntryIterator {
                 }
 
                 // We do some kind of push_front by hand
-                // FIXME: this is dirty
+                // TODO: this is dirty
                 let tmp = file_name;
                 file_name.clear();
                 file_name.push_str(part.as_str());

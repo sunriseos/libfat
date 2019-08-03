@@ -144,7 +144,7 @@ impl FatDirEntry {
         self.data[0] = 0xE5;
     }
 
-    /// Reint the raw data buffer to a free state.
+    /// Reinitialize the raw data buffer to a free state.
     pub fn clear(&mut self) {
         self.data = [0x0u8; Self::LEN];
     }

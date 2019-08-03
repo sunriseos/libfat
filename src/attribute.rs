@@ -25,7 +25,7 @@ impl Attributes {
     /// Typically set by the filesystem as soon as the file is created or modified to mark the file as "dirty", and reset by backup software once the file has been backed up to indicate "pure" state.
     pub const ARCHIVE: u8 = 0x20;
 
-    /// Define a device file. SHOULDN'T APPEARS ON DISK.
+    /// Define a device file. SHOULDN'T APPEAR ON DISK.
     pub const DEVICE: u8 = 0x40;
 
     /// Indicates a long file name entry.

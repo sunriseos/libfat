@@ -23,7 +23,7 @@ use core::sync::atomic::Ordering;
 
 use crate::utils::FileSystemIterator;
 
-/// Reprsent the FS Info structure of FAT32.
+/// Represent the FS Info structure of FAT32.
 struct FatFileSystemInfo {
     // TODO: select Ordering wisely on operations.
     /// The last allocated cluster on the filesystem.
@@ -114,7 +114,7 @@ impl FatFileSystemInfo {
 /// Represent a FAT filesystem.
 #[allow(dead_code)]
 pub struct FatFileSystem<S: StorageDevice> {
-    /// The device device of the filesystem.
+    /// The device of the filesystem.
     pub(crate) storage_device: Mutex<S>,
 
     /// The block index of the start of the partition of this filesystem.
@@ -455,7 +455,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         Ok(allocated_cluster)
     }
 
-    /// Free a cluster and if specified remove of a cluster chain.
+    /// Free a cluster and if specified remove it from a cluster chain.
     pub(crate) fn free_cluster(
         &self,
         to_remove: Cluster,

@@ -14,9 +14,9 @@ use super::raw_dir_entry::FatDirEntry;
 use crate::utils::FileSystemIterator;
 
 #[derive(Debug, Clone, Copy)]
-/// Represent the information of a child entry into in it parent entry.
+/// Represents the location information of a child entry in its parent.
 pub(crate) struct DirectoryEntryRawInfo {
-    /// Marker on entries present in the FAT12/FAT16 root directory.
+    /// Current entry is in the FAT12/FAT16 root directory.
     pub in_old_fat_root_directory: bool,
 
     /// The first cluster of the parent entry.

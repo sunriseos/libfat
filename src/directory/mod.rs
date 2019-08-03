@@ -35,7 +35,7 @@ pub struct Directory<'a, S: StorageDevice> {
     /// The information about this directory.
     pub(crate) dir_info: DirectoryEntry,
 
-    /// A reference to the filesystem.
+    /// A reference to the filesystem containing this directory.
     fs: &'a FatFileSystem<S>,
 }
 
@@ -101,7 +101,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         }
     }
 
-    /// Open a file a the given path.
+    /// Open a file at the given path.
     pub fn open_file(self, path: &str) -> FatFileSystemResult<File> {
         let (name, rest_opt) = utils::split_path(path);
         let fs = self.fs;
@@ -138,7 +138,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         }
     }
 
-    /// Search space to allocate a directory entry and return a raw entry iterator to it.
+    /// Look for unused space to allocate a directory entry and return a raw entry iterator to it.
     fn allocate_entries(
         entry: &DirectoryEntry,
         fs: &'a FatFileSystem<S>,
@@ -279,6 +279,11 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Delete a directory entry in a given parent directory.
+    ///
+    /// # Error
+    ///
+    /// - `ReadFailed`
+    ///    - When the directory is not empty.
     fn delete_dir_entry(
         fs: &'a FatFileSystem<S>,
         dir_entry: &DirectoryEntry,
@@ -463,7 +468,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Rename a directory or a file from a given name to another one.
-    // FIXME: better error managment
+    // TODO: better error managment
     pub fn rename(
         self,
         dir_entry: DirectoryEntry,
@@ -557,7 +562,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                     new_raw_info.in_old_fat_root_directory,
                 );
 
-                // FIXME: is that always the second entry?
+                // TODO: is that always the second entry?
                 let mut second_entry = iter.nth(self.fs, 2).unwrap()?;
                 second_entry.set_cluster(new_parent_cluster);
                 second_entry.flush(self.fs)?;
