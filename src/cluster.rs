@@ -1,4 +1,6 @@
-//! FAT cluster.
+//! Contains helpers to get a FAT Cluster
+//! 
+//! A FAT cluster is defined as an amount of sectors.
 
 use super::FatFileSystem;
 use super::FatFsType;

@@ -54,7 +54,7 @@ impl DirectoryEntryRawInfo {
 #[derive(Debug, Clone, Copy)]
 /// A high level representation of a directory/file in the directory.
 pub struct DirectoryEntry {
-    /// The first cluster used for
+    /// The first cluster containing the entry data.
     pub(crate) start_cluster: Cluster,
 
     /// The raw informations of the entry inside it parent.
