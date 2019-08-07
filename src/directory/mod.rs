@@ -87,55 +87,75 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         Err(FatError::NotFound)
     }
 
-    /// Recursively search for an entry.
+    /// Search for an entry.
     pub(crate) fn search_entry(&self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
-        let (name, rest_opt) = utils::split_path(path);
+        let mut path = path;
+        let mut dir = Directory::from_entry(self.fs, self.dir_info);
 
-        let fs = self.fs;
+        loop {
+            let (name, rest_opt) = utils::split_path(path);
 
-        let child_entry = self.find_entry(name)?;
+            let child_entry = dir.find_entry(name)?;
 
-        match rest_opt {
-            Some(rest) => Directory::from_entry(fs, child_entry).search_entry(rest),
-            None => Ok(child_entry),
+            match rest_opt {
+                Some(rest) => {
+                    dir = Directory::from_entry(dir.fs, child_entry);
+                    path = rest;
+                },
+                None => return Ok(child_entry),
+            }
         }
     }
 
     /// Open a file at the given path.
-    pub fn open_file(self, path: &str) -> FatFileSystemResult<File> {
-        let (name, rest_opt) = utils::split_path(path);
-        let fs = self.fs;
+    pub fn open_file(&self, path: &str) -> FatFileSystemResult<File> {
+        let mut path = path;
+        let mut dir = Directory::from_entry(self.fs, self.dir_info);
 
-        let child_entry = self.find_entry(name)?;
+        loop {
+            let (name, rest_opt) = utils::split_path(path);
 
-        match rest_opt {
-            Some(rest) => {
-                if !child_entry.attribute.is_directory() {
-                    Err(FatError::NotAFile)
-                } else {
-                    Directory::from_entry(fs, child_entry).open_file(rest)
+            let child_entry = dir.find_entry(name)?;
+
+            match rest_opt {
+                Some(rest) => {
+                    if !child_entry.attribute.is_directory() {
+                        return Err(FatError::NotAFile)
+                    } else {
+                        dir = Directory::from_entry(dir.fs, child_entry);
+                        path = rest;
+                    }
                 }
+                None => return Ok(File::from_entry(child_entry)),
             }
-            None => Ok(File::from_entry(child_entry)),
         }
     }
 
     /// Open a directory at the given path.
-    pub fn open_directory(self, path: &str) -> FatFileSystemResult<Directory<'a, S>> {
-        let (name, rest_opt) = utils::split_path(path);
+    pub fn open_directory(&self, path: &str) -> FatFileSystemResult<Directory<'a, S>> {
+        let mut path = path;
+        let mut dir = Directory::from_entry(self.fs, self.dir_info);
 
-        let fs = self.fs;
+        loop {
+            let (name, rest_opt) = utils::split_path(path);
 
-        let child_entry = self.find_entry(name)?;
+            let child_entry = dir.find_entry(name)?;
 
-        if !child_entry.attribute.is_directory() {
-            return Err(FatError::NotADirectory);
+            if !child_entry.attribute.is_directory() {
+                return Err(FatError::NotADirectory);
+            }
+
+            dir = Directory::from_entry(dir.fs, child_entry);
+
+            match rest_opt {
+                Some(rest) => {
+                    path = rest;
+                }
+                None => return Ok(dir),
+            }
         }
 
-        match rest_opt {
-            Some(rest) => Directory::from_entry(fs, child_entry).open_directory(rest),
-            None => Ok(Directory::from_entry(fs, child_entry)),
-        }
+
     }
 
     /// Look for unused space to allocate a directory entry and return a raw entry iterator to it.
