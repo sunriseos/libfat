@@ -51,7 +51,9 @@ pub fn split_path(path: &str) -> (&str, Option<&str>) {
     (comp, rest_opt)
 }
 
-/// A simple FileSystemIterator wrapper that implement Iterator
+/// A simple FileSystemIterator wrapper that implement Iterator.
+///
+/// This permit to expose all Iterator methods not availaible in FileSystemIterator.
 pub struct GenericFileSystemIterator<'a, S: StorageDevice, T: FileSystemIterator<S>> {
     /// A reference to the filesystem.
     fs: &'a FatFileSystem<S>,
@@ -80,7 +82,7 @@ impl<'a, S: StorageDevice, T: FileSystemIterator<S>> Iterator
 ///
 /// Note:
 ///
-/// This permit to cir
+/// This permit to avoid consuming self in trivial cases.
 pub trait FileSystemIterator<S: StorageDevice>: Sized {
     /// The type of the elements being iterated over.
     type Item;

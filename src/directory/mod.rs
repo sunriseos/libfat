@@ -260,7 +260,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
             count += lfn_count;
         } else {
-            short_file_name = ShortFileName::from_data(&name.as_bytes());
+            short_file_name = ShortFileName::from_slice(name.as_bytes());
         }
 
         let mut sfn_entry = free_entries_iter.next(fs).unwrap()?;

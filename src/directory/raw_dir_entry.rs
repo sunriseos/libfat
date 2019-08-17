@@ -208,7 +208,7 @@ impl FatDirEntry {
     /// Read the SFN of this entry or return None if not a SFN.
     pub fn short_name(&self) -> Option<ShortFileName> {
         if !self.is_long_file_name() {
-            Some(ShortFileName::from_data(&self.as_sfn_entry().name))
+            Some(ShortFileName::from_data(self.as_sfn_entry().name))
         } else {
             None
         }

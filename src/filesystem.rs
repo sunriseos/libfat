@@ -24,8 +24,11 @@ use core::sync::atomic::Ordering;
 use crate::utils::FileSystemIterator;
 
 /// Represent the FS Info structure of FAT32.
+///
+/// # Note:
+///
+/// This is used as a cache for all FAT variants but is only save to disk for FAT32.
 struct FatFileSystemInfo {
-    // TODO: select Ordering wisely on operations.
     /// The last allocated cluster on the filesystem.
     last_cluster: AtomicU32,
 
@@ -35,6 +38,10 @@ struct FatFileSystemInfo {
 
 impl FatFileSystemInfo {
     /// Import FS Info from a FAT32 filesystem.
+    ///
+    /// Note:
+    ///
+    /// This function guarantee does sanity checks on the values it reads from the filesystem.
     fn from_fs<S: StorageDevice>(fs: &FatFileSystem<S>) -> FatFileSystemResult<Self> {
         let mut block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
 
@@ -84,8 +91,8 @@ impl FatFileSystemInfo {
         // We write a entire block because we want to ensure the data are correctly initialized.
         let mut block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
 
-        LittleEndian::write_u32(&mut block[0..4], 0x4161_5252);
-        LittleEndian::write_u32(&mut block[0x1e4..0x1e8], 0x6141_7272);
+        (&mut block[0..4]).copy_from_slice(b"RRaA");
+        (&mut block[0x1e4..0x1e8]).copy_from_slice(b"rrAa");
         LittleEndian::write_u16(&mut block[0x1fe..0x200], 0xAA55);
 
         LittleEndian::write_u32(
@@ -123,7 +130,6 @@ pub struct FatFileSystem<S: StorageDevice> {
     /// Block index of the first block availaible for data.
     pub(crate) first_data_offset: u64,
 
-    // TODO: check we don't go out of the partition
     /// The size of the partition.
     pub(crate) partition_size: u64,
 

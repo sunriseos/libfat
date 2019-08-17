@@ -10,7 +10,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use storage_device::StorageDevice;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-/// Represent a cluster chan value.
+/// Represent a cluster chain value.
 pub enum FatValue {
     /// Represent a free cluster.
     Free,
@@ -35,7 +35,7 @@ pub struct FatClusterIter {
 }
 
 impl FatClusterIter {
-    /// Create a new Cluster iteractor starting at ``cluster``.
+    /// Create a new Cluster iterator starting at ``cluster``.
     pub fn new<S: StorageDevice>(fs: &FatFileSystem<S>, cluster: Cluster) -> FatClusterIter {
         let fat_value = FatValue::get(fs, cluster).ok();
         FatClusterIter {

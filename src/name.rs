@@ -209,7 +209,7 @@ impl ShortFileNameGenerator {
                 .copy_from_slice(&context.short_name_ext[1..context.short_name_ext_len]);
         }
 
-        ShortFileName::from_data(&short_name)
+        ShortFileName::from_data(short_name)
     }
 }
 
@@ -224,13 +224,24 @@ impl ShortFileName {
     pub const MAX_LEN: usize = ShortFileName::BASE_FILE_NAME_LEN + ShortFileName::EXT_LEN;
 
     /// Import a 8.3 name from raw data.
-    pub fn from_data(data: &[u8]) -> Self {
-        let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
-
-        short_name[..data.len()].clone_from_slice(&data[..]);
+    pub(crate) fn from_data(short_name: [u8; ShortFileName::MAX_LEN]) -> Self {
         ShortFileName {
             contents: short_name,
         }
+    }
+
+    /// Import a 8.3 name from a slice.
+    ///
+    /// # Panics
+    ///
+    /// - short_name.len() > ShortFileName::MAX_LEN
+    pub(crate) fn from_slice(data: &[u8]) -> Self {
+        assert!(data.len() <= ShortFileName::MAX_LEN);
+
+        let mut short_name = [0x20; ShortFileName::MAX_LEN];
+
+        short_name[..data.len()].copy_from_slice(&data);
+        Self::from_data(short_name)
     }
 
     /// Import a 8.3 name from a VFAT long name.

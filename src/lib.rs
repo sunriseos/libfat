@@ -398,21 +398,19 @@ impl FatVolumeBootRecord {
     }
 
     /// Flush the boot record structure inside the filesystem.
-    pub(crate) fn flush<S: StorageDevice>(&self, fs: &FatFileSystem<S>) -> FatFileSystemResult<()> {
+    pub(crate) fn flush<S: StorageDevice>(&self, storage_device: &mut S, partition_start: u64) -> FatFileSystemResult<()> {
         // Write the boot record
-        fs.storage_device
-            .lock()
-            .write(fs.partition_start, &self.data)
+        storage_device
+            .write(partition_start, &self.data)
             .or(Err(FatError::WriteFailed))?;
 
         // On FAT32, we need to write the backup boot record.
         if let FatFsType::Fat32 = self.fat_type {
-            fs.storage_device
-                .lock()
+            storage_device
                 .write(
-                    fs.partition_start
-                        + u64::from(fs.boot_record.backup_boot_record_block())
-                            * u64::from(fs.boot_record.bytes_per_block()),
+                    partition_start
+                        + u64::from(self.backup_boot_record_block())
+                            * u64::from(self.bytes_per_block()),
                     &self.data,
                 )
                 .or(Err(FatError::WriteFailed))?;
@@ -645,8 +643,11 @@ pub fn format_partition<S: StorageDevice>(
 
     filesystem.create_root_directory()?;
 
-    // Rewrite the boot record as it might be updated
-    filesystem.boot_record.flush(&filesystem)?;
+    {
+        // Rewrite the boot record as it might be updated
+        let mut storage_device = filesystem.storage_device.lock();
+        filesystem.boot_record.flush(&mut *storage_device, filesystem.partition_start)?;
+    }
 
     Ok(())
 }
