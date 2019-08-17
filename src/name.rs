@@ -301,17 +301,17 @@ impl LongFileName {
 
         let mut index = 0;
         for c in &entry.char_part_0 {
-            long_name[index] = c.to_int();
+            long_name[index] = *c;
             index += 1;
         }
 
         for c in &entry.char_part_1 {
-            long_name[index] = c.to_int();
+            long_name[index] = *c;
             index += 1;
         }
 
         for c in &entry.char_part_2 {
-            long_name[index] = c.to_int();
+            long_name[index] = *c;
             index += 1;
         }
 

@@ -7,18 +7,18 @@ use crate::name::{LongFileName, ShortFileName};
 use crate::FatError;
 use crate::FatFileSystemResult;
 use crate::FatFsType;
+use core::convert::TryInto;
 use storage_device::StorageDevice;
-use structview::{u16_le, u32_le, View};
 
 /// Represent a VFAT long name entry.
-#[derive(Clone, Copy, View)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct LongFileNameDirEntry {
     /// The sequence number.
     pub order_entry: u8,
 
     /// Name characters. (five UCS-2 characters)
-    pub char_part_0: [u16_le; 5],
+    pub char_part_0: [u16; 5],
 
     /// Attributes (always 0x0F).
     pub attribute: u8,
@@ -30,56 +30,13 @@ pub struct LongFileNameDirEntry {
     pub lfn_checksum: u8,
 
     /// Name characters. (six UCS-2 characters)
-    pub char_part_1: [u16_le; 6],
+    pub char_part_1: [u16; 6],
 
     /// Reserved/First cluster (always 0x0000)
-    pub reserved: u16_le,
+    pub reserved: u16,
 
     /// Name characters. (two UCS-2 characters)
-    pub char_part_2: [u16_le; 2],
-}
-
-/// Represent a 8.3 entry.
-#[derive(Clone, Copy, View, Debug)]
-#[repr(C)]
-pub struct ShortFileNameDirEntry {
-    /// Short file name and extension. (padded with spaces)
-    pub name: [u8; ShortFileName::MAX_LEN],
-
-    /// File Attributes.
-    pub attribute: u8,
-
-    /// Reserved. (Actually used on some old DOS for "permissions")
-    pub reserved: u8,
-
-    /// Create time fine resolution (10 ms units, values from 0 to 199).
-    pub creation_tenths: u8,
-
-    /// The time that the file was created.
-    /// NOTE: The seconds is recorded only to a 2 second resolution.
-    pub creation_time: u16_le,
-
-    /// The date on which the file was created.
-    pub creation_date: u16_le,
-
-    /// The date on which the file was last accessed.
-    pub last_access_date: u16_le,
-
-    /// The high 16 bits of this entry's first cluster number.
-    /// NOTE: For FAT 12 and FAT 16 this is always zero.
-    pub high_cluster: u16_le,
-
-    /// The time that the file was last modified.
-    pub modification_time: u16_le,
-
-    /// The date on which the file was last modified.
-    pub modification_date: u16_le,
-
-    /// The low 16 bits of this entry's first cluster number.
-    pub low_cluster: u16_le,
-
-    /// The size of the file in bytes. (Always 0 for directories)
-    pub file_size: u32_le,
+    pub char_part_2: [u16; 2],
 }
 
 #[derive(Clone, Copy)]
@@ -96,6 +53,47 @@ pub struct FatDirEntry {
 
     /// The raw data of the entry.
     pub data: [u8; Self::LEN],
+}
+
+impl LongFileNameDirEntry {
+    /// Create a new LongFileNameDirEntry from raw data.
+    pub fn from_data(data: &[u8; FatDirEntry::LEN]) -> Self {
+        let mut char_part_0 = [0x0; 5];
+        let mut char_part_1 = [0x0; 6];
+        let mut char_part_2 = [0x0; 2];
+
+        for (i, entry) in char_part_0.iter_mut().enumerate() {
+            let index = 1 + i * 2;
+            let value = u16::from_le_bytes(data[index..index + 2].try_into().unwrap());
+
+            *entry = value;
+        }
+
+        for (i, entry) in char_part_1.iter_mut().enumerate() {
+            let index = 0xE + i * 2;
+            let value = u16::from_le_bytes(data[index..index + 2].try_into().unwrap());
+
+            *entry = value;
+        }
+
+        for (i, entry) in char_part_2.iter_mut().enumerate() {
+            let index = 0x1C + i * 2;
+            let value = u16::from_le_bytes(data[index..index + 2].try_into().unwrap());
+
+            *entry = value;
+        }
+
+        LongFileNameDirEntry {
+            order_entry: data[0],
+            char_part_0,
+            attribute: data[11],
+            lfn_entry_type: data[12],
+            lfn_checksum: data[13],
+            char_part_1,
+            reserved: u16::from_le_bytes(data[26..28].try_into().unwrap()),
+            char_part_2,
+        }
+    }
 }
 
 impl FatDirEntry {
@@ -195,7 +193,7 @@ impl FatDirEntry {
     /// Read the part of the LFN from this entry or return None if not a LFN.
     pub fn long_file_name_raw(&self) -> Option<LongFileName> {
         if self.is_long_file_name() {
-            Some(LongFileName::from_lfn_dir_entry(self.as_lfn_entry()))
+            Some(LongFileName::from_lfn_dir_entry(&self.as_lfn_entry()))
         } else {
             None
         }
@@ -204,7 +202,7 @@ impl FatDirEntry {
     /// Read the SFN of this entry or return None if not a SFN.
     pub fn short_name(&self) -> Option<ShortFileName> {
         if !self.is_long_file_name() {
-            Some(ShortFileName::from_data(self.as_sfn_entry().name))
+            Some(ShortFileName::from_slice(&self.data[0..11]))
         } else {
             None
         }
@@ -246,13 +244,8 @@ impl FatDirEntry {
     }
 
     /// Read the raw data as a VFAT long entry.
-    pub fn as_lfn_entry(&self) -> &LongFileNameDirEntry {
-        LongFileNameDirEntry::view(&self.data).unwrap()
-    }
-
-    /// Read the raw data as a 8.3 entry.
-    pub fn as_sfn_entry(&self) -> &ShortFileNameDirEntry {
-        ShortFileNameDirEntry::view(&self.data).unwrap()
+    pub fn as_lfn_entry(&self) -> LongFileNameDirEntry {
+        LongFileNameDirEntry::from_data(&self.data)
     }
 
     /// Set the LFN checksum of the DOS name.
@@ -262,9 +255,8 @@ impl FatDirEntry {
 
     /// Get the child cluster used by this entry.
     pub fn get_cluster(&self) -> Cluster {
-        let entry = self.as_sfn_entry();
-        let high_cluster = u32::from(entry.high_cluster.to_int());
-        let low_cluster = u32::from(entry.low_cluster.to_int());
+        let high_cluster = u32::from(u16::from_le_bytes(self.data[20..22].try_into().unwrap()));
+        let low_cluster = u32::from(u16::from_le_bytes(self.data[26..28].try_into().unwrap()));
 
         Cluster(low_cluster | (high_cluster << 16))
     }
@@ -281,7 +273,7 @@ impl FatDirEntry {
 
     /// Return the file size of this entry. Always zero if a directory.
     pub fn get_file_size(&self) -> u32 {
-        self.as_sfn_entry().file_size.to_int()
+        u32::from_le_bytes(self.data[28..32].try_into().unwrap())
     }
 
     /// Set the file size of the entry.
@@ -297,13 +289,12 @@ impl FatDirEntry {
 
     /// Retrieve the creation datetime of this 8.3 entry.
     pub fn get_creation_datetime(&self) -> FatDateTime {
-        let entry = self.as_sfn_entry();
-        let raw_time = entry.creation_time.to_int();
+        let raw_time = u16::from_le_bytes(self.data[14..16].try_into().unwrap());
         let seconds = ((raw_time & 0x1f) << 1) as u8;
         let minutes = ((raw_time >> 5) & 0x3f) as u8;
         let hour = ((raw_time >> 11) & 0x1f) as u8;
 
-        let raw_date = entry.creation_date.to_int();
+        let raw_date = u16::from_le_bytes(self.data[16..18].try_into().unwrap());
         let day = (raw_date & 0x1f) as u8;
         let month = ((raw_date >> 5) & 0xf) as u8;
         let year = (raw_date >> 9) & 0x7f;
@@ -320,9 +311,7 @@ impl FatDirEntry {
 
     /// Retrieve the last access datetime of this 8.3 entry.
     pub fn get_last_access_date(&self) -> FatDateTime {
-        let entry = self.as_sfn_entry();
-
-        let raw_date = entry.last_access_date.to_int();
+        let raw_date = u16::from_le_bytes(self.data[18..20].try_into().unwrap());
         let day = (raw_date & 0x1f) as u8;
         let month = ((raw_date >> 5) & 0xf) as u8;
         let year = (raw_date >> 9) & 0x7f;
@@ -331,14 +320,12 @@ impl FatDirEntry {
 
     /// Retrieve the last modification datetime of this 8.3 entry.
     pub fn get_modification_datetime(&self) -> FatDateTime {
-        let entry = self.as_sfn_entry();
-
-        let raw_time = entry.modification_time.to_int();
+        let raw_time = u16::from_le_bytes(self.data[22..24].try_into().unwrap());
         let seconds = ((raw_time & 0x1f) << 1) as u8;
         let minutes = ((raw_time >> 5) & 0x3f) as u8;
         let hour = ((raw_time >> 11) & 0x1f) as u8;
 
-        let raw_date = entry.modification_date.to_int();
+        let raw_date = u16::from_le_bytes(self.data[24..26].try_into().unwrap());
         let day = (raw_date & 0x1f) as u8;
         let month = ((raw_date >> 5) & 0xf) as u8;
         let year = (raw_date >> 9) & 0x7f;
