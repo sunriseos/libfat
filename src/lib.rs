@@ -12,7 +12,7 @@ mod offset_iter;
 mod table;
 mod utils;
 
-use byteorder::{ByteOrder, LittleEndian};
+use core::convert::TryInto;
 use storage_device::Block;
 use storage_device::StorageDevice;
 
@@ -152,9 +152,7 @@ impl FatVolumeBootRecord {
     /// Checks the validity of the boot record.
     pub fn is_valid(&self) -> bool {
         // check boot signature
-        if LittleEndian::read_u16(
-            &self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2],
-        ) != 0xAA55
+        if u16::from_le_bytes(self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2].try_into().unwrap()) != 0xAA55
         {
             return false;
         }
@@ -182,41 +180,38 @@ impl FatVolumeBootRecord {
     /// Mark the boot record as valid
     pub(crate) fn set_valid(&mut self, fat_type: FatFsType) {
         // First boot signature
-        LittleEndian::write_u16(
-            &mut self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2],
-            0xAA55,
-        );
+        self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2].copy_from_slice(&0xAA55u16.to_le_bytes());
 
         if let FatFsType::Fat32 = fat_type {
-            (&mut self.data[Self::SYSTEM_IDENTIFIER_FAT32..Self::SYSTEM_IDENTIFIER_FAT32 + 5])
+            self.data[Self::SYSTEM_IDENTIFIER_FAT32..Self::SYSTEM_IDENTIFIER_FAT32 + 5]
                 .copy_from_slice(b"FAT32");
         } else {
-            (&mut self.data[Self::SYSTEM_IDENTIFIER_FAT..Self::SYSTEM_IDENTIFIER_FAT + 3])
+            self.data[Self::SYSTEM_IDENTIFIER_FAT..Self::SYSTEM_IDENTIFIER_FAT + 3]
                 .copy_from_slice(b"FAT");
         }
 
         // Set jump for signature
-        (&mut self.data[0..3]).copy_from_slice(&[0xEB, 0xFE, 0x90]);
+        self.data[0..3].copy_from_slice(&[0xEB, 0xFE, 0x90]);
     }
 
     /// Set the volume label for a FAT12/FAT16 filesystem.
     pub(crate) fn set_volume_label16(&mut self, label: [u8; 11]) {
-        (&mut self.data[43..54]).copy_from_slice(&label)
+        self.data[43..54].copy_from_slice(&label)
     }
 
     /// Set the volume label for a FAT32 filesystem.
     pub(crate) fn set_volume_label32(&mut self, label: [u8; 11]) {
-        (&mut self.data[71..82]).copy_from_slice(&label)
+        self.data[71..82].copy_from_slice(&label)
     }
 
     /// The amount of bytes per block.
     pub fn bytes_per_block(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[11..13])
+        u16::from_le_bytes(self.data[11..13].try_into().unwrap())
     }
 
     /// Set the amount of bytes per block.
     pub(crate) fn set_bytes_per_block(&mut self, bytes_per_block: u16) {
-        LittleEndian::write_u16(&mut self.data[11..13], bytes_per_block);
+        self.data[11..13].copy_from_slice(&bytes_per_block.to_le_bytes());
     }
 
     /// The amount of blocks per cluster.
@@ -231,12 +226,12 @@ impl FatVolumeBootRecord {
 
     /// The count of reserved block.
     pub fn reserved_block_count(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[14..16])
+        u16::from_le_bytes(self.data[14..16].try_into().unwrap())
     }
 
     /// Set the count of reserved block.
     pub(crate) fn set_reserved_block_count(&mut self, reserved_block_count: u16) {
-        LittleEndian::write_u16(&mut self.data[14..16], reserved_block_count);
+        self.data[14..16].copy_from_slice(&reserved_block_count.to_le_bytes());
     }
 
     /// The number of FAT present in the filesystem.
@@ -251,22 +246,22 @@ impl FatVolumeBootRecord {
 
     /// The number of childs in the root directory for FAT12/FAT16 filesystem.
     pub fn root_dir_childs_count(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[17..19])
+        u16::from_le_bytes(self.data[17..19].try_into().unwrap())
     }
 
     /// Set the number of childs in the root directory for FAT12/FAT16 filesystem.
     pub fn set_root_dir_childs_count(&mut self, root_dir_childs_count: u16) {
-        LittleEndian::write_u16(&mut self.data[17..19], root_dir_childs_count);
+        self.data[17..19].copy_from_slice(&root_dir_childs_count.to_le_bytes());
     }
 
     /// The total of blocks of the filesystem. If zero, uses ``total_blocks32``.
     pub fn total_blocks16(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[19..21])
+        u16::from_le_bytes(self.data[19..21].try_into().unwrap())
     }
 
     /// Set the total of blocks of the filesystem.
     pub(crate) fn set_total_blocks16(&mut self, total_blocks: u16) {
-        LittleEndian::write_u16(&mut self.data[19..21], total_blocks);
+        self.data[19..21].copy_from_slice(&total_blocks.to_le_bytes());
     }
 
     /// Return the media type of the FAT filesystem.
@@ -281,32 +276,32 @@ impl FatVolumeBootRecord {
 
     /// Return the size in blocks of the FAT for FAT12/FAT16 filesystems.
     pub fn fat_size16(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[22..24])
+        u16::from_le_bytes(self.data[22..24].try_into().unwrap())
     }
 
     /// Set the size in blocks of the FAT for FAT12/FAT16 filesystems.
     pub fn set_fat_size16(&mut self, fat_size: u16) {
-        LittleEndian::write_u16(&mut self.data[22..24], fat_size);
+        self.data[22..24].copy_from_slice(&fat_size.to_le_bytes());
     }
 
     /// Physical blocks per track (INT 13h CHS geometry). Zero if unusued.
     pub fn blocks_per_track(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[24..26])
+        u16::from_le_bytes(self.data[24..26].try_into().unwrap())
     }
 
     /// Set the number of physical blocks per track (INT 13h CHS geometry). Zero if unusued.
     pub(crate) fn set_blocks_per_track(&mut self, blocks_per_track: u16) {
-        LittleEndian::write_u16(&mut self.data[24..26], blocks_per_track);
+        self.data[24..26].copy_from_slice(&blocks_per_track.to_le_bytes());
     }
 
     /// Number of heads (INT 13h CHS geometry). Zero if unused.
     pub fn num_heads(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[26..28])
+        u16::from_le_bytes(self.data[26..28].try_into().unwrap())
     }
 
     /// Set the number of heads (INT 13h CHS geometry).
     pub(crate) fn set_num_heads(&mut self, num_heads: u16) {
-        LittleEndian::write_u16(&mut self.data[26..28], num_heads);
+        self.data[26..28].copy_from_slice(&num_heads.to_le_bytes());
     }
 
     /// Set the drive number on a FAT12/FAT16 fileysem.
@@ -321,57 +316,57 @@ impl FatVolumeBootRecord {
 
     /// The number of hidden blocks on the FAT filesystem.
     pub fn hidden_blocks(&self) -> u32 {
-        LittleEndian::read_u32(&self.data[28..32])
+        u32::from_le_bytes(self.data[28..32].try_into().unwrap())
     }
 
     /// The total block count on a FAT32 filesystem.
     pub fn total_blocks32(&self) -> u32 {
-        LittleEndian::read_u32(&self.data[32..36])
+        u32::from_le_bytes(self.data[32..36].try_into().unwrap())
     }
 
     /// Set the total of blocks on a FAT filesystem if the sector count is greater than a u16.
     pub(crate) fn set_total_blocks32(&mut self, total_blocks: u32) {
-        LittleEndian::write_u32(&mut self.data[32..36], total_blocks);
+        self.data[32..36].copy_from_slice(&total_blocks.to_le_bytes());
     }
 
     /// Return the size in blocks of the FAT for FAT32 filesystems.
     pub fn fat_size32(&self) -> u32 {
-        LittleEndian::read_u32(&self.data[36..40])
+        u32::from_le_bytes(self.data[36..40].try_into().unwrap())
     }
 
     /// Set the size in blocks of the FAT for FAT32 filesystems.
     pub fn set_fat_size32(&mut self, fat_size: u32) {
-        LittleEndian::write_u32(&mut self.data[36..40], fat_size);
+        self.data[36..40].copy_from_slice(&fat_size.to_le_bytes());
     }
 
     /// The block index of the FAT32's filesystem informations.
     pub fn fs_info_block(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[48..50])
+        u16::from_le_bytes(self.data[48..50].try_into().unwrap())
     }
 
     /// Set the block index of the FAT32's filesystem informations.
     pub(crate) fn set_fs_info_block(&mut self, fs_info_block: u16) {
-        LittleEndian::write_u16(&mut self.data[48..50], fs_info_block);
+        self.data[48..50].copy_from_slice(&fs_info_block.to_le_bytes());
     }
 
     /// The block index of the FAT32's Boot Record Backup.
     pub fn backup_boot_record_block(&self) -> u16 {
-        LittleEndian::read_u16(&self.data[50..52])
+        u16::from_le_bytes(self.data[50..52].try_into().unwrap())
     }
 
     /// Set the block index of the FAT32's Boot Record Backup.
     pub(crate) fn set_backup_boot_record_block(&mut self, backup_boot_record_block: u16) {
-        LittleEndian::write_u16(&mut self.data[50..52], backup_boot_record_block);
+        self.data[50..52].copy_from_slice(&backup_boot_record_block.to_le_bytes());
     }
 
     /// The root directory cluster for FAT32 filesystems.
     pub fn root_dir_childs_cluster(&self) -> Cluster {
-        Cluster(LittleEndian::read_u32(&self.data[44..48]))
+        Cluster(u32::from_le_bytes(self.data[44..48].try_into().unwrap()))
     }
 
     /// Set the root directory cluster for FAT32 filesystem.
     pub(crate) fn set_root_dir_childs_cluster(&mut self, cluster: Cluster) {
-        LittleEndian::write_u32(&mut self.data[44..48], cluster.0);
+        self.data[44..48].copy_from_slice(&cluster.0.to_le_bytes())
     }
 
     /// Return the size in blocks of the FAT.
@@ -680,7 +675,7 @@ pub fn get_partition<S: StorageDevice>(
         .read(index, &mut block)
         .or(Err(FatError::ReadFailed))?;
 
-    if LittleEndian::read_u16(&block[MBR_SIGNATURE..MBR_SIGNATURE + 2]) != 0xAA55 {
+    if u16::from_le_bytes(block[MBR_SIGNATURE..MBR_SIGNATURE + 2].try_into().unwrap()) != 0xAA55 {
         return Err(FatError::InvalidPartition);
     }
 
@@ -695,8 +690,8 @@ pub fn get_partition<S: StorageDevice>(
         return Err(FatError::InvalidPartition);
     }
 
-    let partition_start = LittleEndian::read_u32(&partition[0x8..0xC]);
-    let partition_block_count = LittleEndian::read_u32(&partition[0xC..0x10]);
+    let partition_start = u32::from_le_bytes(partition[0x8..0xC].try_into().unwrap());
+    let partition_block_count = u32::from_le_bytes(partition[0xC..0x10].try_into().unwrap());
     let partition_type: u32 = partition[0x4].into();
 
     match partition_type {

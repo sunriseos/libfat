@@ -6,7 +6,6 @@ use super::Cluster;
 use super::FatError;
 use super::FatFileSystemResult;
 use super::FatFsType;
-use byteorder::{ByteOrder, LittleEndian};
 use storage_device::StorageDevice;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -147,7 +146,7 @@ impl FatValue {
                     .or(Err(FatError::ReadFailed))?;
 
                 Ok((
-                    Self::from_fat32_value(LittleEndian::read_u32(&data) & 0x0FFF_FFFF),
+                    Self::from_fat32_value(u32::from_le_bytes(data) & 0x0FFF_FFFF),
                     cluster_storage_offset,
                 ))
             }
@@ -159,7 +158,7 @@ impl FatValue {
                     .or(Err(FatError::ReadFailed))?;
 
                 Ok((
-                    Self::from_fat16_value(LittleEndian::read_u16(&data)),
+                    Self::from_fat16_value(u16::from_le_bytes(data)),
                     cluster_storage_offset,
                 ))
             }
@@ -170,7 +169,7 @@ impl FatValue {
                     .read(partition_storage_offset, &mut data)
                     .or(Err(FatError::ReadFailed))?;
 
-                let mut value = LittleEndian::read_u16(&data);
+                let mut value = u16::from_le_bytes(data);
 
                 value = if (cluster.0 & 1) == 1 {
                     value >> 4
@@ -211,19 +210,17 @@ impl FatValue {
 
         match fs.boot_record.fat_type {
             FatFsType::Fat32 => {
-                let mut data = [0x0u8; 4];
-                LittleEndian::write_u32(&mut data, value.to_fat32_value() & 0x0FFF_FFFF);
+                let value = value.to_fat32_value() & 0x0FFF_FFFF;
+
                 fs.storage_device
                     .lock()
-                    .write(partition_storage_offset, &data)
+                    .write(partition_storage_offset, &value.to_le_bytes())
                     .or(Err(FatError::WriteFailed))?;
             }
             FatFsType::Fat16 => {
-                let mut data = [0x0u8; 2];
-                LittleEndian::write_u16(&mut data, value.to_fat16_value());
                 fs.storage_device
                     .lock()
-                    .write(partition_storage_offset, &data)
+                    .write(partition_storage_offset, &value.to_fat16_value().to_le_bytes())
                     .or(Err(FatError::WriteFailed))?;
             }
             FatFsType::Fat12 => {

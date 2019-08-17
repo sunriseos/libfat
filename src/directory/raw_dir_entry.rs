@@ -1,5 +1,4 @@
 //! Low level directory entry representation.
-use byteorder::{ByteOrder, LittleEndian};
 use structview::{u16_le, u32_le, View};
 
 use crate::attribute::Attributes;
@@ -221,7 +220,7 @@ impl FatDirEntry {
 
     /// Set the SFN in the 8.3 entry.
     pub fn set_short_name(&mut self, short_name: &ShortFileName) {
-        (&mut self.data[0..11]).copy_from_slice(&short_name.as_bytes());
+        self.data[0..11].copy_from_slice(&short_name.as_bytes());
     }
 
     /// Set the LFN in the VFAT long entry.
@@ -232,20 +231,20 @@ impl FatDirEntry {
 
         for (i, entry) in lfn.iter().enumerate().take(5) {
             let index = 1 + i * 2;
-            LittleEndian::write_u16(&mut self.data[index..index + 2], *entry);
+            self.data[index..index + 2].copy_from_slice(&entry.to_le_bytes());
         }
 
         for i in 0..6 {
             let index = 0xE + i * 2;
             let i = i + 5;
 
-            LittleEndian::write_u16(&mut self.data[index..index + 2], lfn[i]);
+            self.data[index..index + 2].copy_from_slice(&lfn[i].to_le_bytes());
         }
 
         for i in 0..2 {
             let index = 0x1C + i * 2;
             let i = i + 11;
-            LittleEndian::write_u16(&mut self.data[index..index + 2], lfn[i]);
+            self.data[index..index + 2].copy_from_slice(&lfn[i].to_le_bytes());
         }
     }
 
@@ -279,8 +278,8 @@ impl FatDirEntry {
         let high_cluster = ((value >> 16) & 0xFFFF) as u16;
         let low_cluster = (value & 0xFFFF) as u16;
 
-        LittleEndian::write_u16(&mut self.data[20..22], high_cluster);
-        LittleEndian::write_u16(&mut self.data[26..28], low_cluster);
+        self.data[20..22].copy_from_slice(&high_cluster.to_le_bytes());
+        self.data[26..28].copy_from_slice(&low_cluster.to_le_bytes());
     }
 
     /// Return the file size of this entry. Always zero if a directory.
@@ -291,7 +290,7 @@ impl FatDirEntry {
     /// Set the file size of the entry.
     /// NOTE: If set to 0, set_cluster is also called to reset the cluster. If any operations need to be done on the cluster, always ensure that you retrieve it first before calling this.
     pub fn set_file_size(&mut self, new_size: u32) {
-        LittleEndian::write_u32(&mut self.data[28..32], new_size);
+        self.data[28..32].copy_from_slice(&new_size.to_le_bytes());
 
         // Size is 0 so cluster need to be reset
         if new_size == 0 {

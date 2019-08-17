@@ -1,7 +1,7 @@
 //! FAT Filesystem.
 
 use arrayvec::ArrayString;
-use byteorder::{ByteOrder, LittleEndian};
+use core::convert::TryInto;
 
 use super::attribute::Attributes;
 use super::directory::{dir_entry::DirectoryEntry, Directory, File};
@@ -61,16 +61,16 @@ impl FatFileSystemInfo {
         // valid signature?
         if &block[0..4] == b"RRaA"
             && &block[0x1e4..0x1e8] == b"rrAa"
-            && LittleEndian::read_u16(&block[0x1fe..0x200]) == 0xAA55
+            && u16::from_le_bytes(block[0x1fe..0x200].try_into().unwrap()) == 0xAA55
         {
             // check cluster sanity
-            let fs_last_cluster = LittleEndian::read_u32(&block[0x1ec..0x1f0]);
+            let fs_last_cluster = u32::from_le_bytes(block[0x1ec..0x1f0].try_into().unwrap());
             if fs_last_cluster >= 2 && fs_last_cluster < fs.boot_record.cluster_count {
                 last_cluster = fs_last_cluster;
             }
 
             // check sanity
-            let fs_free_cluster = LittleEndian::read_u32(&block[0x1e8..0x1ec]);
+            let fs_free_cluster = u32::from_le_bytes(block[0x1e8..0x1ec].try_into().unwrap());
             if fs_free_cluster <= fs.boot_record.cluster_count {
                 free_cluster = fs_free_cluster;
             }
@@ -91,18 +91,11 @@ impl FatFileSystemInfo {
         // We write a entire block because we want to ensure the data are correctly initialized.
         let mut block = [0x0u8; crate::MINIMAL_BLOCK_SIZE];
 
-        (&mut block[0..4]).copy_from_slice(b"RRaA");
-        (&mut block[0x1e4..0x1e8]).copy_from_slice(b"rrAa");
-        LittleEndian::write_u16(&mut block[0x1fe..0x200], 0xAA55);
-
-        LittleEndian::write_u32(
-            &mut block[0x1ec..0x1f0],
-            self.last_cluster.load(Ordering::SeqCst),
-        );
-        LittleEndian::write_u32(
-            &mut block[0x1e8..0x1ec],
-            self.free_cluster.load(Ordering::SeqCst),
-        );
+        block[0..4].copy_from_slice(b"RRaA");
+        block[0x1e4..0x1e8].copy_from_slice(b"rrAa");
+        block[0x1fe..0x200].copy_from_slice(&0xAA55u16.to_le_bytes());
+        block[0x1ec..0x1f0].copy_from_slice(&self.last_cluster.load(Ordering::SeqCst).to_le_bytes());
+        block[0x1e8..0x1ec].copy_from_slice(&self.free_cluster.load(Ordering::SeqCst).to_le_bytes());
 
         fs.storage_device
             .lock()

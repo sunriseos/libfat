@@ -187,7 +187,7 @@ impl ShortFileNameGenerator {
         let mut short_name = [0x20u8; ShortFileName::MAX_LEN];
         let mut short_name_len = 0;
         if context.short_name_base_len != 0 {
-            (&mut short_name[0..context.short_name_base_len])
+            short_name[0..context.short_name_base_len]
                 .copy_from_slice(&context.short_name_base[0..context.short_name_base_len]);
             short_name_len += context.short_name_base_len;
         }
@@ -205,7 +205,7 @@ impl ShortFileNameGenerator {
         short_name_len = ShortFileName::BASE_FILE_NAME_LEN;
 
         if context.short_name_ext_len > 1 {
-            (&mut short_name[short_name_len..short_name_len + context.short_name_ext_len - 1])
+            short_name[short_name_len..short_name_len + context.short_name_ext_len - 1]
                 .copy_from_slice(&context.short_name_ext[1..context.short_name_ext_len]);
         }
 
