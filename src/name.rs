@@ -277,7 +277,7 @@ impl ShortFileName {
         checksum.0
     }
 
-    /// COmpute checksum of short file name
+    /// Compute checksum of short file name
     pub fn checksum_lfn(short_name: &[u8]) -> u8 {
         let mut sum = num::Wrapping(0u8);
         for b in short_name {

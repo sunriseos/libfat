@@ -24,7 +24,6 @@ impl Cluster {
             FatFsType::Fat12 => self.0 + (self.0 / 2),
             FatFsType::Fat16 => self.0 * 2,
             FatFsType::Fat32 => self.0 * 4,
-            _ => unimplemented!(),
         }
     }
 

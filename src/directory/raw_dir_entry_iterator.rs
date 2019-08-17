@@ -48,7 +48,6 @@ impl FatDirEntryIterator {
                     start_cluster,
                     Some(cluster_offset),
                 )),
-                _ => unimplemented!(),
             }
         } else {
             Some(ClusterOffsetIter::new(

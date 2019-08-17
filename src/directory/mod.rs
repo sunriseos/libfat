@@ -615,7 +615,6 @@ impl FatDirEntryIterator {
             match fs.boot_record.fat_type {
                 FatFsType::Fat12 | FatFsType::Fat16 => None,
                 FatFsType::Fat32 => Some(ClusterOffsetIter::new(fs, cluster, None)),
-                _ => unimplemented!(),
             }
         } else {
             Some(ClusterOffsetIter::new(fs, cluster, None))
@@ -652,7 +651,6 @@ impl File {
             FatFsType::Fat12 => 0x01FF_FFFF,
             FatFsType::Fat16 => 0x7FFF_FFFF,
             FatFsType::Fat32 => 0xFFFF_FFFF,
-            _ => unimplemented!(),
         };
 
         if offset > max_size {

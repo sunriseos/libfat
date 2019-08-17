@@ -180,7 +180,6 @@ impl FatValue {
 
                 Ok((Self::from_fat12_value(value), cluster_storage_offset))
             }
-            _ => unimplemented!(),
         }
     }
 
@@ -251,7 +250,6 @@ impl FatValue {
                     .write(partition_storage_offset, &data)
                     .or(Err(FatError::WriteFailed))?;
             }
-            _ => unimplemented!(),
         }
 
         Ok(())

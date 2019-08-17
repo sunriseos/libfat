@@ -82,9 +82,6 @@ pub enum FatFsType {
 
     /// FAT32 volume.
     Fat32,
-
-    /// EXFAT volume.
-    ExFat,
 }
 
 /// Represent the FAT Volume BootRecord.
@@ -451,7 +448,6 @@ fn parse_fat_boot_record<S: StorageDevice>(
     let boot_record = get_fat_boot_record(&mut storage_device, partition_start)?;
 
     match boot_record.fat_type {
-        FatFsType::ExFat => unimplemented!(),
         FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::Fat32 => {
             // Zero on FAT32
             let root_dir_blocks = ((u32::from(boot_record.root_dir_childs_count()) * 32)
