@@ -1,17 +1,14 @@
 //! High level directory entry iterator.
-use arrayvec::ArrayString;
-
-use crate::name::LongFileName;
-
-use crate::FatFileSystemResult;
-use storage_device::StorageDevice;
-
 use super::dir_entry::DirectoryEntry;
 use super::dir_entry::DirectoryEntryRawInfo;
 use super::raw_dir_entry::FatDirEntry;
 use super::raw_dir_entry_iterator::FatDirEntryIterator;
 use crate::filesystem::FatFileSystem;
+use crate::name::LongFileName;
 use crate::utils::FileSystemIterator;
+use crate::FatFileSystemResult;
+use arrayvec::ArrayString;
+use storage_device::StorageDevice;
 
 /// Represent a directory entries iterator.
 pub struct DirectoryEntryIterator {

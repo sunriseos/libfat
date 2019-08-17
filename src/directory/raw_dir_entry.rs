@@ -1,17 +1,14 @@
 //! Low level directory entry representation.
-use structview::{u16_le, u32_le, View};
-
 use crate::attribute::Attributes;
 use crate::cluster::Cluster;
 use crate::datetime::FatDateTime;
 use crate::filesystem::FatFileSystem;
 use crate::name::{LongFileName, ShortFileName};
-
 use crate::FatError;
 use crate::FatFileSystemResult;
-use storage_device::StorageDevice;
-
 use crate::FatFsType;
+use storage_device::StorageDevice;
+use structview::{u16_le, u32_le, View};
 
 /// Represent a VFAT long name entry.
 #[derive(Clone, Copy, View)]

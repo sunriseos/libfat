@@ -1,7 +1,6 @@
 //! FAT filename representation.
-use core::num;
-
 use super::directory::raw_dir_entry::LongFileNameDirEntry;
+use core::num;
 
 /// Represent a 8.3 name.
 pub struct ShortFileName {

@@ -12,13 +12,11 @@ mod offset_iter;
 mod table;
 mod utils;
 
+use cluster::Cluster;
 use core::convert::TryInto;
+use filesystem::FatFileSystem;
 use storage_device::Block;
 use storage_device::StorageDevice;
-
-use cluster::Cluster;
-
-use filesystem::FatFileSystem;
 
 /// The minimal block size supported.
 pub const MINIMAL_BLOCK_SIZE: usize = 512;
@@ -152,7 +150,11 @@ impl FatVolumeBootRecord {
     /// Checks the validity of the boot record.
     pub fn is_valid(&self) -> bool {
         // check boot signature
-        if u16::from_le_bytes(self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2].try_into().unwrap()) != 0xAA55
+        if u16::from_le_bytes(
+            self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2]
+                .try_into()
+                .unwrap(),
+        ) != 0xAA55
         {
             return false;
         }
@@ -180,7 +182,8 @@ impl FatVolumeBootRecord {
     /// Mark the boot record as valid
     pub(crate) fn set_valid(&mut self, fat_type: FatFsType) {
         // First boot signature
-        self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2].copy_from_slice(&0xAA55u16.to_le_bytes());
+        self.data[Self::BOOTABLE_SIGNATURE..Self::BOOTABLE_SIGNATURE + 2]
+            .copy_from_slice(&0xAA55u16.to_le_bytes());
 
         if let FatFsType::Fat32 = fat_type {
             self.data[Self::SYSTEM_IDENTIFIER_FAT32..Self::SYSTEM_IDENTIFIER_FAT32 + 5]
@@ -390,7 +393,11 @@ impl FatVolumeBootRecord {
     }
 
     /// Flush the boot record structure inside the filesystem.
-    pub(crate) fn flush<S: StorageDevice>(&self, storage_device: &mut S, partition_start: u64) -> FatFileSystemResult<()> {
+    pub(crate) fn flush<S: StorageDevice>(
+        &self,
+        storage_device: &mut S,
+        partition_start: u64,
+    ) -> FatFileSystemResult<()> {
         // Write the boot record
         storage_device
             .write(partition_start, &self.data)
@@ -484,7 +491,7 @@ pub fn get_raw_partition<S: StorageDevice>(
 pub fn get_raw_partition_with_start<S: StorageDevice>(
     storage_device: S,
     partition_start: u64,
-    partition_size: u64
+    partition_size: u64,
 ) -> FatFileSystemResult<FatFileSystem<S>> {
     parse_fat_boot_record(storage_device, partition_start, partition_size, false)
 }
@@ -504,7 +511,7 @@ pub fn format_partition<S: StorageDevice>(
     storage_device: S,
     fat_type: FatFsType,
     partition_start: u64,
-    partition_size: u64
+    partition_size: u64,
 ) -> FatFileSystemResult<()> {
     let mut storage_device = storage_device;
 
@@ -591,7 +598,9 @@ pub fn format_partition<S: StorageDevice>(
         // Make sure to clean the fs info block as it may contains valid data
         storage_device
             .write(
-                partition_start + u64::from(boot_record.fs_info_block()) * u64::from(boot_record.bytes_per_block()),
+                partition_start
+                    + u64::from(boot_record.fs_info_block())
+                        * u64::from(boot_record.bytes_per_block()),
                 &[0x0; 512],
             )
             .or(Err(FatError::WriteFailed))?;
@@ -626,7 +635,8 @@ pub fn format_partition<S: StorageDevice>(
         .or(Err(FatError::WriteFailed))?;
 
     // Now we open the filesystem and clean the FATs while defering initalization.
-    let mut filesystem = parse_fat_boot_record(storage_device, partition_start, partition_size, true)?;
+    let mut filesystem =
+        parse_fat_boot_record(storage_device, partition_start, partition_size, true)?;
     table::FatValue::initialize(&filesystem)?;
 
     // Now that the FATs are clean, we can init the filesystem (and the volume information on FAT32)
@@ -637,7 +647,9 @@ pub fn format_partition<S: StorageDevice>(
     {
         // Rewrite the boot record as it might be updated
         let mut storage_device = filesystem.storage_device.lock();
-        filesystem.boot_record.flush(&mut *storage_device, filesystem.partition_start)?;
+        filesystem
+            .boot_record
+            .flush(&mut *storage_device, filesystem.partition_start)?;
     }
 
     Ok(())

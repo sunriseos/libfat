@@ -220,7 +220,10 @@ impl FatValue {
             FatFsType::Fat16 => {
                 fs.storage_device
                     .lock()
-                    .write(partition_storage_offset, &value.to_fat16_value().to_le_bytes())
+                    .write(
+                        partition_storage_offset,
+                        &value.to_fat16_value().to_le_bytes(),
+                    )
                     .or(Err(FatError::WriteFailed))?;
             }
             FatFsType::Fat12 => {

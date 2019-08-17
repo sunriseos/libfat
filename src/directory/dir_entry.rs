@@ -1,17 +1,14 @@
 //! High level directory entry representation.
 use arrayvec::ArrayString;
 
+use super::raw_dir_entry::FatDirEntry;
 use crate::attribute::Attributes;
 use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
-
+use crate::utils::FileSystemIterator;
 use crate::FatError;
 use crate::FatFileSystemResult;
 use storage_device::StorageDevice;
-
-use super::raw_dir_entry::FatDirEntry;
-
-use crate::utils::FileSystemIterator;
 
 #[derive(Debug, Clone, Copy)]
 /// Represents the location information of a child entry in its parent.

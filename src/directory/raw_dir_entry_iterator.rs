@@ -1,17 +1,13 @@
 //! Low level directory entry iterator.
+use super::raw_dir_entry::FatDirEntry;
+use super::FatFsType;
 use crate::cluster::Cluster;
 use crate::filesystem::FatFileSystem;
 use crate::offset_iter::ClusterOffsetIter;
-
+use crate::utils::FileSystemIterator;
 use crate::FatError;
 use crate::FatFileSystemResult;
 use storage_device::StorageDevice;
-
-use super::raw_dir_entry::FatDirEntry;
-
-use super::FatFsType;
-
-use crate::utils::FileSystemIterator;
 
 /// Represent a raw FAT directory entries iterator.
 pub struct FatDirEntryIterator {

@@ -1,27 +1,23 @@
 //! FAT Filesystem.
 
-use arrayvec::ArrayString;
-use core::convert::TryInto;
-
 use super::attribute::Attributes;
+use super::cluster::Cluster;
 use super::directory::{dir_entry::DirectoryEntry, Directory, File};
 use super::offset_iter::ClusterOffsetIter;
-use super::FatVolumeBootRecord;
-
-use super::cluster::Cluster;
 use super::table;
 use super::table::FatValue;
 use super::utils;
 use super::FatError;
 use super::FatFileSystemResult;
 use super::FatFsType;
-use spin::Mutex;
-use storage_device::StorageDevice;
-
+use super::FatVolumeBootRecord;
+use crate::utils::FileSystemIterator;
+use arrayvec::ArrayString;
+use core::convert::TryInto;
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
-
-use crate::utils::FileSystemIterator;
+use spin::Mutex;
+use storage_device::StorageDevice;
 
 /// Represent the FS Info structure of FAT32.
 ///
@@ -94,8 +90,10 @@ impl FatFileSystemInfo {
         block[0..4].copy_from_slice(b"RRaA");
         block[0x1e4..0x1e8].copy_from_slice(b"rrAa");
         block[0x1fe..0x200].copy_from_slice(&0xAA55u16.to_le_bytes());
-        block[0x1ec..0x1f0].copy_from_slice(&self.last_cluster.load(Ordering::SeqCst).to_le_bytes());
-        block[0x1e8..0x1ec].copy_from_slice(&self.free_cluster.load(Ordering::SeqCst).to_le_bytes());
+        block[0x1ec..0x1f0]
+            .copy_from_slice(&self.last_cluster.load(Ordering::SeqCst).to_le_bytes());
+        block[0x1e8..0x1ec]
+            .copy_from_slice(&self.free_cluster.load(Ordering::SeqCst).to_le_bytes());
 
         fs.storage_device
             .lock()

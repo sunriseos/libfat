@@ -1,34 +1,27 @@
 //! FAT directory managment.
 
-use arrayvec::ArrayString;
-
-use crate::FatError;
-use crate::FatFileSystemResult;
-use storage_device::StorageDevice;
-
 use super::attribute::Attributes;
 use super::cluster::Cluster;
 use super::name::ShortFileName;
 use super::name::ShortFileNameContext;
 use super::offset_iter::ClusterOffsetIter;
-use super::utils;
-
 use super::table;
-
+use super::utils;
 use super::FatFileSystem;
 use super::FatFsType;
+use crate::utils::FileSystemIterator;
+use crate::FatError;
+use crate::FatFileSystemResult;
+use arrayvec::ArrayString;
+use dir_entry::{DirectoryEntry, DirectoryEntryRawInfo};
+use dir_entry_iterator::DirectoryEntryIterator;
+use raw_dir_entry_iterator::FatDirEntryIterator;
+use storage_device::StorageDevice;
 
 pub mod dir_entry;
 pub mod dir_entry_iterator;
 pub(crate) mod raw_dir_entry;
 pub(crate) mod raw_dir_entry_iterator;
-
-use dir_entry::{DirectoryEntry, DirectoryEntryRawInfo};
-
-use dir_entry_iterator::DirectoryEntryIterator;
-use raw_dir_entry_iterator::FatDirEntryIterator;
-
-use crate::utils::FileSystemIterator;
 
 /// Represent a Directory.
 pub struct Directory<'a, S: StorageDevice> {
@@ -101,7 +94,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                 Some(rest) => {
                     dir = Directory::from_entry(dir.fs, child_entry);
                     path = rest;
-                },
+                }
                 None => return Ok(child_entry),
             }
         }
@@ -120,7 +113,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             match rest_opt {
                 Some(rest) => {
                     if !child_entry.attribute.is_directory() {
-                        return Err(FatError::NotAFile)
+                        return Err(FatError::NotAFile);
                     } else {
                         dir = Directory::from_entry(dir.fs, child_entry);
                         path = rest;
@@ -154,8 +147,6 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                 None => return Ok(dir),
             }
         }
-
-
     }
 
     /// Look for unused space to allocate a directory entry and return a raw entry iterator to it.

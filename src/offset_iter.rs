@@ -4,7 +4,6 @@ use super::cluster::Cluster;
 use super::filesystem::FatFileSystem;
 use super::table::FatClusterIter;
 use super::utils::FileSystemIterator;
-
 use storage_device::StorageDevice;
 
 /// Util Iterator used to simplify iteration over cluster.
