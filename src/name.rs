@@ -89,6 +89,10 @@ impl ShortFileNameGenerator {
     }
 
     /// Permite to create a 8.3 name out of a context and a VFAT long file name.
+    ///
+    /// Note: This is used when creating or modifying a directory entry.
+    ///
+    /// See https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/content/ntifs/nf-ntifs-rtlgenerate8dot3name for details.
     pub fn create(context: &mut ShortFileNameContext, lfn: &str) -> ShortFileName {
         let mut is_lossy = false;
         if context.short_name_base_len == 0 {

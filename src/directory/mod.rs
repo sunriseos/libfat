@@ -88,7 +88,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         Err(FatError::NotFound)
     }
 
-    /// Search for an entry in the current directory and its children.
+    /// Recursively Search for an entry in the current directory and its children.
     pub(crate) fn search_entry(&self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
         let mut path = path;
         let mut dir = Directory::from_entry(self.fs, self.dir_info);
@@ -548,7 +548,8 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             );
 
             let mut context: ShortFileNameContext = ShortFileNameContext::default();
-            let short_file_name = ShortFileName::from_unformated_str(&mut context, lowercase_new_name.as_str());
+            let short_file_name =
+                ShortFileName::from_unformated_str(&mut context, lowercase_new_name.as_str());
 
             let lfn_count = (lowercase_new_name.len() as u32 + 12) / 13;
             let sfn_checksum = ShortFileName::checksum_lfn(&short_file_name.as_bytes());

@@ -29,6 +29,10 @@ pub fn align_down<T: Num + Not<Output = T> + BitAnd<Output = T> + Copy>(addr: T,
 }
 
 /// Retrieve the parent of a given path.
+///
+/// Returns a tuple of the parts before and after the cut.
+///
+/// If the path doesn't have parent, return ("", path).
 pub fn get_parent(path: &str) -> (&str, &str) {
     let separator_index_opt = path.rfind('/');
 
@@ -40,7 +44,27 @@ pub fn get_parent(path: &str) -> (&str, &str) {
     }
 }
 
-/// Permite to split a path.
+/// Splits a path at the first `/` it encounters.
+///
+/// Returns a tuple of the parts before and after the cut.
+///
+/// ```ignore
+/// use libfat::utils::split_path;
+/// let my_path = "/top_level_dir/middle_dir/sub_dir";
+/// let (before, after) = split_path(my_path);
+/// assert!(before == "/top_level_dir");
+/// assert!(after.unwrap() == "middle_dir/sub_dir");
+/// ```
+///
+/// If no `/` is encountered, the "after" part is None:
+///
+/// ```ignore
+/// use libfat::utils::split_path;
+/// let my_path = "/top_level_dir";
+/// let (before, after) = split_path(my_path);
+/// assert!(before == "/top_level_dir");
+/// assert!(after.is_none());
+/// ```
 pub fn split_path(path: &str) -> (&str, Option<&str>) {
     let mut path_split = path.trim_matches('/').splitn(2, '/');
 
@@ -107,5 +131,25 @@ pub trait FileSystemIterator<S: StorageDevice>: Sized {
         filesystem: &'a FatFileSystem<S>,
     ) -> GenericFileSystemIterator<'a, S, Self> {
         GenericFileSystemIterator::new(filesystem, self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_parent;
+    #[test]
+    fn test_get_parent() {
+        assert_eq!(
+            get_parent("/my_root_dir/my_other_dir/my_child_dir"),
+            ("/my_root_dir/my_other_dir", "my_child_dir")
+        );
+
+        assert_eq!(
+            get_parent("my_root_dir/my_other_dir/my_child_file"),
+            ("my_root_dir/my_other_dir", "my_child_file")
+        );
+
+        assert_eq!(get_parent("/"), ("", ""));
+        assert_eq!(get_parent(""), ("", ""));
     }
 }
