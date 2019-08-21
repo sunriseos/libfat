@@ -321,7 +321,10 @@ impl<S: StorageDevice> FatFileSystem<S> {
         let (_, file_name) = utils::get_parent(new_path);
         let parent_new_dir = self.open_parent_directory(new_path)?;
 
-        if file_name == "." || file_name == ".." {
+        if file_name == "."
+            || file_name == ".."
+            || parent_new_dir.dir_info.start_cluster == old_entry.start_cluster
+        {
             return Err(FatError::AccessDenied);
         }
 
