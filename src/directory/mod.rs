@@ -58,7 +58,11 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
             ArrayString::new();
         for c in name.chars() {
-            lowercase_name.push(c.to_lowercase().next().unwrap());
+            for lower_case in c.to_lowercase() {
+                if lowercase_name.try_push(lower_case).is_err() {
+                    return Err(FatError::PathTooLong);
+                }
+            }
         }
 
         let mut iter = self.iter();
@@ -69,7 +73,11 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                 ArrayString::new();
 
             for c in entry.file_name.as_str().chars() {
-                file_name.push(c.to_lowercase().next().unwrap());
+                for lower_case in c.to_lowercase() {
+                    if file_name.try_push(lower_case).is_err() {
+                        return Err(FatError::PathTooLong);
+                    }
+                }
             }
 
             if file_name.as_str() == lowercase_name.as_str() {
@@ -80,7 +88,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         Err(FatError::NotFound)
     }
 
-    /// Search for an entry.
+    /// Search for an entry in the current directory and its children.
     pub(crate) fn search_entry(&self, path: &str) -> FatFileSystemResult<DirectoryEntry> {
         let mut path = path;
         let mut dir = Directory::from_entry(self.fs, self.dir_info);
@@ -331,6 +339,17 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             return Err(FatError::PathTooLong);
         }
 
+        let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
+            ArrayString::new();
+
+        for c in name.chars() {
+            for lower_case in c.to_lowercase() {
+                if lowercase_name.try_push(lower_case).is_err() {
+                    return Err(FatError::PathTooLong);
+                }
+            }
+        }
+
         // Allocate a cluster for the directory entries
         let cluster = self.fs.alloc_cluster(None)?;
 
@@ -346,7 +365,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             self.fs,
             &self.dir_info,
             Attributes::new(Attributes::DIRECTORY),
-            name,
+            lowercase_name.as_str(),
             cluster,
             0,
         );
@@ -423,11 +442,22 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             return Err(FatError::PathTooLong);
         }
 
+        let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
+            ArrayString::new();
+
+        for c in name.chars() {
+            for lower_case in c.to_lowercase() {
+                if lowercase_name.try_push(lower_case).is_err() {
+                    return Err(FatError::PathTooLong);
+                }
+            }
+        }
+
         Self::create_dir_entry(
             self.fs,
             &self.dir_info,
             Attributes::new(0),
-            name,
+            lowercase_name.as_str(),
             Cluster(0),
             0,
         )?;
@@ -489,9 +519,21 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         if new_name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
             return Err(FatError::PathTooLong);
         }
+
+        let mut lowercase_new_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
+            ArrayString::new();
+
+        for c in new_name.chars() {
+            for lower_case in c.to_lowercase() {
+                if lowercase_new_name.try_push(lower_case).is_err() {
+                    return Err(FatError::PathTooLong);
+                }
+            }
+        }
+
         let old_raw_info = dir_entry.raw_info.unwrap();
 
-        let new_entry_count = ((new_name.len() as u32 + 12) / 13) + 1;
+        let new_entry_count = ((lowercase_new_name.len() as u32 + 12) / 13) + 1;
 
         // can we update in place?
         if old_raw_info.entry_count == new_entry_count
@@ -506,9 +548,9 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             );
 
             let mut context: ShortFileNameContext = ShortFileNameContext::default();
-            let short_file_name = ShortFileName::from_unformated_str(&mut context, new_name);
+            let short_file_name = ShortFileName::from_unformated_str(&mut context, lowercase_new_name.as_str());
 
-            let lfn_count = (new_name.len() as u32 + 12) / 13;
+            let lfn_count = (lowercase_new_name.len() as u32 + 12) / 13;
             let sfn_checksum = ShortFileName::checksum_lfn(&short_file_name.as_bytes());
 
             for index in 0..lfn_count {
@@ -524,7 +566,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                 lfn_entry.clear();
                 lfn_entry.set_attribute(Attributes::new(Attributes::LFN));
                 lfn_entry.set_lfn_index(lfn_index);
-                lfn_entry.set_lfn_entry(&new_name[(target_index - 1) as usize * 13..]);
+                lfn_entry.set_lfn_entry(&lowercase_new_name[(target_index - 1) as usize * 13..]);
                 lfn_entry.set_lfn_checksum(sfn_checksum as u8);
                 lfn_entry.flush(self.fs)?;
             }
@@ -539,7 +581,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             self.fs,
             &self.dir_info,
             dir_entry.attribute,
-            new_name,
+            lowercase_new_name.as_str(),
             dir_entry.start_cluster,
             dir_entry.file_size,
         )?;
