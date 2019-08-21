@@ -34,11 +34,25 @@ pub fn align_down<T: Num + Not<Output = T> + BitAnd<Output = T> + Copy>(addr: T,
 ///
 /// If the path doesn't have parent, return ("", path).
 pub fn get_parent(path: &str) -> (&str, &str) {
+    // First we need to trim until we find a '/'
+    let mut start_index = 0;
+
+    for (index, entry) in path.chars().enumerate() {
+        if entry != '/' {
+            if index > 0 {
+                start_index = index - 1;
+            }
+            break;
+        }
+    }
+
+    // make the &str a bit more sane.
+    let path = (&path[start_index..]).trim_end_matches('/');
     let separator_index_opt = path.rfind('/');
 
     if let Some(separator_index) = separator_index_opt {
         let (first, last) = path.split_at(separator_index);
-        (first, &last[1..])
+        (first.trim_end_matches('/'), &last[1..])
     } else {
         ("", path)
     }
@@ -47,6 +61,9 @@ pub fn get_parent(path: &str) -> (&str, &str) {
 /// Splits a path at the first `/` it encounters.
 ///
 /// Returns a tuple of the parts before and after the cut.
+///
+/// # Notes:
+/// - The rest part can contain duplicates '/' in the middle of the path. This should be fine as you should call split_path to parse the rest part.
 ///
 /// ```ignore
 /// use libfat::utils::split_path;
@@ -70,7 +87,7 @@ pub fn split_path(path: &str) -> (&str, Option<&str>) {
 
     // unwrap will never fail here
     let comp = path_split.next().unwrap();
-    let rest_opt = path_split.next();
+    let rest_opt = path_split.next().and_then(|x| Some(x.trim_matches('/')));
 
     (comp, rest_opt)
 }
@@ -137,6 +154,7 @@ pub trait FileSystemIterator<S: StorageDevice>: Sized {
 #[cfg(test)]
 mod tests {
     use super::get_parent;
+    use super::split_path;
     #[test]
     fn test_get_parent() {
         assert_eq!(
@@ -152,8 +170,48 @@ mod tests {
         assert_eq!(get_parent("/"), ("", ""));
         assert_eq!(get_parent("/."), ("", "."));
         assert_eq!(get_parent("/.."), ("", ".."));
+
         assert_eq!(get_parent(""), ("", ""));
         assert_eq!(get_parent("."), ("", "."));
         assert_eq!(get_parent(".."), ("", ".."));
+
+        assert_eq!(get_parent("/ect/lol"), ("/ect", "lol"));
+        assert_eq!(get_parent("/ect/lol/"), ("/ect", "lol"));
+        assert_eq!(get_parent("////////////ect///////lol"), ("/ect", "lol"));
+        assert_eq!(get_parent("/ect/lol//////test"), ("/ect/lol", "test"));
+        assert_eq!(get_parent("/ect"), ("", "ect"));
+        assert_eq!(get_parent("/ect/"), ("", "ect"));
+        assert_eq!(get_parent("/ect//"), ("", "ect"));
+        assert_eq!(get_parent("//ect//"), ("", "ect"));
+        assert_eq!(get_parent("////////////ect"), ("", "ect"));
+        assert_eq!(get_parent("////////////ect/"), ("", "ect"));
+        assert_eq!(get_parent("///////lol"), ("", "lol"));
+    }
+
+    #[test]
+    fn test_split_paths() {
+        assert_eq!(split_path("/"), ("", None));
+        assert_eq!(split_path("/ect"), ("ect", None));
+        assert_eq!(split_path("/ect/"), ("ect", None));
+        assert_eq!(split_path("/ect//"), ("ect", None));
+        assert_eq!(split_path("//ect//"), ("ect", None));
+        assert_eq!(split_path("////////////ect"), ("ect", None));
+        assert_eq!(split_path("////////////ect/"), ("ect", None));
+        assert_eq!(split_path("/ect/lol/"), ("ect", Some("lol")));
+        assert_eq!(split_path("///////lol"), ("lol", None));
+        assert_eq!(
+            split_path("////////////ect///////lol"),
+            ("ect", Some("lol"))
+        );
+
+        assert_eq!(
+            split_path("////////////ect///////lol/////test"),
+            // This is fine as we are still under another directory and the result of the next call is going to be trimmed
+            ("ect", Some("lol/////test"))
+        );
+        assert_eq!(
+            split_path("////////////ect///////lol/"),
+            ("ect", Some("lol"))
+        );
     }
 }

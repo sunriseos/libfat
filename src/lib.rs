@@ -553,7 +553,7 @@ pub fn format_partition<S: StorageDevice>(
             cluster_size = 32;
         } else if size_mb > 8 * 1024 {
             cluster_size = 16;
-        } else if size_mb > 1 * 1024 {
+        } else if size_mb > 1024 {
             cluster_size = 8;
         } else {
             cluster_size = 1;
@@ -583,7 +583,7 @@ pub fn format_partition<S: StorageDevice>(
         }
     } else if let FatFsType::Fat32 = fat_type {
         // If we have too many clusters even now, this is too big to hold this filesystem type.
-        if number_clusters > 0xFFFFFF5 {
+        if number_clusters > 0x0FFF_FFF5 {
             return Err(FatError::InvalidPartition);
         }
     }
