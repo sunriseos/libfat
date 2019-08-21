@@ -150,6 +150,10 @@ mod tests {
         );
 
         assert_eq!(get_parent("/"), ("", ""));
+        assert_eq!(get_parent("/."), ("", "."));
+        assert_eq!(get_parent("/.."), ("", ".."));
         assert_eq!(get_parent(""), ("", ""));
+        assert_eq!(get_parent("."), ("", "."));
+        assert_eq!(get_parent(".."), ("", ".."));
     }
 }

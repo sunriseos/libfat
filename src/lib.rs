@@ -440,6 +440,12 @@ fn get_fat_boot_record(
 }
 
 /// Parse a FAT boot record and return a FatFileSystem instance.
+///
+/// If uninitialized is true, the filesystem shouldn't load the fat fs info on FAT32.
+///
+/// # Note:
+///
+/// uninitialized is used during a formating operation.
 fn parse_fat_boot_record<S: StorageDevice>(
     storage_device: S,
     partition_start: u64,
@@ -456,14 +462,22 @@ fn parse_fat_boot_record<S: StorageDevice>(
                 + (u32::from(boot_record.bytes_per_block()) - 1))
                 / u32::from(boot_record.bytes_per_block());
 
-            let first_data_offset = u32::from(boot_record.reserved_block_count())
+            let first_data_lba = u32::from(boot_record.reserved_block_count())
                 + (u32::from(boot_record.fats_count()) * boot_record.fat_size())
                 + root_dir_blocks;
+
+            let first_data_offset =
+                u64::from(first_data_lba) * u64::from(boot_record.bytes_per_block());
+
+            // Check that this doesn't get out of the storage device
+            if first_data_offset > partition_size {
+                return Err(FatError::InvalidPartition);
+            }
 
             let mut file_system = FatFileSystem::new(
                 storage_device,
                 partition_start,
-                u64::from(first_data_offset) * u64::from(boot_record.bytes_per_block()),
+                first_data_offset,
                 partition_size,
                 boot_record,
             )?;

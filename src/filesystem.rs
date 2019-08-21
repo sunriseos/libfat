@@ -212,6 +212,10 @@ impl<S: StorageDevice> FatFileSystem<S> {
     }
 
     /// Open the parent directory of a given path.
+    ///
+    /// Note:
+    ///
+    /// - an empty path is treated as a "/".
     fn open_parent_directory(&self, path: &str) -> FatFileSystemResult<Directory<'_, S>> {
         let (parent_name, _) = utils::get_parent(path);
         if parent_name == "" {
@@ -302,6 +306,10 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
         let old_entry = parent_old_dir.find_entry(file_name)?;
 
+        if old_entry.is_special_entry() {
+            return Err(FatError::AccessDenied);
+        }
+
         if old_entry.attribute.is_directory() != is_dir {
             if is_dir {
                 return Err(FatError::NotADirectory);
@@ -312,6 +320,10 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
         let (_, file_name) = utils::get_parent(new_path);
         let parent_new_dir = self.open_parent_directory(new_path)?;
+
+        if file_name == "." || file_name == ".." {
+            return Err(FatError::AccessDenied);
+        }
 
         if parent_new_dir.find_entry(file_name).is_ok() {
             return Err(FatError::FileExists);

@@ -101,6 +101,11 @@ impl DirectoryEntry {
             attribute: sfn_entry.attribute(),
         }
     }
+
+    /// Return true if the directory entry is "." or "..".
+    pub(crate) fn is_special_entry(&self) -> bool {
+        self.file_name.as_str() == "." || self.file_name.as_str() == ".."
+    }
 }
 
 impl DirectoryEntryRawInfo {

@@ -49,10 +49,59 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         Directory { dir_info, fs }
     }
 
+    /// Create a custom version of this directory referencing to "." .
+    pub fn as_current_directory_entry(&self) -> DirectoryEntry {
+        let mut dir_info = self.dir_info;
+        dir_info.file_name.clear();
+        dir_info.file_name.push_str(".");
+
+        dir_info
+    }
+
+    /// Create a custom version of this directory referencing to ".." .
+    pub fn as_parent_directory_entry(&self) -> DirectoryEntry {
+        let mut dir_info = self.dir_info;
+        dir_info.file_name.clear();
+        dir_info.file_name.push_str("..");
+
+        dir_info
+    }
+
+    /// Return true if this directory has the root directory as their parent.
+    pub fn is_parent_root_directory(&self) -> bool {
+        if let Some(raw_info) = self.dir_info.raw_info {
+            match self.fs.get_type() {
+                FatFsType::Fat12 | FatFsType::Fat16 => raw_info.parent_cluster.0 == 0,
+                FatFsType::Fat32 => {
+                    raw_info.parent_cluster == self.fs.boot_record.root_dir_childs_cluster()
+                }
+            }
+        } else {
+            false
+        }
+    }
+
     /// Search an entry inside the directory and if found return it.
     pub fn find_entry(&self, name: &str) -> FatFileSystemResult<DirectoryEntry> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE {
             return Err(FatError::PathTooLong);
+        }
+
+        // Hard wire "."
+        if name == "." {
+            return Ok(self.as_current_directory_entry());
+        }
+
+        if name == ".." {
+            // Hard wire ".." for root directory as it doesn't exist in the FAT.
+            if self.is_root_directory() {
+                return Ok(self.as_parent_directory_entry());
+            }
+
+            // If the parent is the root directory we need to return a valid entry that is marked as a root directory.
+            if self.is_parent_root_directory() {
+                return Ok(self.fs.get_root_directory().as_parent_directory_entry());
+            }
         }
 
         let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
@@ -334,9 +383,13 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Create a directory with the given name.
-    pub fn create_directory(&mut self, name: &str) -> FatFileSystemResult<()> {
+    pub(crate) fn create_directory(&mut self, name: &str) -> FatFileSystemResult<()> {
         if name.len() > DirectoryEntry::MAX_FILE_NAME_LEN {
             return Err(FatError::PathTooLong);
+        }
+
+        if name == "." || name == ".." {
+            return Err(FatError::AccessDenied);
         }
 
         let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
@@ -391,7 +444,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Create directory special entries (".", "..")
-    pub(crate) fn create_special_directory_entries(
+    pub fn create_special_directory_entries(
         fs: &'a FatFileSystem<S>,
         parent_entry: &DirectoryEntry,
     ) -> FatFileSystemResult<()> {
@@ -442,6 +495,10 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             return Err(FatError::PathTooLong);
         }
 
+        if name == "." || name == ".." {
+            return Err(FatError::AccessDenied);
+        }
+
         let mut lowercase_name: ArrayString<[u8; DirectoryEntry::MAX_FILE_NAME_LEN_UNICODE]> =
             ArrayString::new();
 
@@ -480,6 +537,10 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         let fs = self.fs;
 
         let dir_entry = self.find_entry(name)?;
+
+        if dir_entry.is_special_entry() {
+            return Err(FatError::AccessDenied);
+        }
 
         if dir_entry.attribute.is_directory() != is_dir {
             if is_dir {
