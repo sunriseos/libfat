@@ -795,11 +795,13 @@ impl File {
                 buf_limit = bytes_left;
             }
 
-            if buf_limit > buf.len() as u64 {
-                buf_limit = buf.len() as u64;
+            let buf_slice = &mut buf[read_size as usize..];
+
+            if buf_limit > buf_slice.len() as u64 {
+                buf_limit = buf_slice.len() as u64;
             }
 
-            let mut buf_slice = &mut buf[read_size as usize..(read_size + buf_limit) as usize];
+            let mut buf_slice = &mut buf_slice[..buf_limit as usize];
 
             let cluster_offset = cluster.to_data_bytes_offset(fs);
 
@@ -856,11 +858,13 @@ impl File {
 
             let mut buf_limit = block_size;
 
-            if buf_limit > (&buf[write_size as usize..]).len() as u64 {
-                buf_limit = (&buf[write_size as usize..]).len() as u64;
+            let buf_slice = &buf[write_size as usize..];
+
+            if buf_limit > buf_slice.len() as u64 {
+                buf_limit = buf_slice.len() as u64;
             }
 
-            let buf_slice = &buf[write_size as usize..(write_size + buf_limit) as usize];
+            let buf_slice = &buf_slice[..buf_limit as usize];
 
             let cluster_offset = cluster.to_data_bytes_offset(fs);
 
