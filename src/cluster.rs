@@ -2,7 +2,9 @@
 //!
 //! A FAT cluster is defined as an amount of sectors.
 
+use super::FatError;
 use super::FatFileSystem;
+use super::FatFileSystemResult;
 use super::FatFsType;
 use storage_device::StorageDevice;
 
@@ -12,10 +14,17 @@ pub struct Cluster(pub u32);
 
 impl Cluster {
     /// Compute the offset of the data from the cluster position.
-    pub fn to_data_bytes_offset<S: StorageDevice>(self, fs: &FatFileSystem<S>) -> u64 {
+    pub fn to_data_bytes_offset<S: StorageDevice>(
+        self,
+        fs: &FatFileSystem<S>,
+    ) -> FatFileSystemResult<u64> {
+        if self.0 < 2 {
+            return Err(FatError::InvalidPartition);
+        }
+
         let first_block_of_cluster = (self.0 - 2) * u32::from(fs.boot_record.blocks_per_cluster());
-        fs.first_data_offset
-            + u64::from(first_block_of_cluster) * u64::from(fs.boot_record.bytes_per_block())
+        Ok(fs.first_data_offset
+            + u64::from(first_block_of_cluster) * u64::from(fs.boot_record.bytes_per_block()))
     }
 
     /// Compute the offset in the cluster map of the cluster chain.

@@ -349,7 +349,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
                     .lock()
                     .write(
                         self.partition_start
-                            + cluster.to_data_bytes_offset(self)
+                            + cluster.to_data_bytes_offset(self)?
                             + u64::from(block_index)
                                 * u64::from(self.boot_record.bytes_per_block())
                             + (index * crate::MINIMAL_BLOCK_SIZE) as u64,

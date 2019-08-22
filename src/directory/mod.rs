@@ -777,7 +777,7 @@ impl File {
 
             let mut buf_slice = &mut buf_slice[..buf_limit as usize];
 
-            let cluster_offset = cluster.to_data_bytes_offset(fs);
+            let cluster_offset = cluster.to_data_bytes_offset(fs)?;
 
             fs.storage_device
                 .lock()
@@ -840,7 +840,7 @@ impl File {
 
             let buf_slice = &buf_slice[..buf_limit as usize];
 
-            let cluster_offset = cluster.to_data_bytes_offset(fs);
+            let cluster_offset = cluster.to_data_bytes_offset(fs)?;
 
             fs.storage_device
                 .lock()

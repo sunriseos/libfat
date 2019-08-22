@@ -111,7 +111,11 @@ impl<S: StorageDevice> FileSystemIterator<S> for FatDirEntryIterator {
                 )
             }
         } else {
-            Some(cluster.to_data_bytes_offset(filesystem) + self.cluster_offset)
+            let data_bytes_offset_res = cluster.to_data_bytes_offset(filesystem);
+            if let Err(error) = data_bytes_offset_res {
+                return Some(Err(error));
+            }
+            Some(data_bytes_offset_res.unwrap() + self.cluster_offset)
         };
 
         let entry_start: u64 = (entry_index * FatDirEntry::LEN) as u64;

@@ -164,7 +164,7 @@ impl FatDirEntry {
                     + self.entry_offset)
             }
         } else {
-            Ok(self.entry_cluster.to_data_bytes_offset(fs)
+            Ok(self.entry_cluster.to_data_bytes_offset(fs)?
                 + self.entry_cluster_offset
                 + self.entry_offset)
         };
