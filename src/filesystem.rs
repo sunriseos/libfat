@@ -218,11 +218,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
     /// - an empty path is treated as a "/".
     fn open_parent_directory(&self, path: &str) -> FatFileSystemResult<Directory<'_, S>> {
         let (parent_name, _) = utils::get_parent(path);
-        if parent_name == "" {
-            Ok(self.get_root_directory())
-        } else {
-            self.get_root_directory().open_directory(parent_name)
-        }
+        self.open_directory(parent_name)
     }
 
     /// Search for a directory entry inside the filesystem at the given path.
@@ -233,7 +229,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
     /// Open a directory at the given path.
     pub fn open_directory(&self, path: &str) -> FatFileSystemResult<Directory<'_, S>> {
-        if path == "/" {
+        if path == "/" || path == "" {
             Ok(self.get_root_directory())
         } else {
             self.get_root_directory().open_directory(path)

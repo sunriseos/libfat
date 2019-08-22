@@ -149,6 +149,9 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
             match rest_opt {
                 Some(rest) => {
+                    if !child_entry.attribute.is_directory() {
+                        return Err(FatError::NotADirectory);
+                    }
                     dir = Directory::from_entry(dir.fs, child_entry);
                     path = rest;
                 }
@@ -159,51 +162,22 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
 
     /// Open a file at the given path.
     pub fn open_file(&self, path: &str) -> FatFileSystemResult<File> {
-        let mut path = path;
-        let mut dir = Directory::from_entry(self.fs, self.dir_info);
-
-        loop {
-            let (name, rest_opt) = utils::split_path(path);
-
-            let child_entry = dir.find_entry(name)?;
-
-            match rest_opt {
-                Some(rest) => {
-                    if !child_entry.attribute.is_directory() {
-                        return Err(FatError::NotAFile);
-                    } else {
-                        dir = Directory::from_entry(dir.fs, child_entry);
-                        path = rest;
-                    }
-                }
-                None => return Ok(File::from_entry(child_entry)),
-            }
+        let entry = self.search_entry(path)?;
+        if entry.attribute.is_directory() {
+            return Err(FatError::NotAFile);
         }
+
+        Ok(File::from_entry(entry))
     }
 
     /// Open a directory at the given path.
     pub fn open_directory(&self, path: &str) -> FatFileSystemResult<Directory<'a, S>> {
-        let mut path = path;
-        let mut dir = Directory::from_entry(self.fs, self.dir_info);
-
-        loop {
-            let (name, rest_opt) = utils::split_path(path);
-
-            let child_entry = dir.find_entry(name)?;
-
-            if !child_entry.attribute.is_directory() {
-                return Err(FatError::NotADirectory);
-            }
-
-            dir = Directory::from_entry(dir.fs, child_entry);
-
-            match rest_opt {
-                Some(rest) => {
-                    path = rest;
-                }
-                None => return Ok(dir),
-            }
+        let entry = self.search_entry(path)?;
+        if !entry.attribute.is_directory() {
+            return Err(FatError::NotADirectory);
         }
+
+        Ok(Directory::from_entry(self.fs, entry))
     }
 
     /// Look for unused space to allocate a directory entry and return a raw entry iterator to it.

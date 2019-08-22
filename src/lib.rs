@@ -147,6 +147,26 @@ impl FatVolumeBootRecord {
         }
     }
 
+    /// Read a FAT volume boot record from a storage device.
+    pub fn read(
+        storage_device: &mut dyn StorageDevice,
+        partition_start: u64,
+    ) -> FatFileSystemResult<Self> {
+        let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
+
+        storage_device
+            .read(partition_start, &mut block)
+            .or(Err(FatError::ReadFailed))?;
+
+        let boot_record = Self::new(block);
+
+        if boot_record.is_none() {
+            return Err(FatError::InvalidPartition);
+        }
+
+        Ok(boot_record.unwrap())
+    }
+
     /// Checks the validity of the boot record.
     pub fn is_valid(&self) -> bool {
         // check boot signature
@@ -419,26 +439,6 @@ impl FatVolumeBootRecord {
     }
 }
 
-/// Get a FAT boot record from a StorageDevice.
-fn get_fat_boot_record(
-    storage_device: &mut dyn StorageDevice,
-    partition_start: u64,
-) -> FatFileSystemResult<FatVolumeBootRecord> {
-    let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
-
-    storage_device
-        .read(partition_start, &mut block)
-        .or(Err(FatError::ReadFailed))?;
-
-    let boot_record = FatVolumeBootRecord::new(block);
-
-    if boot_record.is_none() {
-        return Err(FatError::InvalidPartition);
-    }
-
-    Ok(boot_record.unwrap())
-}
-
 /// Parse a FAT boot record and return a FatFileSystem instance.
 ///
 /// If uninitialized is true, the filesystem shouldn't load the fat fs info on FAT32.
@@ -453,7 +453,7 @@ fn parse_fat_boot_record<S: StorageDevice>(
     uninitialized: bool,
 ) -> FatFileSystemResult<FatFileSystem<S>> {
     let mut storage_device = storage_device;
-    let boot_record = get_fat_boot_record(&mut storage_device, partition_start)?;
+    let boot_record = FatVolumeBootRecord::read(&mut storage_device, partition_start)?;
 
     match boot_record.fat_type {
         FatFsType::Fat12 | FatFsType::Fat16 | FatFsType::Fat32 => {
@@ -670,8 +670,11 @@ pub fn format_partition<S: StorageDevice>(
 }
 
 /// Treat the storage device directly as a partition and try to determine the FAT type of the partition
-pub fn get_fat_type(storage_device: &mut dyn StorageDevice) -> FatFileSystemResult<FatFsType> {
-    Ok(get_fat_boot_record(storage_device, 0)?.fat_type)
+pub fn get_fat_type(
+    storage_device: &mut dyn StorageDevice,
+    partition_start: u64,
+) -> FatFileSystemResult<FatFsType> {
+    Ok(FatVolumeBootRecord::read(storage_device, partition_start)?.fat_type)
 }
 
 /// Parse the MBR and return an instance to a filesystem at the given partition index.
