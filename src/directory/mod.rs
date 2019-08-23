@@ -544,7 +544,6 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
     }
 
     /// Rename a directory or a file from a given name to another one.
-    // TODO: better error managment
     pub fn rename(
         self,
         dir_entry: DirectoryEntry,
