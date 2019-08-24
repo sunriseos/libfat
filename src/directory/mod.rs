@@ -23,7 +23,7 @@ pub mod dir_entry_iterator;
 pub(crate) mod raw_dir_entry;
 pub(crate) mod raw_dir_entry_iterator;
 
-/// Represent a Directory.
+/// Represents a Directory.
 pub struct Directory<'a, S: StorageDevice> {
     /// The information about this directory.
     pub(crate) dir_info: DirectoryEntry,
@@ -32,7 +32,7 @@ pub struct Directory<'a, S: StorageDevice> {
     fs: &'a FatFileSystem<S>,
 }
 
-/// Represent a File.
+/// Represents a File.
 pub struct File {
     /// The information about this file.
     pub file_info: DirectoryEntry,
@@ -49,7 +49,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         Directory { dir_info, fs }
     }
 
-    /// Create a custom version of this directory referencing to "." .
+    ///  Create a custom version of this directory, using the name "." .
     pub fn as_current_directory_entry(&self) -> DirectoryEntry {
         let mut dir_info = self.dir_info;
         dir_info.file_name.clear();
@@ -58,7 +58,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         dir_info
     }
 
-    /// Create a custom version of this directory referencing to ".." .
+    /// Create a custom version of this directory, using the name ".." .
     pub fn as_parent_directory_entry(&self) -> DirectoryEntry {
         let mut dir_info = self.dir_info;
         dir_info.file_name.clear();

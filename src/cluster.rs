@@ -22,9 +22,11 @@ impl Cluster {
             return Err(FatError::InvalidPartition);
         }
 
-        let first_block_of_cluster = (self.0 - 2) * u32::from(fs.boot_record.blocks_per_cluster());
-        Ok(fs.first_data_offset
-            + u64::from(first_block_of_cluster) * u64::from(fs.boot_record.bytes_per_block()))
+        let first_offset_of_cluster = (u64::from(self.0) - 2).checked_mul(u64::from(fs.boot_record.blocks_per_cluster())).and_then(|x| {
+            x.checked_mul(u64::from(fs.boot_record.bytes_per_block()))
+        }).ok_or(FatError::InvalidPartition)?;
+
+        fs.first_data_offset.checked_add(first_offset_of_cluster).ok_or(FatError::InvalidPartition)
     }
 
     /// Compute the offset in the cluster map of the cluster chain.
