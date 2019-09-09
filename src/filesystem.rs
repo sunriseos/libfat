@@ -196,6 +196,8 @@ impl<S: StorageDevice> FatFileSystem<S> {
         if !is_old_root_directory {
             // Allocate a cluster for the root directory
             let cluster = self.alloc_cluster(None)?;
+            // Ensure we don't use a reserved cluster.
+            assert!(cluster.0 >= 2, "Invalid cluster allocated.");
             self.clean_cluster_data(cluster)?;
             self.boot_record.set_root_dir_childs_cluster(cluster);
         } else {
@@ -207,6 +209,18 @@ impl<S: StorageDevice> FatFileSystem<S> {
                 raw_dir_entry.flush(self)?;
             }
         }
+
+        // Force writing the first two FAT entries. Those entries are supposed
+        // to be reserved, but we follow what mkfs.fat32 does, which is to put
+        // end-of-chains here.
+        //
+        // GRUB seems to expect the first value to contain a special bit pattern
+        // for the EndOfChain. It expects to see 0xFFFFFF8 | media_type. See
+        // https://github.com/coreos/grub/blob/2.02-coreos/grub-core/fs/fat.c#L436
+        //
+        // In order to get recognized by GRUB, let's follow suit.
+        FatValue::put(self, Cluster(0), FatValue::EndOfChain(self.boot_record.media_type()))?;
+        FatValue::put(self, Cluster(1), FatValue::DEFAULT_END_OF_CHAIN)?;
 
         Ok(())
     }
@@ -439,13 +453,13 @@ impl<S: StorageDevice> FatFileSystem<S> {
 
         let allocated_cluster = Cluster(number_cluster);
         debug_assert!(FatValue::get(self, allocated_cluster)? == FatValue::Free);
-        FatValue::put(self, allocated_cluster, FatValue::EndOfChain)?;
+        FatValue::put(self, allocated_cluster, FatValue::DEFAULT_END_OF_CHAIN)?;
 
         // Link existing cluster with the new one availaible
         if let Some(last_cluster_allocated) = last_cluster_allocated_opt {
             debug_assert!(
                 FatValue::get(self, last_cluster_allocated)? == FatValue::Free
-                    || FatValue::get(self, last_cluster_allocated)? == FatValue::EndOfChain
+                    || FatValue::get(self, last_cluster_allocated)?.is_end_of_chain()
             );
             FatValue::put(
                 self,
@@ -470,7 +484,7 @@ impl<S: StorageDevice> FatFileSystem<S> {
         previous_cluster: Option<Cluster>,
     ) -> FatFileSystemResult<()> {
         if let Some(previous_cluster) = previous_cluster {
-            FatValue::put(self, previous_cluster, FatValue::EndOfChain)?;
+            FatValue::put(self, previous_cluster, FatValue::DEFAULT_END_OF_CHAIN)?;
         }
 
         let mut current_cluster = to_remove;
