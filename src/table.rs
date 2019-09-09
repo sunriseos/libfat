@@ -21,7 +21,28 @@ pub enum FatValue {
     Bad,
 
     /// Represent the end of a cluster chain.
-    EndOfChain,
+    ///
+    /// Contains the low 3 bits of the EndOfChain range. If you don't know
+    /// what to put there, use DEFAULT_END_OF_CHAIN. Those bits should never
+    /// get matched upon - compare with the `is_end_of_chain` function.
+    EndOfChain(u8),
+}
+
+impl FatValue {
+    /// Standard value for the END_OF_CHAIN data.
+    ///
+    /// If you need to create an END_OF_CHAIN but don't know what value to put
+    /// in the low 3 bits, use this constant.
+    pub const DEFAULT_END_OF_CHAIN: FatValue = FatValue::EndOfChain(0xFF);
+
+    /// Checks whether the current FatValue is an EndOfChain.
+    pub fn is_end_of_chain(&self) -> bool {
+        if let FatValue::EndOfChain(_) = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// Util iterator used to simplify iteration over cluster.
@@ -67,7 +88,7 @@ impl FatValue {
         match val {
             0 => FatValue::Free,
             0x0FFF_FFF7 => FatValue::Bad,
-            0x0FFF_FFF8..=0x0FFF_FFFF => FatValue::EndOfChain,
+            val @ 0x0FFF_FFF8..=0x0FFF_FFFF => FatValue::EndOfChain(val as u8),
             n => FatValue::Data(n as u32),
         }
     }
@@ -77,7 +98,7 @@ impl FatValue {
         match self {
             FatValue::Free => 0,
             FatValue::Bad => 0x0FFF_FFF7,
-            FatValue::EndOfChain => 0x0FFF_FFFF,
+            FatValue::EndOfChain(val) => 0x0FFF_FFF8 | u32::from(val),
             FatValue::Data(n) => n,
         }
     }
@@ -87,7 +108,7 @@ impl FatValue {
         match val {
             0 => FatValue::Free,
             0xFFF7 => FatValue::Bad,
-            0xFFF8..=0xFFFF => FatValue::EndOfChain,
+            val @ 0xFFF8..=0xFFFF => FatValue::EndOfChain(val as u8),
             n => FatValue::Data(u32::from(n)),
         }
     }
@@ -97,7 +118,7 @@ impl FatValue {
         match self {
             FatValue::Free => 0,
             FatValue::Bad => 0xFFF7,
-            FatValue::EndOfChain => 0xFFFF,
+            FatValue::EndOfChain(val) => 0xFFF8 | u16::from(val),
             FatValue::Data(n) => n as u16,
         }
     }
@@ -107,7 +128,7 @@ impl FatValue {
         match val {
             0 => FatValue::Free,
             0xFF7 => FatValue::Bad,
-            0xFF8..=0xFFF => FatValue::EndOfChain,
+            val @ 0xFF8..=0xFFF => FatValue::EndOfChain(val as u8),
             n => FatValue::Data(u32::from(n)),
         }
     }
@@ -117,7 +138,7 @@ impl FatValue {
         match self {
             FatValue::Free => 0,
             FatValue::Bad => 0xFF7,
-            FatValue::EndOfChain => 0xFFF,
+            FatValue::EndOfChain(val) => 0xFF8 | u16::from(val),
             FatValue::Data(n) => n as u16,
         }
     }
