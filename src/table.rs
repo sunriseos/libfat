@@ -36,7 +36,7 @@ impl FatValue {
     pub const DEFAULT_END_OF_CHAIN: FatValue = FatValue::EndOfChain(0xFF);
 
     /// Checks whether the current FatValue is an EndOfChain.
-    pub fn is_end_of_chain(&self) -> bool {
+    pub fn is_end_of_chain(self) -> bool {
         if let FatValue::EndOfChain(_) = self {
             true
         } else {
