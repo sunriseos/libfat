@@ -190,20 +190,29 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         let directory = Directory::from_entry(fs, *entry);
         let is_root_directory = directory.is_root_directory();
 
+        let mut res_raw_dir_entry = None;
+
         let mut fat_dir_entry_iter = directory.fat_dir_entry_iter();
         while let Some(raw_dir_entry) = fat_dir_entry_iter.next(fs) {
             let raw_dir_entry = raw_dir_entry?;
             if raw_dir_entry.is_free() || raw_dir_entry.is_deleted() {
+                if res_raw_dir_entry.is_none() {
+                    res_raw_dir_entry = Some(raw_dir_entry);
+                }
                 i += 1;
                 if i == count {
+                    let res_raw_dir_entry = res_raw_dir_entry.unwrap();
                     return Ok(FatDirEntryIterator::new(
                         fs,
-                        raw_dir_entry.entry_cluster,
-                        raw_dir_entry.entry_cluster_offset,
-                        raw_dir_entry.entry_offset,
+                        res_raw_dir_entry.entry_cluster,
+                        res_raw_dir_entry.entry_cluster_offset,
+                        res_raw_dir_entry.entry_offset,
                         is_root_directory,
                     ));
                 }
+            } else {
+                res_raw_dir_entry = None;
+                i = 0;
             }
         }
 
@@ -226,6 +235,16 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             return Err(error);
         }
 
+        if let Some(res_raw_dir_entry) = res_raw_dir_entry {
+            return Ok(FatDirEntryIterator::new(
+                fs,
+                res_raw_dir_entry.entry_cluster,
+                res_raw_dir_entry.entry_cluster_offset,
+                res_raw_dir_entry.entry_offset,
+                is_root_directory,
+            ));
+        }
+
         Ok(FatDirEntryIterator::new(
             fs,
             new_cluster,
@@ -245,7 +264,14 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
         file_size: u32,
     ) -> FatFileSystemResult<DirectoryEntry> {
         let is_special_entry = name == "." || name == "..";
-        let mut count: u32 = 1;
+        let count;
+        let lfn_count = (name.len() as u32 + 12) / 13;
+
+        if !is_special_entry {
+            count = 1 + lfn_count;
+        } else {
+            count = 1;
+        }
 
         let mut free_entries_iter = Self::allocate_entries(parent_entry, fs, count)?;
 
@@ -256,13 +282,12 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             let mut context: ShortFileNameContext = ShortFileNameContext::default();
             short_file_name = ShortFileName::from_unformated_str(&mut context, name);
 
-            let lfn_count = (name.len() as u32 + 12) / 13;
             let sfn_checksum = ShortFileName::checksum_lfn(&short_file_name.as_bytes());
 
             for index in 0..lfn_count {
                 let target_index = lfn_count - index;
                 let lfn_index = if target_index == lfn_count {
-                    0x40u8 + target_index as u8
+                    0x40u8 | target_index as u8
                 } else {
                     target_index as u8
                 };
@@ -279,8 +304,6 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
                 lfn_entry.set_lfn_checksum(sfn_checksum as u8);
                 lfn_entry.flush(fs)?;
             }
-
-            count += lfn_count;
         } else {
             short_file_name = ShortFileName::from_slice(name.as_bytes());
         }
@@ -591,7 +614,7 @@ impl<'a, S: StorageDevice> Directory<'a, S> {
             for index in 0..lfn_count {
                 let target_index = lfn_count - index;
                 let lfn_index = if target_index == lfn_count {
-                    0x40u8 + target_index as u8
+                    0x40u8 | target_index as u8
                 } else {
                     target_index as u8
                 };
