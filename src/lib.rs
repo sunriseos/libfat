@@ -15,11 +15,13 @@ mod utils;
 use cluster::Cluster;
 use core::convert::TryInto;
 use filesystem::FatFileSystem;
-use storage_device::Block;
 use storage_device::StorageDevice;
 
 /// The minimal block size supported.
 pub const MINIMAL_BLOCK_SIZE: usize = 512;
+
+/// The minimal block size supported as u64.
+const MINIMAL_BLOCK_SIZE_U64: u64 = MINIMAL_BLOCK_SIZE as u64;
 
 pub use utils::FileSystemIterator;
 
@@ -148,8 +150,8 @@ impl FatVolumeBootRecord {
     }
 
     /// Read a FAT volume boot record from a storage device.
-    pub fn read(
-        storage_device: &mut dyn StorageDevice,
+    pub fn read<E: core::fmt::Debug>(
+        storage_device: &mut dyn StorageDevice<Error = E>,
         partition_start: u64,
     ) -> FatFileSystemResult<Self> {
         let mut block = [0x0u8; MINIMAL_BLOCK_SIZE];
@@ -536,7 +538,7 @@ pub fn format_partition<S: StorageDevice>(
     let mut heads = 255;
     let mut cluster_size = 4;
 
-    let block_count = partition_size / Block::LEN_U64;
+    let block_count = partition_size / MINIMAL_BLOCK_SIZE_U64;
 
     if partition_size < 512 * 1024 * 1024 {
         blocks_per_track = 32;
@@ -602,7 +604,7 @@ pub fn format_partition<S: StorageDevice>(
         boot_record.set_reserved_block_count(32);
         boot_record.set_total_blocks32(block_count as u32);
 
-        let fat_size = (number_clusters * 4 + 8 + Block::LEN_U64 - 1) / Block::LEN_U64;
+        let fat_size = (number_clusters * 4 + 8 + MINIMAL_BLOCK_SIZE_U64 - 1) / MINIMAL_BLOCK_SIZE_U64;
         boot_record.set_fat_size32(fat_size as u32);
 
         // FAT32 specific features
@@ -631,7 +633,7 @@ pub fn format_partition<S: StorageDevice>(
             (number_clusters * 3 + 1) / 2 + 3
         };
 
-        let fat_size = (fat_byte_size + Block::LEN_U64 - 1) / Block::LEN_U64;
+        let fat_size = (fat_byte_size + MINIMAL_BLOCK_SIZE_U64 - 1) / MINIMAL_BLOCK_SIZE_U64;
         boot_record.set_fat_size16(fat_size as u16);
     }
 
@@ -670,8 +672,8 @@ pub fn format_partition<S: StorageDevice>(
 }
 
 /// Treat the storage device directly as a partition and try to determine the FAT type of the partition
-pub fn get_fat_type(
-    storage_device: &mut dyn StorageDevice,
+pub fn get_fat_type<E: core::fmt::Debug>(
+    storage_device: &mut dyn StorageDevice<Error = E>,
     partition_start: u64,
 ) -> FatFileSystemResult<FatFsType> {
     Ok(FatVolumeBootRecord::read(storage_device, partition_start)?.fat_type)
