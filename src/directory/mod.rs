@@ -768,20 +768,35 @@ impl File {
 
         let blocks_per_cluster = u64::from(fs.boot_record.blocks_per_cluster());
         let block_size = u64::from(fs.boot_record.bytes_per_block());
-        let mut cluster_offset_iterator =
+        let cluster_offset_iterator =
             ClusterOffsetIter::new(fs, self.file_info.start_cluster, Some(offset / block_size));
+        let mut cluster_offset_iterator = cluster_offset_iterator
+            .to_iterator(fs)
+            .peekable();
 
         let mut read_size = 0u64;
 
         while read_size < buf.len() as u64 {
-            let cluster_opt = cluster_offset_iterator.next(fs);
-            if cluster_opt.is_none() {
-                break;
+
+            let cluster = match cluster_offset_iterator.next() {
+                Some(cluster) => cluster,
+                None => break
+            };
+
+            let mut cluster_num = 1;
+            while let Some(cluster_next) = cluster_offset_iterator.peek() {
+                if cluster_next.0 == cluster.0 + cluster_num &&
+                    block_size * blocks_per_cluster * u64::from(cluster_num) < buf.len() as u64 &&
+                    cluster_num < 32
+                {
+                    let _ = cluster_offset_iterator.next();
+                    cluster_num += 1;
+                } else {
+                    break;
+                }
             }
 
-            let cluster = cluster_opt.unwrap();
-
-            let mut buf_limit = block_size;
+            let mut buf_limit = block_size * blocks_per_cluster * u64::from(cluster_num);
 
             let bytes_left = u64::from(self.file_info.file_size) - read_size - offset;
 
