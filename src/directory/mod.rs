@@ -786,8 +786,7 @@ impl File {
             let mut cluster_num = 1;
             while let Some(cluster_next) = cluster_offset_iterator.peek() {
                 if cluster_next.0 == cluster.0 + cluster_num &&
-                    block_size * blocks_per_cluster * u64::from(cluster_num) < buf.len() as u64 &&
-                    cluster_num < 32
+                    block_size * blocks_per_cluster * u64::from(cluster_num) < buf.len() as u64
                 {
                     let _ = cluster_offset_iterator.next();
                     cluster_num += 1;
