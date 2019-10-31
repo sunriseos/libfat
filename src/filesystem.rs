@@ -376,6 +376,16 @@ impl<S: StorageDevice> FatFileSystem<S> {
         Ok(())
     }
 
+    /// Get the total availaible space on the filesystem.
+    pub fn get_free_space_size(&self) -> FatFileSystemResult<u64> {
+        Ok(u64::from(table::get_free_cluster_count(self)?) * u64::from(self.boot_record.blocks_per_cluster()) * u64::from(self.boot_record.bytes_per_block()))
+    }
+
+    /// Get the total size of the filesystem.
+    pub fn get_total_space_size(&self) -> FatFileSystemResult<u64> {
+        Ok(u64::from(self.boot_record.cluster_count) * u64::from(self.boot_record.blocks_per_cluster()) * u64::from(self.boot_record.bytes_per_block()))
+    }
+
     /// Allocate a cluster and if specified add it to a cluster chain.
     pub(crate) fn alloc_cluster(
         &self,
