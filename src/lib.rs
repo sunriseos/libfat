@@ -93,7 +93,7 @@ struct FatVolumeBootRecord {
     fat_type: FatFsType,
 
     /// The count of cluster availaible in the filesystem.
-    cluster_count: u32,
+    pub(crate) cluster_count: u32,
 }
 
 #[allow(dead_code)]
